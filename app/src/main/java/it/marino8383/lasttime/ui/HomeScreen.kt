@@ -58,6 +58,7 @@ import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.bellDeadline
 import it.marino8383.lasttime.formatDateTime
+import it.marino8383.lasttime.formatDurationTwoParts
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.timeParts
 import it.marino8383.lasttime.ui.theme.OnErrorContainer
@@ -302,21 +303,27 @@ private fun CounterCard(
                 )
                 counter.bellMinutes?.let { bell ->
                     val muted = !counter.bellEnabled
+                    val snoozeLeft = counter.snoozeUntilMs?.minus(now)?.takeIf { it > 0 && !muted }
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = when {
                             muted -> MaterialTheme.colorScheme.surfaceContainerHigh
-                            over -> MaterialTheme.colorScheme.primary
+                            over && snoozeLeft == null -> MaterialTheme.colorScheme.primary
                             else -> PrimaryContainer
                         },
                         contentColor = when {
                             muted -> MaterialTheme.colorScheme.onSurfaceVariant
-                            over -> MaterialTheme.colorScheme.onPrimary
+                            over && snoozeLeft == null -> MaterialTheme.colorScheme.onPrimary
                             else -> OnPrimaryContainer
                         },
                     ) {
                         Text(
-                            "${if (muted) "🔕" else "🔔"} ${bellLabel(bell)}",
+                            when {
+                                muted -> "🔕 ${bellLabel(bell)}"
+                                // Campanella rimandata: countdown al nuovo avviso
+                                snoozeLeft != null -> "⏰ tra ${formatDurationTwoParts(snoozeLeft)}"
+                                else -> "🔔 ${bellLabel(bell)}"
+                            },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp),
