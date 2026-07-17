@@ -92,6 +92,7 @@ fun HomeScreen(
     }
 
     val context = LocalContext.current
+    var flipMode by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var showOptions by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
@@ -118,21 +119,32 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAdd = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Nuovo contatore")
+            // niente FAB in vista tabellone (v4)
+            if (!flipMode) {
+                FloatingActionButton(
+                    onClick = { showAdd = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Nuovo contatore")
+                }
             }
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Header(
+                flipMode = flipMode,
+                onFlip = { flipMode = !flipMode },
                 onOptions = { showOptions = true },
                 onDiagnostics = { showDiagnostics = true },
             )
-            if (counters.isEmpty()) {
+            if (flipMode) {
+                FlipView(
+                    counters = counters,
+                    now = now,
+                    onBoardDoubleTap = { restartTarget = it },
+                )
+            } else if (counters.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "Nessun contatore.\nTocca + per crearne uno.",
@@ -312,7 +324,12 @@ fun HomeScreen(
 }
 
 @Composable
-private fun Header(onOptions: () -> Unit, onDiagnostics: () -> Unit) {
+private fun Header(
+    flipMode: Boolean,
+    onFlip: () -> Unit,
+    onOptions: () -> Unit,
+    onDiagnostics: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().padding(20.dp, 20.dp, 20.dp, 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -327,6 +344,9 @@ private fun Header(onOptions: () -> Unit, onDiagnostics: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
+        IconButton(onClick = onFlip) {
+            Text(if (flipMode) "🗂" else "🚉", fontSize = 17.sp)
+        }
         IconButton(onClick = onDiagnostics) {
             Text("🩺", fontSize = 17.sp)
         }
