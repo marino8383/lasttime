@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
+import it.marino8383.lasttime.notif.AlarmScheduler
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -30,6 +31,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     createdMs = System.currentTimeMillis(),
                 )
             )
+            AlarmScheduler.scheduleNext(getApplication())
         }
     }
 
@@ -37,11 +39,15 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val clamped = counter.copy(startMs = counter.startMs.coerceAtMost(System.currentTimeMillis()))
             db.counterDao().update(clamped)
+            AlarmScheduler.scheduleNext(getApplication())
         }
     }
 
     fun deleteCounter(counter: Counter) {
-        viewModelScope.launch { db.counterDao().delete(counter) } // i round seguono in cascata
+        viewModelScope.launch {
+            db.counterDao().delete(counter) // i round seguono in cascata
+            AlarmScheduler.scheduleNext(getApplication())
+        }
     }
 
     /** Chiude il round corrente (loggandolo) e riparte da adesso. */
@@ -50,6 +56,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             val now = System.currentTimeMillis()
             db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
             db.counterDao().update(counter.copy(startMs = now, bellNotified = false))
+            AlarmScheduler.scheduleNext(getApplication())
         }
     }
 

@@ -19,4 +19,5 @@ L'APK di debug viene compilato da GitHub Actions a ogni push su `main` (workflow
 
 - ✅ Milestone 1 — home con card contatori (crea/modifica/elimina/riparti con log round su Room), cambio vista toccando le cifre, campanella con evidenza sforato (v0.1)
 - ✅ Milestone 2 — storico per contatore: round in corso e conclusi, riepilogo (eventi, più lungo, media), "Quante volte" per finestra temporale, ritmo medio, durate a due componenti (v0.2)
-- Prossime: notifiche AlarmManager, vista tabellone Solari, swipe elimina/archivia, riparti avanzato con reset programmato e giri persi, sezione segreta con PIN, archivio
+- ✅ Milestone 3 — notifiche reali: AlarmManager esatto (una sveglia sulla prossima campanella in scadenza, ripianificata a ogni evento), receiver per riavvio/cambio ora/fuso, canale notifiche normale + canale anonimo `VISIBILITY_SECRET` per i futuri timer lucchettati, richiesta permessi notifiche e sveglie esatte (v0.3)
+- Prossime: vista tabellone Solari, swipe elimina/archivia, riparti avanzato con reset programmato e giri persi, sezione segreta con PIN, archivio

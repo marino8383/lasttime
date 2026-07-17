@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -56,6 +57,7 @@ import it.marino8383.lasttime.ViewMode
 import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.formatDateTime
+import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.timeParts
 import it.marino8383.lasttime.ui.theme.OnErrorContainer
 import it.marino8383.lasttime.ui.theme.OnPrimaryContainer
@@ -190,12 +192,14 @@ fun HomeScreen(vm: CountersViewModel) {
         )
     }
 
+    val context = LocalContext.current
     bellTarget?.let { counter ->
         BellDialog(
             counter = counter,
             onDismiss = { bellTarget = null },
             onSave = { minutes ->
                 vm.updateCounter(counter.copy(bellMinutes = minutes, bellNotified = false))
+                if (minutes != null) AlarmScheduler.ensureExactAlarmPermission(context)
                 bellTarget = null
             },
         )

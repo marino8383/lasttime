@@ -60,6 +60,13 @@ interface CounterDao {
     @Query("SELECT * FROM counters WHERE archived = 1 ORDER BY createdMs")
     fun archivedCounters(): Flow<List<Counter>>
 
+    /** Prossima scadenza campanella tra i contatori attivi non ancora notificati. */
+    @Query("SELECT MIN(startMs + bellMinutes * 60000) FROM counters WHERE archived = 0 AND bellMinutes IS NOT NULL AND bellNotified = 0")
+    suspend fun nextBellDeadline(): Long?
+
+    @Query("SELECT * FROM counters WHERE archived = 0 AND bellMinutes IS NOT NULL AND bellNotified = 0 AND (startMs + bellMinutes * 60000) <= :now")
+    suspend fun dueBellCounters(now: Long): List<Counter>
+
     @Insert
     suspend fun insert(counter: Counter): Long
 
