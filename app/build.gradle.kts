@@ -13,8 +13,10 @@ android {
         applicationId = "it.marino8383.lasttime"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "0.5.3"
+        versionCode = 13
+        versionName = "0.5.4"
+
+        buildConfigField("String", "BUILD_TIME", "\"${buildTimestamp()}\"")
     }
 
     // Chiave debug fissa committata nel repo: senza, ogni build CI firmerebbe con una
@@ -50,7 +52,14 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
+}
+
+fun buildTimestamp(): String {
+    val fmt = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm")
+    fmt.timeZone = java.util.TimeZone.getTimeZone("Europe/Rome")
+    return fmt.format(java.util.Date())
 }
 
 dependencies {
