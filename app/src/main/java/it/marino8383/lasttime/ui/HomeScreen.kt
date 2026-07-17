@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -43,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
@@ -96,6 +99,7 @@ fun HomeScreen(
     var editTarget by remember { mutableStateOf<Counter?>(null) }
     var deleteTarget by remember { mutableStateOf<Counter?>(null) }
     var restartTarget by remember { mutableStateOf<Counter?>(null) }
+    var advancedTarget by remember { mutableStateOf<Counter?>(null) }
     var lateBellTarget by remember { mutableStateOf<Counter?>(null) }
     var bellTarget by remember { mutableStateOf<Counter?>(null) }
 
@@ -144,6 +148,7 @@ fun HomeScreen(
                             onCycleView = { vm.cycleViewMode(counter) },
                             onHistory = { historyTarget = counter },
                             onRestart = { restartTarget = counter },
+                            onAdvancedRestart = { advancedTarget = counter },
                             onEdit = { editTarget = counter },
                             onBell = { bellTarget = counter },
                             onDelete = { deleteTarget = counter },
@@ -236,6 +241,24 @@ fun HomeScreen(
         )
     }
 
+    advancedTarget?.let { target ->
+        val counter = counters.firstOrNull { it.id == target.id } ?: target
+        AdvancedRestartSheet(
+            counter = counter,
+            onDismiss = { advancedTarget = null },
+            onRestartAt = { at ->
+                vm.restartAt(counter, at)
+                advancedTarget = null
+            },
+            onSchedule = { at ->
+                vm.scheduleReset(counter, at)
+                advancedTarget = null
+            },
+            onCancelSchedule = { vm.cancelScheduledReset(counter) },
+            onAddMissed = { at -> vm.addMissedEvent(counter, at) },
+        )
+    }
+
     lateBellTarget?.let { counter ->
         LateBellDialog(
             counter = counter,
@@ -320,6 +343,7 @@ private fun CounterCard(
     onCycleView: () -> Unit,
     onHistory: () -> Unit,
     onRestart: () -> Unit,
+    onAdvancedRestart: () -> Unit,
     onEdit: () -> Unit,
     onBell: () -> Unit,
     onDelete: () -> Unit,
@@ -433,6 +457,15 @@ private fun CounterCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
+            counter.scheduledResetMs?.takeIf { it > now }?.let {
+                Text(
+                    "⏲ reset programmato ${formatRingTime(it)}",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -455,7 +488,19 @@ private fun CounterCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onRestart) {
+                // ↺: tap = riparti con conferma, doppio tap = riparti avanzato (v25)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .pointerInput(counter.id) {
+                            detectTapGestures(
+                                onTap = { onRestart() },
+                                onDoubleTap = { onAdvancedRestart() },
+                            )
+                        },
+                ) {
                     Icon(
                         Icons.Filled.Refresh, contentDescription = "Riparti",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,

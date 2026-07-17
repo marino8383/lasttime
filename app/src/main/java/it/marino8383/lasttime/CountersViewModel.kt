@@ -65,6 +65,46 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Riparti avanzato (v25), istante nel passato: il round chiuso finisce a [atMs]
+     * e il nuovo round parte da lì. Vincolato all'inizio del round attuale.
+     */
+    fun restartAt(counter: Counter, atMs: Long) {
+        viewModelScope.launch {
+            val at = atMs.coerceAtMost(System.currentTimeMillis())
+            if (at < counter.startMs) return@launch // la UI valida già; qui è solo difesa
+            db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = at))
+            db.counterDao().update(counter.restarted(at, AppSettings.latePercent(getApplication())))
+            Notifications.cancel(getApplication(), counter.id)
+            AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    /** Reset programmato nel futuro: il timer continua e si resetta da solo a [atMs]. L'ultimo comando vince. */
+    fun scheduleReset(counter: Counter, atMs: Long) {
+        viewModelScope.launch {
+            db.counterDao().update(counter.copy(scheduledResetMs = atMs))
+            AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    fun cancelScheduledReset(counter: Counter) {
+        viewModelScope.launch {
+            db.counterDao().update(counter.copy(scheduledResetMs = null))
+            AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    /** Giro perso "solo conteggio" (v27): evento con data approssimativa, senza durata. */
+    fun addMissedEvent(counter: Counter, atMs: Long) {
+        viewModelScope.launch {
+            val at = atMs.coerceAtMost(System.currentTimeMillis())
+            db.roundDao().insert(
+                Round(counterId = counter.id, startMs = at, endMs = at, noTime = true)
+            )
+        }
+    }
+
     /** Scelta dell'utente quando fa Fatto/↺ con una ricorrente scaduta da molto. */
     enum class LateBellChoice { KEEP_RHYTHM, FROM_NOW, DISABLE }
 
@@ -74,7 +114,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             val now = System.currentTimeMillis()
             val step = (counter.bellMinutes ?: 0) * 60_000
             db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
-            val base = counter.copy(startMs = now, bellNotified = false, snoozeUntilMs = null)
+            val base = counter.copy(startMs = now, bellNotified = false, snoozeUntilMs = null, scheduledResetMs = null)
             val updated = when (choice) {
                 LateBellChoice.KEEP_RHYTHM ->
                     base.copy(nextBellAtMs = advanceToFuture(counter.nextBellAtMs ?: now, step, now))

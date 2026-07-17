@@ -126,4 +126,32 @@ object Notifications {
     fun cancel(context: Context, counterId: Long) {
         context.getSystemService(NotificationManager::class.java).cancel(counterId.toInt())
     }
+
+    /** Avviso informativo (senza azioni) dell'avvenuto reset programmato (v25/v26). */
+    fun notifyScheduledReset(context: Context, counter: Counter) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val secret = counter.secret
+        val notification = Notification.Builder(context, if (secret) CHANNEL_SECRET else CHANNEL_BELL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(
+                if (secret) "⏲ Reset programmato eseguito: un timer lucchettato"
+                else "⏲ Reset programmato eseguito: ${counter.name}"
+            )
+            .setContentText("Il timer è ripartito.")
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    context, 0,
+                    Intent(context, MainActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            )
+            .setAutoCancel(true)
+            .build()
+
+        context.getSystemService(NotificationManager::class.java)
+            .notify(1_000_000 + counter.id.toInt(), notification)
+    }
 }

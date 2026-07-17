@@ -95,6 +95,12 @@ interface CounterDao {
     @Query("SELECT * FROM counters WHERE id = :id")
     suspend fun byId(id: Long): Counter?
 
+    @Query("SELECT MIN(scheduledResetMs) FROM counters WHERE archived = 0 AND scheduledResetMs IS NOT NULL")
+    suspend fun nextScheduledReset(): Long?
+
+    @Query("SELECT * FROM counters WHERE archived = 0 AND scheduledResetMs IS NOT NULL AND scheduledResetMs <= :now")
+    suspend fun dueScheduledResets(now: Long): List<Counter>
+
     @Insert
     suspend fun insert(counter: Counter): Long
 
@@ -199,5 +205,6 @@ fun Counter.restarted(now: Long, latePercent: Int): Counter {
         snoozeUntilMs = null,
         nextBellAtMs = nextBell,
         bellEnabled = enabled,
+        scheduledResetMs = null, // l'ultimo comando vince: un restart annulla il reset programmato
     )
 }

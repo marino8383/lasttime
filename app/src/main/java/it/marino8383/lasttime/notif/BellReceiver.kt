@@ -3,7 +3,10 @@ package it.marino8383.lasttime.notif
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.LastTimeApp
+import it.marino8383.lasttime.data.Round
+import it.marino8383.lasttime.data.restarted
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -18,6 +21,18 @@ class BellReceiver : BroadcastReceiver() {
                 val app = context.applicationContext as LastTimeApp
                 val dao = app.db.counterDao()
                 val now = System.currentTimeMillis()
+
+                // Reset programmati in scadenza: round chiuso all'istante programmato,
+                // timer ripartito da lì, campanella riarmata secondo le sue regole
+                dao.dueScheduledResets(now).forEach { counter ->
+                    val at = counter.scheduledResetMs ?: return@forEach
+                    app.db.roundDao().insert(
+                        Round(counterId = counter.id, startMs = counter.startMs, endMs = at)
+                    )
+                    dao.update(counter.restarted(at, AppSettings.latePercent(context)))
+                    Notifications.notifyScheduledReset(context, counter)
+                }
+
                 val due = dao.dueBellCounters(now)
                 due.forEach { counter ->
                     Notifications.notifyBell(context, counter)
