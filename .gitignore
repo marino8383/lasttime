@@ -13,9 +13,11 @@ captures/
 *.dex
 output-metadata.json
 
-# Keystore (mai committare le chiavi di firma)
+# Keystore (mai committare le chiavi di firma di release vere)
 *.jks
 *.keystore
+# eccezione: chiave debug condivisa, serve alla CI per firme coerenti tra build
+!app/debug.keystore
 
 # Sistema
 .DS_Store

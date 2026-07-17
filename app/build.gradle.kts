@@ -17,8 +17,23 @@ android {
         versionName = "0.2.0"
     }
 
+    // Chiave debug fissa committata nel repo: senza, ogni build CI firmerebbe con una
+    // chiave diversa e Android rifiuterebbe l'aggiornamento sopra la versione installata.
+    signingConfigs {
+        create("shared") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "lasttimedebug"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
+            signingConfig = signingConfigs.getByName("shared")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
