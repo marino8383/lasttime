@@ -77,6 +77,7 @@ fun HomeScreen(vm: CountersViewModel) {
     }
 
     var showAdd by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
     var historyTarget by remember { mutableStateOf<Counter?>(null) }
     var editTarget by remember { mutableStateOf<Counter?>(null) }
     var deleteTarget by remember { mutableStateOf<Counter?>(null) }
@@ -96,7 +97,7 @@ fun HomeScreen(vm: CountersViewModel) {
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Header()
+            Header(onDiagnostics = { showDiagnostics = true })
             if (counters.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
@@ -121,6 +122,10 @@ fun HomeScreen(vm: CountersViewModel) {
                 }
             }
         }
+    }
+
+    if (showDiagnostics) {
+        DiagnosticsSheet(onDismiss = { showDiagnostics = false })
     }
 
     historyTarget?.let { target ->
@@ -207,7 +212,7 @@ fun HomeScreen(vm: CountersViewModel) {
 }
 
 @Composable
-private fun Header() {
+private fun Header(onDiagnostics: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(20.dp, 20.dp, 20.dp, 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -220,7 +225,11 @@ private fun Header() {
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
         )
+        IconButton(onClick = onDiagnostics) {
+            Text("🩺", fontSize = 17.sp)
+        }
     }
 }
 
