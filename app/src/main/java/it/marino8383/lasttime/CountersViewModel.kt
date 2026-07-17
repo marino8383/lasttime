@@ -2,6 +2,7 @@ package it.marino8383.lasttime
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import it.marino8383.lasttime.AppSettings
 import androidx.lifecycle.viewModelScope
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
@@ -58,7 +59,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
-            db.counterDao().update(counter.restarted(now))
+            db.counterDao().update(counter.restarted(now, AppSettings.latePercent(getApplication())))
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }

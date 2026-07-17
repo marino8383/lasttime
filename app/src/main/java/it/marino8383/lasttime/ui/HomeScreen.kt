@@ -54,6 +54,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.BuildConfig
 import it.marino8383.lasttime.CountersViewModel
 import it.marino8383.lasttime.ViewMode
@@ -87,7 +88,9 @@ fun HomeScreen(
         }
     }
 
+    val context = LocalContext.current
     var showAdd by remember { mutableStateOf(false) }
+    var showOptions by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
     var historyTarget by remember { mutableStateOf<Counter?>(null) }
     var editTarget by remember { mutableStateOf<Counter?>(null) }
@@ -121,7 +124,10 @@ fun HomeScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Header(onDiagnostics = { showDiagnostics = true })
+            Header(
+                onOptions = { showOptions = true },
+                onDiagnostics = { showDiagnostics = true },
+            )
             if (counters.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
@@ -146,6 +152,10 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showOptions) {
+        OptionsSheet(onDismiss = { showOptions = false })
     }
 
     if (showDiagnostics) {
@@ -210,7 +220,8 @@ fun HomeScreen(
                 TextButton(onClick = {
                     // Ricorrente suonata da molto: prima di ripartire si chiede della campanella
                     val lateness = counter.bellLatenessMs(now)
-                    val threshold = counter.bellMinutes?.let { bellLateThreshold(it * 60_000) }
+                    val threshold = counter.bellMinutes
+                        ?.let { bellLateThreshold(it * 60_000, AppSettings.latePercent(context)) }
                     if (lateness != null && threshold != null && lateness > threshold) {
                         lateBellTarget = counter
                     } else {
@@ -254,7 +265,6 @@ fun HomeScreen(
         )
     }
 
-    val context = LocalContext.current
     bellTarget?.let { counter ->
         BellDialog(
             counter = counter,
@@ -279,7 +289,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun Header(onDiagnostics: () -> Unit) {
+private fun Header(onOptions: () -> Unit, onDiagnostics: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(20.dp, 20.dp, 20.dp, 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -296,6 +306,9 @@ private fun Header(onDiagnostics: () -> Unit) {
         )
         IconButton(onClick = onDiagnostics) {
             Text("🩺", fontSize = 17.sp)
+        }
+        IconButton(onClick = onOptions) {
+            Text("⚙️", fontSize = 17.sp)
         }
     }
 }

@@ -3,6 +3,7 @@ package it.marino8383.lasttime.notif
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.LastTimeApp
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.restarted
@@ -36,7 +37,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                             app.db.roundDao().insert(
                                 Round(counterId = counter.id, startMs = counter.startMs, endMs = now)
                             )
-                            dao.update(counter.restarted(now))
+                            dao.update(counter.restarted(now, AppSettings.latePercent(context)))
                         }
                     }
                     AlarmScheduler.scheduleNext(context)

@@ -145,9 +145,10 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
 
 /**
  * Soglia di "scaduta da poco": entro questo ritardo il Fatto mantiene il ritmo senza
- * chiedere. In percentuale del periodo (3%): 8 h → ~15 min, 1 min → ~2 s.
+ * chiedere. In percentuale del periodo (configurabile in Opzioni; default 3%:
+ * 8 h → ~15 min, 1 min → ~2 s).
  */
-fun bellLateThreshold(stepMs: Long): Long = stepMs * 3 / 100
+fun bellLateThreshold(stepMs: Long, percent: Int): Long = stepMs * percent / 100
 
 fun advanceToFuture(from: Long, stepMs: Long, now: Long): Long {
     var next = from
@@ -156,36 +157,38 @@ fun advanceToFuture(from: Long, stepMs: Long, now: Long): Long {
 }
 
 /**
- * Da quanto è suonata l'ultima scadenza di una ricorrente attiva (null se non
- * applicabile o non ancora suonata). Serve a decidere se il Fatto deve chiedere.
+ * Da quanto è sforata una ricorrente attiva (null se non applicabile o se non è
+ * suonata senza risposta). Conta solo se davvero suonata (bellNotified): una
+ * ciclica a metà ciclo non è "in ritardo". Serve a decidere se il Fatto deve chiedere.
  */
 fun Counter.bellLatenessMs(now: Long): Long? {
     val step = bellMinutes?.times(60_000) ?: return null
-    if (!bellRepeat || !bellEnabled || nextBellAtMs == null) return null
+    if (!bellRepeat || !bellEnabled || !bellNotified || nextBellAtMs == null) return null
     return (now - (nextBellAtMs - step)).takeIf { it >= 0 }
 }
 
 /**
  * Restart del contatore ("Fatto" o ↺): round chiuso altrove, qui il nuovo stato.
- * Ricorrente: scaduta da poco → mantiene il ritmo comunque; altrimenti segue il
- * bellMode (INTERVAL: X da adesso; FIXED: il ritmo non cambia). Singola non ancora
- * suonata: segue il nuovo round. Singola già suonata: si spegne ("e bona").
+ * Ricorrente: la campanella si resetta e riparte — sforata da poco → mantiene il
+ * ritmo; altrimenti segue il bellMode (INTERVAL: X da adesso; FIXED: il ritmo non
+ * cambia). Singola: il reset la disattiva sempre.
  */
-fun Counter.restarted(now: Long): Counter {
+fun Counter.restarted(now: Long, latePercent: Int): Counter {
     val step = bellMinutes?.times(60_000)
     var nextBell = nextBellAtMs
     var enabled = bellEnabled
     if (step != null && bellEnabled) {
         if (bellRepeat) {
             val lateness = bellLatenessMs(now)
-            val slightlyLate = lateness != null && lateness <= bellLateThreshold(step)
+            val slightlyLate = lateness != null && lateness <= bellLateThreshold(step, latePercent)
             nextBell = if (nextBellAtMs != null && (bellMode == "FIXED" || slightlyLate)) {
                 advanceToFuture(nextBellAtMs, step, now)
             } else {
                 now + step
             }
         } else {
-            if (nextBellAtMs == null) enabled = false else nextBell = now + step
+            enabled = false
+            nextBell = null
         }
     }
     return copy(
