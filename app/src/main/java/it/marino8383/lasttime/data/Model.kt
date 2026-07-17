@@ -143,11 +143,30 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/** Soglia di "scaduta da poco": entro questo ritardo il Fatto mantiene il ritmo senza chiedere. */
+fun bellLateThreshold(stepMs: Long): Long = minOf(5 * 60_000L, stepMs / 2)
+
+fun advanceToFuture(from: Long, stepMs: Long, now: Long): Long {
+    var next = from
+    while (next <= now) next += stepMs
+    return next
+}
+
+/**
+ * Da quanto è suonata l'ultima scadenza di una ricorrente attiva (null se non
+ * applicabile o non ancora suonata). Serve a decidere se il Fatto deve chiedere.
+ */
+fun Counter.bellLatenessMs(now: Long): Long? {
+    val step = bellMinutes?.times(60_000) ?: return null
+    if (!bellRepeat || !bellEnabled || nextBellAtMs == null) return null
+    return (now - (nextBellAtMs - step)).takeIf { it >= 0 }
+}
+
 /**
  * Restart del contatore ("Fatto" o ↺): round chiuso altrove, qui il nuovo stato.
- * Ricorrente INTERVAL: prossimo squillo tra X da adesso. Ricorrente FIXED: il ritmo
- * non cambia (lo squillo già programmato resta). Singola non ancora suonata: segue
- * il nuovo round (X da adesso). Singola già suonata: si spegne ("e bona").
+ * Ricorrente: scaduta da poco → mantiene il ritmo comunque; altrimenti segue il
+ * bellMode (INTERVAL: X da adesso; FIXED: il ritmo non cambia). Singola non ancora
+ * suonata: segue il nuovo round. Singola già suonata: si spegne ("e bona").
  */
 fun Counter.restarted(now: Long): Counter {
     val step = bellMinutes?.times(60_000)
@@ -155,10 +174,10 @@ fun Counter.restarted(now: Long): Counter {
     var enabled = bellEnabled
     if (step != null && bellEnabled) {
         if (bellRepeat) {
-            nextBell = if (bellMode == "FIXED" && nextBellAtMs != null) {
-                var next = nextBellAtMs
-                while (next <= now) next += step
-                next
+            val lateness = bellLatenessMs(now)
+            val slightlyLate = lateness != null && lateness <= bellLateThreshold(step)
+            nextBell = if (nextBellAtMs != null && (bellMode == "FIXED" || slightlyLate)) {
+                advanceToFuture(nextBellAtMs, step, now)
             } else {
                 now + step
             }

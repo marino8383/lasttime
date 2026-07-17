@@ -56,6 +56,8 @@ import it.marino8383.lasttime.CountersViewModel
 import it.marino8383.lasttime.ViewMode
 import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.bellLateThreshold
+import it.marino8383.lasttime.data.bellLatenessMs
 import it.marino8383.lasttime.formatDateTime
 import it.marino8383.lasttime.formatDurationTwoParts
 import it.marino8383.lasttime.formatRingTime
@@ -88,6 +90,7 @@ fun HomeScreen(
     var editTarget by remember { mutableStateOf<Counter?>(null) }
     var deleteTarget by remember { mutableStateOf<Counter?>(null) }
     var restartTarget by remember { mutableStateOf<Counter?>(null) }
+    var lateBellTarget by remember { mutableStateOf<Counter?>(null) }
     var bellTarget by remember { mutableStateOf<Counter?>(null) }
 
     Scaffold(
@@ -190,12 +193,31 @@ fun HomeScreen(
             text = { Text("Vuoi far ripartire il timer “${counter.name}”? Il round corrente verrà salvato nello storico.") },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.restart(counter)
+                    // Ricorrente suonata da molto: prima di ripartire si chiede della campanella
+                    val lateness = counter.bellLatenessMs(now)
+                    val threshold = counter.bellMinutes?.let { bellLateThreshold(it * 60_000) }
+                    if (lateness != null && threshold != null && lateness > threshold) {
+                        lateBellTarget = counter
+                    } else {
+                        vm.restart(counter)
+                    }
                     restartTarget = null
                 }) { Text("Sì") }
             },
             dismissButton = {
                 TextButton(onClick = { restartTarget = null }) { Text("No") }
+            },
+        )
+    }
+
+    lateBellTarget?.let { counter ->
+        LateBellDialog(
+            counter = counter,
+            now = now,
+            onDismiss = { lateBellTarget = null },
+            onChoose = { choice ->
+                vm.restartWithBellChoice(counter, choice)
+                lateBellTarget = null
             },
         )
     }

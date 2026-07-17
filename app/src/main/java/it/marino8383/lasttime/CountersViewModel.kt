@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
+import it.marino8383.lasttime.data.advanceToFuture
 import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
@@ -58,6 +59,30 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             val now = System.currentTimeMillis()
             db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
             db.counterDao().update(counter.restarted(now))
+            Notifications.cancel(getApplication(), counter.id)
+            AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    /** Scelta dell'utente quando fa Fatto/↺ con una ricorrente scaduta da molto. */
+    enum class LateBellChoice { KEEP_RHYTHM, FROM_NOW, DISABLE }
+
+    /** Come [restart], ma con la decisione esplicita sulla campanella in ritardo. */
+    fun restartWithBellChoice(counter: Counter, choice: LateBellChoice) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val step = (counter.bellMinutes ?: 0) * 60_000
+            db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
+            val base = counter.copy(startMs = now, bellNotified = false, snoozeUntilMs = null)
+            val updated = when (choice) {
+                LateBellChoice.KEEP_RHYTHM ->
+                    base.copy(nextBellAtMs = advanceToFuture(counter.nextBellAtMs ?: now, step, now))
+                LateBellChoice.FROM_NOW ->
+                    base.copy(nextBellAtMs = now + step)
+                LateBellChoice.DISABLE ->
+                    base.copy(bellEnabled = false)
+            }
+            db.counterDao().update(updated)
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }
