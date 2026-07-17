@@ -75,6 +75,7 @@ fun HomeScreen(vm: CountersViewModel) {
     }
 
     var showAdd by remember { mutableStateOf(false) }
+    var historyTarget by remember { mutableStateOf<Counter?>(null) }
     var editTarget by remember { mutableStateOf<Counter?>(null) }
     var deleteTarget by remember { mutableStateOf<Counter?>(null) }
     var restartTarget by remember { mutableStateOf<Counter?>(null) }
@@ -108,6 +109,7 @@ fun HomeScreen(vm: CountersViewModel) {
                             counter = counter,
                             now = now,
                             onCycleView = { vm.cycleViewMode(counter) },
+                            onHistory = { historyTarget = counter },
                             onRestart = { restartTarget = counter },
                             onEdit = { editTarget = counter },
                             onBell = { bellTarget = counter },
@@ -117,6 +119,19 @@ fun HomeScreen(vm: CountersViewModel) {
                 }
             }
         }
+    }
+
+    historyTarget?.let { target ->
+        // Prende la versione aggiornata del contatore (es. dopo un restart a sheet aperto)
+        val counter = counters.firstOrNull { it.id == target.id } ?: target
+        val roundsFlow = remember(target.id) { vm.roundsFor(target.id) }
+        val rounds by roundsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+        HistorySheet(
+            counter = counter,
+            now = now,
+            rounds = rounds,
+            onDismiss = { historyTarget = null },
+        )
     }
 
     if (showAdd) {
@@ -210,6 +225,7 @@ private fun CounterCard(
     counter: Counter,
     now: Long,
     onCycleView: () -> Unit,
+    onHistory: () -> Unit,
     onRestart: () -> Unit,
     onEdit: () -> Unit,
     onBell: () -> Unit,
@@ -296,6 +312,9 @@ private fun CounterCard(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
+                IconButton(onClick = onHistory) {
+                    Text("🕘", fontSize = 16.sp)
+                }
                 IconButton(onClick = onBell) {
                     Icon(
                         Icons.Filled.Notifications, contentDescription = "Campanella",

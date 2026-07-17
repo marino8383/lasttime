@@ -64,9 +64,41 @@ fun timeParts(elapsedMs: Long, mode: ViewMode): List<Pair<String, String>> {
 }
 
 private val dateTimeFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", Locale.ITALIAN)
+private val shortDateTimeFmt = DateTimeFormatter.ofPattern("dd/MM HH:mm", Locale.ITALIAN)
 
 fun formatDateTime(epochMs: Long): String =
     dateTimeFmt.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
+
+fun formatShortDateTime(epochMs: Long): String =
+    shortDateTimeFmt.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
+
+private data class DurUnit(val sec: Long, val one: String, val many: String)
+
+private val durUnits = listOf(
+    DurUnit(SEC_PER_YEAR, "anno", "anni"),
+    DurUnit(2_592_000, "mese", "mesi"), // 30 giorni
+    DurUnit(SEC_PER_DAY, "giorno", "giorni"),
+    DurUnit(SEC_PER_HOUR, "h", "h"),
+    DurUnit(SEC_PER_MINUTE, "min", "min"),
+    DurUnit(1, "s", "s"),
+)
+
+/**
+ * Durata a due componenti (v18): unità dominante + successiva, omessa se zero.
+ * Es. "1 h e 5 min", "6 giorni e 4 h", "1 anno e 4 mesi", "45 s".
+ */
+fun formatDurationTwoParts(durationMs: Long): String {
+    val s = (durationMs / 1000).coerceAtLeast(0)
+    val idx = durUnits.indexOfFirst { s >= it.sec }
+    if (idx == -1) return "0 s"
+    val unit = durUnits[idx]
+    val value = s / unit.sec
+    val first = "$value ${if (value == 1L) unit.one else unit.many}"
+    if (idx == durUnits.lastIndex) return first
+    val next = durUnits[idx + 1]
+    val rem = (s % unit.sec) / next.sec
+    return if (rem > 0) "$first e $rem ${if (rem == 1L) next.one else next.many}" else first
+}
 
 /** Descrizione della campanella, es. "🔔 3 g" / "🔔 45 min". */
 fun bellLabel(bellMinutes: Long): String = when {

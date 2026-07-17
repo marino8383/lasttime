@@ -16,6 +16,8 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     val counters = db.counterDao().activeCounters()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    fun roundsFor(counterId: Long) = db.roundDao().roundsFor(counterId)
+
     fun addCounter(name: String, startMs: Long, bellMinutes: Long?) {
         viewModelScope.launch {
             // Data nel futuro -> clamp ad adesso (v16)
