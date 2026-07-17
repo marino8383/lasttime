@@ -296,7 +296,9 @@ private fun CounterCard(
     onBell: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val elapsed = now - counter.startMs
+    // Allineato al secondo del timer: anche il countdown campanella deriva da qui,
+    // così i due conteggi scattano nello stesso istante (se scala uno scala l'altro)
+    val elapsed = (now - counter.startMs).coerceAtLeast(0) / 1000 * 1000
     val snoozePending = counter.snoozeUntilMs?.takeIf { it > now }
     // Sforata: campanella attiva, nessun rinvio in corso, e lo squillo è passato
     // (o consumato: singola già suonata resta evidenziata finché non fai Fatto/Scarta)
@@ -329,7 +331,8 @@ private fun CounterCard(
                 )
                 counter.bellMinutes?.let { bell ->
                     val muted = !counter.bellEnabled
-                    val snoozeLeft = if (muted) null else snoozePending?.minus(now)
+                    val snoozeLeft = if (muted) null
+                    else snoozePending?.let { (it - counter.startMs - elapsed).coerceAtLeast(0) }
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = when {
@@ -391,15 +394,23 @@ private fun CounterCard(
                 else -> null
             }
             Text(
-                buildString {
-                    append("dal ${formatDateTime(counter.startMs)}")
-                    nextRing?.let { append("  ·  🔔 ${formatRingTime(it)}") }
-                },
+                "dal ${formatDateTime(counter.startMs)}",
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
+            nextRing?.let { ring ->
+                // countdown sulla stessa griglia dei secondi del timer
+                val remaining = (ring - counter.startMs - elapsed).coerceAtLeast(0)
+                Text(
+                    "🔔 ${formatRingTime(ring)}  ·  mancano ${formatDurationTwoParts(remaining)}",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
