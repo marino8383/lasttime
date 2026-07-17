@@ -143,8 +143,11 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
-/** Soglia di "scaduta da poco": entro questo ritardo il Fatto mantiene il ritmo senza chiedere. */
-fun bellLateThreshold(stepMs: Long): Long = minOf(5 * 60_000L, stepMs / 2)
+/**
+ * Soglia di "scaduta da poco": entro questo ritardo il Fatto mantiene il ritmo senza
+ * chiedere. In percentuale del periodo (3%): 8 h → ~15 min, 1 min → ~2 s.
+ */
+fun bellLateThreshold(stepMs: Long): Long = stepMs * 3 / 100
 
 fun advanceToFuture(from: Long, stepMs: Long, now: Long): Long {
     var next = from

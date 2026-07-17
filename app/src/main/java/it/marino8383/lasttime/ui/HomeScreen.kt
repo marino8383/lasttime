@@ -325,7 +325,8 @@ private fun CounterCard(
         counter.nextBellAtMs?.let { it > now } == true -> counter.nextBellAtMs
         else -> null
     }
-    var showCountdown by remember(counter.id) { mutableStateOf(false) }
+    // 0 = valore impostato, 1 = countdown, 2 = orario di squillo (tap sul chip per ciclare)
+    var chipMode by remember(counter.id) { mutableStateOf(0) }
 
     Card(
         shape = RoundedCornerShape(26.dp),
@@ -367,13 +368,14 @@ private fun CounterCard(
                             over -> MaterialTheme.colorScheme.onPrimary
                             else -> OnPrimaryContainer
                         },
-                        // Tap sul chip: valore impostato <-> countdown al prossimo squillo
-                        modifier = Modifier.clickable { showCountdown = !showCountdown },
+                        // Tap sul chip: valore impostato -> countdown -> orario di squillo
+                        modifier = Modifier.clickable { chipMode = (chipMode + 1) % 3 },
                     ) {
                         Text(
                             when {
                                 muted -> "🔕 $label"
-                                showCountdown && remaining != null -> "⏰ ${formatDurationTwoParts(remaining)}"
+                                chipMode == 1 && remaining != null -> "⏰ ${formatDurationTwoParts(remaining)}"
+                                chipMode == 2 && nextRing != null -> "🕐 ${formatRingTime(nextRing)}"
                                 else -> "🔔 $label"
                             },
                             fontSize = 12.sp,
@@ -409,10 +411,7 @@ private fun CounterCard(
                     .clickable { onCycleView() },
             )
             Text(
-                buildString {
-                    append("dal ${formatDateTime(counter.startMs)}")
-                    nextRing?.let { append("  ·  🔔 ${formatRingTime(it)}") }
-                },
+                "dal ${formatDateTime(counter.startMs)}",
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
