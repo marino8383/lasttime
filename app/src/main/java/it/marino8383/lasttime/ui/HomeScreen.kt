@@ -300,10 +300,17 @@ private fun CounterCard(
     // così i due conteggi scattano nello stesso istante (se scala uno scala l'altro)
     val elapsed = (now - counter.startMs).coerceAtLeast(0) / 1000 * 1000
     val snoozePending = counter.snoozeUntilMs?.takeIf { it > now }
-    // Sforata: campanella attiva, nessun rinvio in corso, e lo squillo è passato
-    // (o consumato: singola già suonata resta evidenziata finché non fai Fatto/Scarta)
-    val over = counter.bellEnabled && counter.bellMinutes != null && snoozePending == null &&
-        (counter.nextBellAtMs == null || counter.nextBellAtMs <= now)
+    // Sforato come da mockup: la campanella è suonata e non hai ancora fatto nulla
+    // (Fatto la azzera, Rimanda apre un rinvio, Scarta la spegne)
+    val over = counter.bellEnabled && counter.bellNotified && snoozePending == null
+    // Prossimo squillo effettivo: rinvio pendente, oppure squillo programmato futuro
+    val nextRing = when {
+        counter.bellMinutes == null || !counter.bellEnabled -> null
+        snoozePending != null -> snoozePending
+        counter.nextBellAtMs?.let { it > now } == true -> counter.nextBellAtMs
+        else -> null
+    }
+    var showCountdown by remember(counter.id) { mutableStateOf(false) }
 
     Card(
         shape = RoundedCornerShape(26.dp),
@@ -331,28 +338,28 @@ private fun CounterCard(
                 )
                 counter.bellMinutes?.let { bell ->
                     val muted = !counter.bellEnabled
-                    val snoozeLeft = if (muted) null
-                    else snoozePending?.let { (it - counter.startMs - elapsed).coerceAtLeast(0) }
+                    val remaining = nextRing?.let { (it - counter.startMs - elapsed).coerceAtLeast(0) }
+                    val label = bellLabel(bell) + if (counter.bellRepeat) " ↻" else ""
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = when {
                             muted -> MaterialTheme.colorScheme.surfaceContainerHigh
-                            over && snoozeLeft == null -> MaterialTheme.colorScheme.primary
+                            over -> MaterialTheme.colorScheme.primary
                             else -> PrimaryContainer
                         },
                         contentColor = when {
                             muted -> MaterialTheme.colorScheme.onSurfaceVariant
-                            over && snoozeLeft == null -> MaterialTheme.colorScheme.onPrimary
+                            over -> MaterialTheme.colorScheme.onPrimary
                             else -> OnPrimaryContainer
                         },
+                        // Tap sul chip: valore impostato <-> countdown al prossimo squillo
+                        modifier = Modifier.clickable { showCountdown = !showCountdown },
                     ) {
                         Text(
                             when {
-                                muted -> "🔕 ${bellLabel(bell)}"
-                                // Campanella rimandata: countdown al nuovo avviso
-                                snoozeLeft != null -> "⏰ tra ${formatDurationTwoParts(snoozeLeft)}"
-                                counter.bellRepeat -> "🔔 ${bellLabel(bell)} ↻"
-                                else -> "🔔 ${bellLabel(bell)}"
+                                muted -> "🔕 $label"
+                                showCountdown && remaining != null -> "⏰ ${formatDurationTwoParts(remaining)}"
+                                else -> "🔔 $label"
                             },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -386,31 +393,16 @@ private fun CounterCard(
                     // Solo le cifre cambiano vista al tap (v21)
                     .clickable { onCycleView() },
             )
-            // Prossimo squillo effettivo: rinvio pendente, oppure squillo programmato futuro
-            val nextRing = when {
-                counter.bellMinutes == null || !counter.bellEnabled -> null
-                snoozePending != null -> snoozePending
-                counter.nextBellAtMs?.let { it > now } == true -> counter.nextBellAtMs
-                else -> null
-            }
             Text(
-                "dal ${formatDateTime(counter.startMs)}",
+                buildString {
+                    append("dal ${formatDateTime(counter.startMs)}")
+                    nextRing?.let { append("  ·  🔔 ${formatRingTime(it)}") }
+                },
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
-            nextRing?.let { ring ->
-                // countdown sulla stessa griglia dei secondi del timer
-                val remaining = (ring - counter.startMs - elapsed).coerceAtLeast(0)
-                Text(
-                    "🔔 ${formatRingTime(ring)}  ·  mancano ${formatDurationTwoParts(remaining)}",
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
 
             Spacer(Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)

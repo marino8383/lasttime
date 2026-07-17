@@ -15,8 +15,10 @@ import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
 
 object Notifications {
-    const val CHANNEL_BELL = "bell"
-    const val CHANNEL_SECRET = "bell_secret"
+    // _v2: i canali creati in v0.3 erano senza vibrazione/suono espliciti e le
+    // impostazioni di un canale esistente sono immutabili -> canali nuovi
+    const val CHANNEL_BELL = "bell_v2"
+    const val CHANNEL_SECRET = "bell_secret_v2"
 
     const val ACTION_DONE = "it.marino8383.lasttime.action.DONE"
     const val ACTION_DISMISS = "it.marino8383.lasttime.action.DISMISS"
@@ -24,9 +26,19 @@ object Notifications {
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
+        nm.deleteNotificationChannel("bell")
+        nm.deleteNotificationChannel("bell_secret")
+
+        val vibration = longArrayOf(0, 400, 200, 400)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_BELL, "Campanelle", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Avvisi di tempo sforato"
+                enableVibration(true)
+                vibrationPattern = vibration
+                setSound(
+                    android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
+                    Notification.AUDIO_ATTRIBUTES_DEFAULT,
+                )
             }
         )
         // Canale per i timer lucchettati (v26): mai contenuti sul lockscreen, nessun badge
@@ -35,6 +47,12 @@ object Notifications {
                 description = "Avvisi anonimi per i timer nella sezione segreta"
                 lockscreenVisibility = Notification.VISIBILITY_SECRET
                 setShowBadge(false)
+                enableVibration(true)
+                vibrationPattern = vibration
+                setSound(
+                    android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
+                    Notification.AUDIO_ATTRIBUTES_DEFAULT,
+                )
             }
         )
     }
