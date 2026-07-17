@@ -389,6 +389,9 @@ private fun CounterCard(
                                 muted -> "🔕 $label"
                                 chipMode == 1 && remaining != null -> "⏰ ${formatDurationTwoParts(remaining)}"
                                 chipMode == 2 && nextRing != null -> "🕐 ${formatRingTime(nextRing)}"
+                                // rinvio attivo: countdown in evidenza senza dover toccare
+                                snoozePending != null && remaining != null ->
+                                    "⏰ ${formatDurationTwoParts(remaining)}"
                                 else -> "🔔 $label"
                             },
                             fontSize = 12.sp,
