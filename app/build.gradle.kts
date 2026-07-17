@@ -1,3 +1,7 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.TimeZone
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -56,10 +60,12 @@ android {
     }
 }
 
+// import espliciti in testa: nello script "java" da solo verrebbe risolto
+// come estensione del plugin Java, oscurando i package java.*
 fun buildTimestamp(): String {
-    val fmt = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm")
-    fmt.timeZone = java.util.TimeZone.getTimeZone("Europe/Rome")
-    return fmt.format(java.util.Date())
+    val fmt = SimpleDateFormat("dd/MM/yyyy HH:mm")
+    fmt.timeZone = TimeZone.getTimeZone("Europe/Rome")
+    return fmt.format(Date())
 }
 
 dependencies {
