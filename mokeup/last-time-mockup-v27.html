@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Last Time — Mockup v27</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --surface:#14161A;
+  --surface-cont:#1C1F24;
+  --surface-cont-hi:#262B32;
+  --on-surface:#F2F3EF;
+  --on-surface-var:#9AA0A8;
+  --outline:#33383F;
+  --primary:#F5A524;
+  --on-primary:#17191D;
+  --primary-cont:#3A2D12;
+  --on-primary-cont:#FFC966;
+  --error:#E0562F;
+  --error-cont:#2E2410;
+  --on-error-cont:#FFB84D;
+  --inv-surface:#101216;
+  --inv-cont:#181B20;
+  --inv-on:#F2F3EF;
+  --inv-var:#8A9099;
+  --inv-outline:#2E333B;
+  --toon-bg:#FFF6E3;
+  --toon-ink:#33302E;
+  --toon-red:#E8543F;
+  --toon-shadow:#33302E;
+  --r-card:26px;--r-btn:100px;--r-dialog:28px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{color-scheme:dark}
+html,body{height:100%}
+body{background:#111310;font-family:'Manrope',system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px 0}
+.phone{width:392px;max-width:100vw;height:820px;max-height:96vh;background:var(--surface);border-radius:36px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 10px #1e211c;display:flex;flex-direction:column;position:relative;transition:background .3s}
+
+header{padding:20px 20px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.logo{font-weight:800;font-size:20px;color:var(--on-surface);letter-spacing:-.02em;transition:color .3s}
+.logo em{font-style:normal;color:var(--primary)}
+
+.hbtns{display:flex;gap:8px}
+.iconbtn{border:none;background:var(--surface-cont-hi);border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--on-surface);font-size:17px;transition:transform .12s,background .3s}
+.iconbtn:active{transform:scale(.9)}
+
+main{flex:1;overflow-y:auto;padding:4px 16px 120px;scrollbar-width:none}
+main::-webkit-scrollbar{display:none}
+.flipmode main{padding-bottom:30px}
+.flipmode .fab{display:none}
+.section-label{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--on-surface-var);margin:14px 8px 10px;font-weight:700}
+
+/* ---------- card dettagliata ---------- */
+.card{background:var(--surface-cont);border:1px solid #2A2E35;border-radius:var(--r-card);padding:18px 18px 12px;margin-bottom:12px;position:relative;transition:background .2s;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.card.over{background:var(--error-cont);border-color:#5C4A1E}
+.crow1{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cname{font-weight:800;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--on-surface);display:flex;align-items:center;gap:7px}
+.cname .locktag{font-size:13px}
+.chip{font-size:12px;font-weight:700;color:var(--on-primary-cont);background:var(--primary-cont);border-radius:10px;padding:4px 11px;white-space:nowrap}
+.card.over .chip{background:var(--primary);color:var(--on-primary)}
+.ctime{display:inline-block;font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:-.03em;font-size:32px;color:var(--on-surface);margin:12px 0 0;cursor:pointer;user-select:none;line-height:1.1}
+.ctime small{font-size:14px;font-weight:600;color:var(--on-surface-var);letter-spacing:0;margin-right:9px}
+.ctime small:last-child{margin-right:0}
+.card.over .ctime{color:var(--on-error-cont)}
+.csince{font-size:11.5px;color:var(--on-surface-var);font-weight:600;margin-top:2px}
+.crow3{display:flex;align-items:center;justify-content:flex-end;gap:2px;margin-top:8px;border-top:1px solid var(--outline);padding-top:6px}
+.card.over .crow3{border-top-color:#4A3D1C}
+.cact{border:none;background:transparent;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--on-surface-var);transition:background .15s,transform .12s}
+.cact:active{background:var(--surface-cont-hi);transform:scale(.88)}
+.cact.danger{color:var(--error)}
+/* ---------- vista FLIP: tabellone Solari ---------- */
+.flipopts{padding:0 16px 12px;display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.fochips{display:flex;gap:6px;flex-wrap:wrap}
+.fochips button{
+  border:1px solid #3A3F47;background:#1C1F24;color:#9AA0A8;border-radius:100px;
+  padding:7px 13px;font-family:'Manrope';font-size:11.5px;font-weight:700;cursor:pointer;
+}
+.fochips button.on{background:#F5A524;border-color:#F5A524;color:#17191D}
+.board{
+  background:#1C1F24;border:1px solid #2A2E35;border-radius:16px;
+  padding:14px 12px 12px;margin-bottom:12px;
+  box-shadow:0 4px 16px rgba(0,0,0,.35);
+}
+.bhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.bname{
+  font-size:12.5px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#E8E9E6;
+  display:flex;align-items:center;gap:7px;
+}
+.bname .locktag{font-size:11px}
+.btag{
+  font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:#17191D;background:#F5A524;border-radius:5px;padding:3px 9px;
+}
+.btag.ok{background:transparent;color:#7A8089;border:1px solid #3A3F47}
+.bgroups{display:flex;justify-content:center;gap:12px}
+.bgroup{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
+.tiles{display:flex;gap:3px}
+.tile{
+  width:var(--tw,28px);height:calc(var(--tw,28px)*1.7);
+  background:#080909;border-radius:6px;position:relative;
+  box-shadow:inset 0 0 0 1px #33383F, 0 3px 6px rgba(0,0,0,.5);
+}
+.half{position:absolute;left:0;right:0;height:50%;overflow:hidden;background:#101216}
+.half.top,.half.ftop{top:0;border-radius:5px 5px 0 0;border-bottom:1px solid #000}
+.half.bottom,.half.fbot{bottom:0;border-radius:0 0 5px 5px;border-top:1px solid rgba(255,255,255,.07)}
+.half .d{
+  position:absolute;left:0;width:100%;height:200%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Manrope',sans-serif;font-weight:800;
+  font-size:calc(var(--tw,28px)*1.02);color:#F4F5F1;line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+.half.top .d,.half.ftop .d{top:0}
+.half.bottom .d,.half.fbot .d{top:-100%}
+.board.over .half .d{color:#FFB84D}
+/* placche in movimento (trasformazione scritta da JS): leggermente piu' chiare, da "meccanismo" */
+.half.ftop{z-index:3;transform-origin:bottom center;will-change:transform;background:#1D2127}
+.half.fbot{z-index:3;transform-origin:top center;will-change:transform;transform:scaleY(0);background:#1D2127}
+.blab{font-size:9px;font-weight:800;letter-spacing:.24em;text-transform:uppercase;color:#7A8089}
+.beat{
+  display:inline-block;width:10px;height:10px;border-radius:50%;
+  background:#F5A524;margin-left:8px;vertical-align:middle;opacity:.12;
+}
+.beat.on{opacity:1}
+/* ---------- secret ---------- */
+.secret-area{background:var(--inv-surface);border:1px solid #2A2E35;border-radius:24px;padding:14px 12px 8px;margin:0 -2px}
+
+.secret-area .card{background:var(--inv-cont);box-shadow:none}
+.secret-area .cname,.secret-area .ctime{color:var(--inv-on)}
+.secret-area .csince{color:var(--inv-var)}
+.secret-area .crow3{border-top-color:var(--inv-outline)}
+.secret-area .cact{color:var(--inv-var)}
+.secret-area .cact:active{background:#23262C}
+.secret-area .cact.danger{color:#F08A6B}
+.secret-area .card.over{background:var(--error-cont)}
+.secret-area .card.over .ctime{color:var(--on-error-cont)}
+.secret-area .card.over .chip{background:var(--primary);color:var(--on-primary)}
+.secret-area .chip{background:var(--primary-cont);color:var(--on-primary-cont)}
+.secret-area .field input{background:var(--inv-surface);border-color:var(--inv-outline);color:var(--inv-on)}
+.secret-area .field label{color:var(--inv-var)}
+.secret-locked{background:var(--inv-surface);border:1px solid #2A2E35;border-radius:24px;padding:30px 22px;text-align:center;color:var(--inv-on)}
+
+.secret-locked .glyph{font-size:26px}
+.secret-locked p{font-size:13px;color:var(--inv-var);margin:10px 0 18px;font-weight:500}
+/* ---------- buttons ---------- */
+.btn{font-family:'Manrope';font-weight:700;font-size:14px;border-radius:var(--r-btn);padding:13px 22px;cursor:pointer;border:none;transition:transform .12s,opacity .15s}
+.btn:active{transform:scale(.97);opacity:.85}
+.btn-filled{background:var(--primary);color:var(--on-primary)}
+.btn-tonal{background:var(--primary-cont);color:var(--on-primary-cont)}
+.btn-text{background:transparent;color:var(--primary)}
+.btn-text-d{background:transparent;color:var(--inv-var)}
+.btn-danger{background:var(--error);color:#fff}
+.btn-inv{background:var(--primary);color:var(--on-primary)}
+.btn-block{width:100%;margin-top:8px}
+.empty{text-align:center;color:var(--on-surface-var);font-size:13px;padding:44px 24px;font-weight:500}
+.fab{position:absolute;right:20px;bottom:26px;height:58px;border-radius:18px;padding:0 22px 0 18px;background:var(--primary);color:var(--on-primary);font-family:'Manrope';font-weight:800;font-size:15px;border:none;cursor:pointer;display:flex;align-items:center;gap:9px;box-shadow:0 8px 22px rgba(0,0,0,.45);transition:transform .15s;z-index:5}
+.fab:active{transform:scale(.94)}
+.fab b{font-size:22px}
+/* ---------- scrim/sheet/dialog ---------- */
+.scrim{position:absolute;inset:0;background:rgba(20,23,18,.45);z-index:10;display:none;align-items:flex-end}
+.scrim.center{align-items:center;justify-content:center}
+.scrim.show{display:flex}
+.sheet{background:var(--surface);width:100%;border-radius:30px 30px 0 0;padding:14px 22px 28px;max-height:92%;overflow-y:auto;animation:up .22s ease}
+.grab{width:44px;height:5px;border-radius:5px;background:var(--outline);margin:0 auto 16px}
+.sheet{overscroll-behavior:contain}
+.modal{background:var(--surface);width:calc(100% - 44px);border-radius:var(--r-dialog);padding:24px 22px;animation:pop .18s ease}
+.modal.darkm{background:var(--inv-surface);color:var(--inv-on)}
+@keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@keyframes pop{from{transform:scale(.94);opacity:.4}to{transform:none;opacity:1}}
+.sheet h2,.modal h2{font-size:19px;font-weight:800;margin-bottom:4px;letter-spacing:-.01em}
+.sub{font-size:13px;color:var(--on-surface-var);margin-bottom:18px;font-weight:500}
+.modal.darkm .sub{color:var(--inv-var)}
+.field{margin-bottom:15px}
+.field label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--on-surface-var);font-weight:800;margin-bottom:7px}
+.field input[type=text],.field input[type=number],.field input[type=datetime-local],.field select{width:100%;padding:13px 15px;border:1.5px solid var(--outline);border-radius:16px;background:var(--surface-cont);font-family:'Manrope';font-weight:600;font-size:15px;color:var(--on-surface);outline:none}
+.field input:focus,.field select:focus{border-color:var(--primary)}
+.seg{display:flex;border:1.5px solid var(--outline);border-radius:100px;overflow:hidden;background:var(--surface-cont)}
+.seg button{flex:1;padding:11px 4px;border:none;background:transparent;font-family:'Manrope';font-size:13px;font-weight:700;color:var(--on-surface-var);cursor:pointer}
+.seg button.on{background:var(--primary-cont);color:var(--on-primary-cont)}
+.inline{display:flex;gap:8px}
+.inline > *{flex:1}
+.switchrow{display:flex;align-items:center;justify-content:space-between;padding:4px 2px;margin-bottom:15px}
+.switchrow span{font-size:14px;font-weight:700}
+.sw{width:50px;height:29px;border-radius:999px;background:var(--surface-cont-hi);position:relative;cursor:pointer;border:1.5px solid var(--outline);transition:background .15s,border-color .15s}
+.sw::after{content:"";position:absolute;top:4px;left:4px;width:17px;height:17px;border-radius:50%;background:var(--on-surface-var);transition:left .15s,background .15s,width .15s,height .15s,top .15s}
+.sw.on{background:var(--primary);border-color:var(--primary)}
+.sw.on::after{left:24px;top:3px;width:21px;height:21px;background:#fff}
+.hide{display:none!important}
+.quickchips{display:flex;gap:8px;margin-top:10px}
+.quickchips button{border:1.5px solid var(--outline);background:var(--surface-cont);border-radius:100px;padding:8px 14px;font-family:'Manrope';font-size:12px;font-weight:700;color:var(--on-surface);cursor:pointer}
+.quickchips button:active{background:var(--surface-cont-hi)}
+/* pagina archivio */
+.fulldlg{position:absolute;inset:0;background:var(--surface);z-index:20;display:none;flex-direction:column;animation:up .2s ease}
+.fulldlg.show{display:flex}
+.fulldlg .topbar{display:flex;align-items:center;gap:10px;padding:18px 16px 10px;flex-shrink:0}
+.fulldlg .topbar h2{font-size:18px;font-weight:800;flex:1}
+.fulldlg .body{flex:1;overflow-y:auto;padding:14px 16px 30px;scrollbar-width:none}
+.fulldlg .body::-webkit-scrollbar{display:none}
+/* swipe card + archivio */
+.cwrap{position:relative;margin-bottom:12px}
+.cwrap .card{margin-bottom:0;position:relative;z-index:1}
+.cunder{
+  position:absolute;inset:0;border-radius:var(--r-card);
+  display:flex;align-items:center;justify-content:space-between;padding:0 20px;
+  font-weight:800;font-size:13px;opacity:0;transition:opacity .12s;
+}
+.cwrap.dirR .cunder{opacity:1;background:#3A1712;color:#F08A6B}
+.cwrap.dirL .cunder{opacity:1;background:#2E2410;color:#FFC966}
+.cwrap.dirR .cunder .uArch{visibility:hidden}
+.cwrap.dirL .cunder .uDel{visibility:hidden}
+.card.archived{opacity:.88}
+.card.archived .cname{color:var(--on-surface-var)}
+/* storico round */
+.hsum{
+  display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;
+}
+.hsum div{
+  background:var(--surface-cont);border:1px solid var(--outline);border-radius:12px;
+  padding:8px 12px;font-size:11.5px;font-weight:700;color:var(--on-surface-var);
+}
+.hsum b{color:var(--on-surface);font-weight:800}
+.round{
+  background:var(--surface-cont);border:1px solid var(--outline);border-radius:14px;
+  padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.round .rn{font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--on-surface-var);margin-bottom:4px}
+.round .rd{font-family:'Manrope';font-size:11.5px;color:var(--on-surface-var);font-weight:600;line-height:1.5}
+.round .rd b{color:var(--on-surface);font-weight:700}
+.round .rdur{
+  font-size:17px;font-weight:800;color:var(--primary);white-space:nowrap;
+  font-variant-numeric:tabular-nums;text-align:right;
+}
+.round.cur{border-color:#5C4A1E;background:var(--error-cont)}
+.round.cur .rdur{color:var(--on-error-cont)}
+/* statistiche storico */
+.hlabel{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--on-surface-var);font-weight:800;margin:16px 2px 8px}
+.statgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:6px}
+.stat{
+  background:var(--surface-cont);border:1px solid var(--outline);border-radius:12px;
+  padding:10px 4px;text-align:center;
+}
+.stat b{display:block;font-size:19px;font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums}
+.stat span{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-var)}
+.ritmo{
+  background:var(--surface-cont);border:1px solid var(--outline);border-radius:12px;
+  padding:10px 14px;font-size:13px;font-weight:700;color:var(--on-surface-var);margin-bottom:6px;
+}
+.ritmo b{color:var(--primary);font-weight:800}
+/* PIN */
+.pindots{display:flex;gap:13px;justify-content:center;margin:18px 0 22px}
+.pindots i{width:13px;height:13px;border-radius:50%;border:2px solid var(--inv-var);transition:background .1s}
+.pindots i.full{background:var(--primary);border-color:var(--primary)}
+.pinpad{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;max-width:252px;margin:0 auto}
+.pinpad button{height:58px;border-radius:20px;border:none;background:var(--inv-cont);color:var(--inv-on);font-family:'Manrope';font-weight:700;font-size:20px;cursor:pointer;transition:background .1s,transform .1s}
+.pinpad button:active{background:#262B32;transform:scale(.93)}
+.pinpad button.ghosty{background:transparent;font-size:15px;color:var(--inv-var)}
+.pinlink{display:block;text-align:center;margin-top:18px;font-size:12.5px;color:var(--inv-var);text-decoration:underline;cursor:pointer;background:none;border:none;width:100%;font-family:'Manrope';font-weight:600}
+.pinerr{text-align:center;color:var(--on-error-cont);font-size:12.5px;height:16px;margin-top:-14px;margin-bottom:10px;font-weight:600}
+.toast{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);background:var(--inv-surface);border:1px solid #2A2E35;color:var(--inv-on);font-size:13px;font-weight:600;padding:11px 18px;border-radius:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+  <header>
+    <div class="logo">Last <em>Time</em><span class="beat hide" id="beat"></span></div>
+    <div class="hbtns">
+      <button class="iconbtn" id="archBtn" title="Archivio">📦</button>
+      <button class="iconbtn" id="viewBtn" title="Cambia vista">🎞️</button>
+      <button class="iconbtn" id="lockBtn" title="Sezione segreta">🔒</button>
+    </div>
+  </header>
+
+  <div class="flipopts hide" id="flipOpts">
+    <div class="fochips" id="unitChips">
+      <button data-u="split" class="on">Spezzato</button>
+      <button data-u="anni">Anni</button>
+      <button data-u="mesi">Mesi</button>
+      <button data-u="giorni">Giorni</button>
+      <button data-u="minuti">Minuti</button>
+      <button data-u="secondi">Secondi</button>
+    </div>
+    <div class="fochips" id="togChips">
+      <button data-t="showYears" class="on">Mostra anni</button>
+      <button data-t="showSecs" class="on">Mostra secondi</button>
+    </div>
+  </div>
+
+  <main id="main"></main>
+
+  <button class="fab" id="fabAdd"><b>+</b> Nuovo</button>
+  <div class="toast" id="toast"></div>
+
+  <!-- ADD SHEET -->
+  <div class="scrim" id="addScrim">
+    <div class="sheet">
+      <div class="grab"></div>
+      <h2>Nuovo contatore</h2>
+      <div class="sub">Da quanto tempo non…</div>
+      <div class="field"><label>Nome</label><input type="text" id="fName" placeholder="es. Bevuto acqua" maxlength="40"></div>
+      <div class="field">
+        <label>Inizio</label>
+        <div class="seg" id="segStart">
+          <button class="on" data-v="now">Adesso</button>
+          <button data-v="custom">Data e ora</button>
+        </div>
+        <input type="datetime-local" id="fStart" step="1" class="hide" style="margin-top:10px">
+      </div>
+      <div class="field">
+        <label>Visualizzazione (vista dettagliata)</label>
+        <select id="fMode">
+          <option value="full">Completa (anni gg hh mm ss)</option>
+          <option value="years">Solo anni</option>
+          <option value="days">Solo giorni</option>
+          <option value="minutes">Solo minuti</option>
+          <option value="seconds">Solo secondi</option>
+        </select>
+      </div>
+      <div class="switchrow"><span>🔔 Campanella</span><button class="sw" id="swBell"></button></div>
+      <div class="field hide" id="bellFields">
+        <label>Avvisami dopo</label>
+        <div class="inline">
+          <input type="number" id="fBellVal" min="1" value="1">
+          <select id="fBellUnit"><option value="minutes">minuti</option><option value="hours">ore</option><option value="days" selected>giorni</option></select>
+        </div>
+      </div>
+      <div class="switchrow" id="secretRow"><span>🔒 Contatore lucchettato</span><button class="sw" id="swSecret"></button></div>
+      <button class="btn btn-filled btn-block" id="btnCreate">Crea contatore</button>
+      <button class="btn btn-text btn-block" data-close>Annulla</button>
+    </div>
+  </div>
+
+  <!-- EDIT (bottom sheet, pattern A) -->
+  <div class="scrim" id="editSheetScrim">
+    <div class="sheet">
+      <div class="grab"></div>
+      <h2>Modifica contatore</h2>
+      <div class="sub" id="esSub"></div>
+      <div class="field"><label>Nome</label><input type="text" id="esName" maxlength="40"></div>
+      <div class="field">
+        <label>Data e ora di inizio</label>
+        <input type="datetime-local" id="esStart" step="1">
+        <div class="quickchips"><button id="esNow">⏱ Riparti da adesso</button></div>
+      </div>
+      <button class="btn btn-filled btn-block" id="esSave">Salva</button>
+      <button class="btn btn-text btn-block" data-close>Annulla</button>
+    </div>
+  </div>
+
+  <!-- STORICO -->
+  <div class="scrim" id="histScrim">
+    <div class="sheet">
+      <div class="grab"></div>
+      <h2>🕘 Storico round</h2>
+      <div class="sub" id="histSub"></div>
+      <div class="hsum" id="histSum"></div>
+      <div id="histStats"></div>
+      <div class="hlabel" id="histListLabel">Round</div>
+      <div id="histList"></div>
+      <button class="btn btn-text btn-block" data-close>Chiudi</button>
+    </div>
+  </div>
+
+  <!-- PAGINA ARCHIVIO -->
+  <div class="fulldlg" id="archivePage">
+    <div class="topbar">
+      <button class="iconbtn" id="archClose">✕</button>
+      <h2>📦 Archivio</h2>
+      <span style="width:42px"></span>
+    </div>
+    <div class="body" id="archList"></div>
+  </div>
+
+  <!-- CONFERMA ARCHIVIAZIONE -->
+  <div class="scrim center" id="archScrim">
+    <div class="modal">
+      <h2>📦 Archiviare il timer?</h2>
+      <div class="sub" id="archName"></div>
+      <button class="btn btn-filled btn-block" id="btnArchYes">Sì, archivia</button>
+      <button class="btn btn-text btn-block" data-close>No</button>
+    </div>
+  </div>
+
+  <!-- CONFERMA RESTART (doppio tap) -->
+  <div class="scrim center" id="restartScrim">
+    <div class="modal">
+      <h2>↺ Far ripartire il timer?</h2>
+      <div class="sub" id="rsName"></div>
+      <button class="btn btn-filled btn-block" id="btnRestartYes">Sì, riparti da ora</button>
+      <button class="btn btn-text btn-block" data-close>No</button>
+    </div>
+  </div>
+
+  <!-- RIPARTI AVANZATO (doppio tap su ↺) -->
+  <div class="scrim" id="rstScrim">
+    <div class="sheet">
+      <div class="grab"></div>
+      <h2>↺ Riparti</h2>
+      <div class="sub" id="rstSub"></div>
+      <div class="field">
+        <label>Riparti da</label>
+        <div class="quickchips" style="flex-wrap:wrap;margin-top:0">
+          <button data-ago="0">Adesso</button>
+          <button data-ago="600000">10 min fa</button>
+          <button data-ago="1800000">30 min fa</button>
+          <button data-ago="3600000">1 ora fa</button>
+          <button data-ago="86400000">1 giorno fa</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Oppure data e ora precisa</label>
+        <input type="datetime-local" id="rstStart" step="1">
+        <div class="sub" id="rstHint" style="margin:8px 0 0;font-size:11.5px"></div>
+      </div>
+      <button class="btn btn-filled btn-block" id="rstApply">Applica</button>
+      <div class="hlabel" style="margin-top:18px">🔢 Giri persi (solo conteggio)</div>
+      <div class="sub" style="font-size:11.5px;margin-bottom:8px">Se ti sei scordato uno o più reset (es. assunzioni di una pillola), aggiungili qui: contano nelle statistiche ma i tempi sono esclusi da medie, più lungo e ritmo.</div>
+      <div class="field">
+        <input type="datetime-local" id="rstLostAt" step="1">
+      </div>
+      <button class="btn btn-tonal btn-block" id="rstLostAdd" style="margin-top:0">➕ Aggiungi evento al conteggio</button>
+      <div id="rstSchedBox" class="hide">
+        <div class="ritmo" id="rstSchedInfo" style="margin-top:10px"></div>
+        <button class="btn btn-tonal btn-block" id="rstSchedCancel">Annulla programmazione</button>
+      </div>
+      <button class="btn btn-text btn-block" data-close>Chiudi</button>
+    </div>
+  </div>
+
+  <!-- CONFIRM DELETE -->
+  <div class="scrim center" id="delScrim">
+    <div class="modal">
+      <h2>Vuoi eliminare questo timer in modo permanente?</h2>
+      <div class="sub" id="delName"></div>
+      <button class="btn btn-danger btn-block" id="btnDelYes">Sì, elimina</button>
+      <button class="btn btn-text btn-block" data-close>No</button>
+    </div>
+  </div>
+
+  <!-- BELL EDIT -->
+  <div class="scrim center" id="bellScrim">
+    <div class="modal">
+      <h2>🔔 Campanella</h2>
+      <div class="sub" id="bellSub"></div>
+      <div class="field">
+        <label>Avvisami dopo</label>
+        <div class="inline">
+          <input type="number" id="eBellVal" min="1" value="1">
+          <select id="eBellUnit"><option value="minutes">minuti</option><option value="hours">ore</option><option value="days" selected>giorni</option></select>
+        </div>
+      </div>
+      <div class="sub" style="font-size:11px;margin-bottom:10px">🔒 Per i timer lucchettati la notifica è anonima: non mostra nome né contenuto.</div>
+      <button class="btn btn-filled btn-block" id="btnBellSave">Salva</button>
+      <button class="btn btn-tonal btn-block" id="btnBellOff">Rimuovi campanella</button>
+      <button class="btn btn-text btn-block" data-close>Annulla</button>
+    </div>
+  </div>
+
+  <!-- PIN -->
+  <div class="scrim center" id="pinScrim">
+    <div class="modal darkm">
+      <h2 id="pinTitle">Sezione segreta</h2>
+      <div class="sub" id="pinSub">Inserisci il PIN a 5 cifre</div>
+      <div class="pindots" id="pinDots"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="pinerr" id="pinErr"></div>
+      <div class="pinpad" id="pinPad"></div>
+      <button class="pinlink" id="pinForgot">PIN dimenticato?</button>
+      <button class="btn btn-text-d btn-block" data-close style="margin-top:14px">Chiudi</button>
+    </div>
+  </div>
+
+  <!-- DESTROY -->
+  <div class="scrim center" id="destroyScrim">
+    <div class="modal darkm">
+      <h2>⚠️ Distruggere la sezione segreta?</h2>
+      <div class="sub">Senza PIN l'unica opzione è la distruzione. Tutti i contatori lucchettati verranno eliminati per sempre. Non è reversibile.</div>
+      <button class="btn btn-danger btn-block" id="btnDestroyYes">Distruggi tutto</button>
+      <button class="btn btn-text-d btn-block" data-close>Annulla</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+const now = Date.now();
+const M=60e3, H=3600e3, D=86400e3, Y=365.25*D;
+
+let state = {
+  counters: [
+    {id:1, name:"Bevuto acqua", start: now-(3*H+12*M+40e3), mode:"full", bell:{val:2,unit:"hours"}, secret:false,
+     history:[{start:now-(9*H),end:now-(7*H+30*M)},{start:now-(7*H+30*M),end:now-(3*H+12*M+40e3)}]},
+    {id:2, name:"Palestra", start: now-(6*D+4*H), mode:"days", bell:{val:3,unit:"days"}, secret:false,
+     history:[{start:now-(21*D),end:now-(19*D)},{start:now-(19*D),end:now-(11*D+5*H)},{start:now-(11*D+5*H),end:now-(6*D+4*H)}]},
+    {id:3, name:"Cambiato olio auto", start: now-(1.4*Y), mode:"years", bell:null, secret:false,
+     history:[{start:now-(2.6*Y),end:now-(1.4*Y)}]},
+    {id:4, name:"Sigaretta", start: now-(42*D+7*H+13*M), mode:"full", bell:null, secret:true,
+     history:[{start:now-(100*D),end:now-(99*D+23*H+18*M)},{start:now-(99*D+23*H+18*M),end:now-(70*D)},{start:now-(70*D),end:now-(42*D+7*H+13*M)}]},
+  ],
+  pin:"12345", secretUnlocked:false, nextId:5
+};
+let appView="detail";   // detail | flip
+let editId=null, pendingLockId=null;
+
+const $=s=>document.querySelector(s);
+const main=$("#main");
+
+function pad(n){return String(n).padStart(2,"0")}
+function fmt(c){
+  const ms=Math.max(0,Date.now()-c.start);
+  switch(c.mode){
+    case "years":return {big:(ms/Y).toFixed(2).replace(".",","),unit:"anni"};
+    case "days":return {big:Math.floor(ms/D).toLocaleString("it-IT"),unit:"giorni"};
+    case "minutes":return {big:Math.floor(ms/M).toLocaleString("it-IT"),unit:"minuti"};
+    case "seconds":return {big:Math.floor(ms/1e3).toLocaleString("it-IT"),unit:"secondi"};
+    default:{
+      const p=parts(c);
+      let html="";
+      if(p.y>0) html+=`${p.y}<small>a</small> `;
+      html+=`${p.d}<small>g</small> ${pad(p.h)}<small>h</small> ${pad(p.m)}<small>m</small> ${pad(p.s)}<small>s</small>`;
+      return {html};
+    }
+  }
+}
+function parts(c){
+  const ms=Math.max(0,Date.now()-c.start);
+  const y=Math.floor(ms/Y), rY=ms-y*Y;
+  const d=Math.floor(rY/D), r=rY-d*D;
+  const h=Math.floor(r/H), m=Math.floor((r%H)/M), s=Math.floor((r%M)/1e3);
+  return {y,d,h,m,s};
+}
+function digitsOf(c){
+  const p=parts(c);
+  const yy=pad(Math.min(p.y,99)), ddd=String(Math.min(p.d,999)).padStart(3,"0");
+  return (yy+ddd+pad(p.h)+pad(p.m)+pad(p.s)).split("");  // 11 cifre
+}
+function humanDur(ms){
+  const sec=Math.floor(ms/1e3);
+  if(sec<60) return sec+" sec";
+  const m=Math.floor(sec/60), rs=sec%60;
+  if(m<60) return m+" min"+(rs?" e "+rs+" sec":"");
+  const h=Math.floor(m/60), rm=m%60;
+  if(h<24) return h+" h"+(rm?" e "+rm+" min":"");
+  const d=Math.floor(h/24), rh=h%24;
+  if(d<30) return d+(d===1?" giorno":" giorni")+(rh?" e "+rh+" h":"");
+  const moLen=30.44*D, mo=Math.floor(ms/moLen);
+  if(mo<12){
+    const rd=Math.floor((ms-mo*moLen)/D);
+    return mo+(mo===1?" mese":" mesi")+(rd?" e "+rd+(rd===1?" giorno":" giorni"):"");
+  }
+  const y=Math.floor(ms/Y), rmo=Math.floor((ms-y*Y)/moLen);
+  return y+(y===1?" anno":" anni")+(rmo?" e "+rmo+(rmo===1?" mese":" mesi"):"");
+}
+function bellMs(b){return b.val*(b.unit==="minutes"?M:b.unit==="hours"?H:D)}
+function bellLabel(b){return b.val+(b.unit==="minutes"?" min":b.unit==="hours"?" h":" g")}
+function isOver(c){return !!(c.bell&&(Date.now()-c.start)>=bellMs(c.bell))}
+const MODES=["full","years","days","minutes","seconds"];
+const sinceFmt=t=>new Date(t).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"});
+function esc(s){return s.replace(/[<>&"]/g,x=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[x]))}
+let wasClamped=false;
+function clampStart(t){
+  wasClamped = t>Date.now();
+  return wasClamped ? Date.now() : t;
+}
+function toLocal(t){const d=new Date(t-new Date(t).getTimezoneOffset()*6e4);return d.toISOString().slice(0,19)}
+
+/* ---------- card dettagliata ---------- */
+function cardHTML(c){
+  const f=fmt(c),over=isOver(c);
+  const time=f.html!==undefined?f.html:`${f.big} <small>${f.unit}</small>`;
+  return `<div class="cwrap">
+  <div class="cunder"><span class="uDel">🗑 Elimina</span><span class="uArch">📦 Archivia</span></div>
+  <div class="card ${over?"over":""}" data-id="${c.id}">
+    <div class="crow1">
+      <div class="cname">${c.secret?'<span class="locktag">🔒</span>':""}${esc(c.name)}</div>
+      ${c.bell?`<div class="chip">🔔 ${bellLabel(c.bell)}${over?" · sforato":""}</div>`:""}
+    </div>
+    <div class="ctime" data-act="cycle" title="Tocca per cambiare visualizzazione">${time}</div>
+    <div class="csince">dal ${sinceFmt(c.start)}</div>
+    ${c.scheduledReset?`<div class="csince" style="color:var(--primary);font-weight:800">⏲ reset programmato: ${sinceFmt(c.scheduledReset)}</div>`:""}
+    <div class="crow3">
+      <button class="cact" data-act="hist" title="Storico">🕘</button>
+      <button class="cact" data-act="edit" title="Modifica">✏️</button>
+      <button class="cact" data-act="restart" title="Restart">↺</button>
+      <button class="cact" data-act="bell" title="Campanella">🔔</button>
+      <button class="cact" data-act="lock" title="${c.secret?"Slucchetta":"Lucchetta"}">${c.secret?"🔓":"🔒"}</button>
+      <button class="cact danger" data-act="del" title="Elimina">🗑</button>
+    </div>
+  </div></div>`;
+}
+function archCardHTML(c){
+  const last=(c.history&&c.history.length)?c.history[c.history.length-1]:null;
+  return `<div class="cwrap">
+  <div class="cunder"><span class="uDel">🗑 Elimina</span><span class="uArch"></span></div>
+  <div class="card archived" data-id="${c.id}">
+    <div class="crow1">
+      <div class="cname">${c.secret?'<span class="locktag">🔒</span>':""}${esc(c.name)}</div>
+      <div class="chip">📦 archivio</div>
+    </div>
+    <div class="csince" style="margin-top:10px">in archivio da ${humanDur(Date.now()-(c.archivedAt||Date.now()))} · ${(c.history||[]).length} round${last?` · ultimo: ${humanDur(last.end-last.start)}`:""}</div>
+    <div class="crow3">
+      <button class="cact" data-act="hist" title="Storico e statistiche">🕘</button>
+      <button class="cact" data-act="resume" title="Riprendi">▶️</button>
+      <button class="cact danger" data-act="del" title="Elimina">🗑</button>
+    </div>
+  </div></div>`;
+}
+function renderArchive(){
+  const list=$("#archList");
+  const arch=state.counters.filter(c=>c.archived&&(!c.secret||state.secretUnlocked));
+  const hiddenSecret=state.counters.filter(c=>c.archived&&c.secret&&!state.secretUnlocked).length;
+  let html="";
+  html+= arch.length?arch.map(archCardHTML).join(""):`<div class="empty">Archivio vuoto.<br>Swipe a sinistra su un contatore per archiviarlo.</div>`;
+  if(hiddenSecret) html+=`<div class="empty" style="padding-top:8px">🔒 ${hiddenSecret} timer archiviat${hiddenSecret===1?"o":"i"} lucchettat${hiddenSecret===1?"o":"i"}: sblocca la sezione segreta per vederl${hiddenSecret===1?"o":"i"}.</div>`;
+  list.innerHTML=html;
+}
+function archiveCounter(c){
+  if(!c.history)c.history=[];
+  c.history.push({start:c.start,end:Date.now()});
+  c.archived=true;
+  c.archivedAt=Date.now();
+}
+/* ---------- tabellone flip ---------- */
+const flipCfg={unit:"split",showYears:true,showSecs:true};
+function totalOf(c,unit){
+  const ms=Math.max(0,Date.now()-c.start);
+  switch(unit){
+    case "anni":return Math.floor(ms/Y);
+    case "mesi":return Math.floor(ms/(30.44*D));
+    case "giorni":return Math.floor(ms/D);
+    case "minuti":return Math.floor(ms/M);
+    default:return Math.floor(ms/1e3);
+  }
+}
+function boardGroups(c){
+  if(flipCfg.unit==="split"){
+    const pp=parts(c), g=[];
+    if(flipCfg.showYears && pp.y>0) g.push({lab:"anni",d:pad(Math.min(pp.y,99))});
+    g.push({lab:"giorni",d:String(Math.min(pp.d,999)).padStart(3,"0")});
+    g.push({lab:"ore",d:pad(pp.h)});
+    g.push({lab:"min",d:pad(pp.m)});
+    if(flipCfg.showSecs) g.push({lab:"sec",d:pad(pp.s)});
+    return g;
+  }
+  return [{lab:flipCfg.unit,d:String(totalOf(c,flipCfg.unit)).padStart(2,"0")}];
+}
+function layoutOf(g){return g.map(x=>x.lab+":"+x.d.length).join(",")}
+function tileStatic(d){
+  return `<div class="half top"><div class="d">${d}</div></div>
+          <div class="half bottom"><div class="d">${d}</div></div>`;
+}
+function tileFlip(oldD,newD){
+  /* sotto: meta' alta gia' col nuovo, meta' bassa ancora col vecchio.
+     sopra: placca alta col vecchio che cade + placca bassa col nuovo che arriva. */
+  return `<div class="half top"><div class="d">${newD}</div></div>
+          <div class="half bottom"><div class="d">${oldD}</div></div>
+          <div class="half ftop"><div class="d">${oldD}</div></div>
+          <div class="half fbot"><div class="d">${newD}</div></div>`;
+}
+function boardHTML(c){
+  const g=boardGroups(c), over=isOver(c);
+  const nT=g.reduce((a,x)=>a+x.d.length,0), nG=g.length;
+  const tw=Math.max(16,Math.min(46,Math.floor((308-(nG-1)*12-(nT-nG)*3)/nT)));
+  let i=0, groups="";
+  for(const x of g){
+    let tiles="";
+    for(const ch of x.d){ tiles+=`<div class="tile" data-i="${i}" data-d="${ch}">${tileStatic(ch)}</div>`; i++; }
+    groups+=`<div class="bgroup"><div class="tiles">${tiles}</div><div class="blab">${x.lab}</div></div>`;
+  }
+  return `<div class="board ${over?"over":""}" data-id="${c.id}" data-layout="${layoutOf(g)}" style="--tw:${tw}px">
+    <div class="bhead">
+      <div class="bname">${c.secret?'<span class="locktag">🔒</span>':""}${esc(c.name)}</div>
+      ${c.bell?`<div class="btag ${over?"":"ok"}">${over?"sforato":"🔔 "+bellLabel(c.bell)}</div>`:""}
+    </div>
+    <div class="bgroups">${groups}</div>
+  </div>`;
+}
+
+function render(){
+  $("#phone").classList.toggle("flipmode",appView==="flip");
+  $("#fabAdd").classList.toggle("hide",appView==="flip");
+  $("#viewBtn").textContent = appView==="flip" ? "🗂️" : "🎞️";
+  $("#flipOpts").classList.toggle("hide",appView!=="flip");
+  $("#togChips").classList.toggle("hide",flipCfg.unit!=="split");
+  const item = appView==="flip" ? boardHTML : cardHTML;
+
+  const pub=state.counters.filter(c=>!c.secret&&!c.archived);
+  const pubArch=state.counters.filter(c=>!c.secret&&c.archived);
+  const secAll=state.counters.filter(c=>c.secret);
+  const sec=secAll.filter(c=>!c.archived), secArch=secAll.filter(c=>c.archived);
+  let html=`<div class="section-label">Contatori</div>`;
+  html+= pub.length?pub.map(item).join(""):`<div class="empty">Nessun contatore.</div>`;
+  html+=`<div class="section-label">Lucchettati</div>`;
+  if(!state.pin){
+    html+=`<div class="secret-locked"><div class="glyph">🕶️</div><p>La sezione segreta non è attiva.<br>Proteggila con un PIN a 5 cifre.</p><button class="btn btn-inv" id="btnActivateSecret">Attiva sezione segreta</button></div>`;
+  } else if(!state.secretUnlocked){
+    html+=`<div class="secret-locked"><div class="glyph">🔒</div><p>${sec.length} contator${sec.length===1?"e":"i"} lucchettat${sec.length===1?"o":"i"}.<br>Inserisci il PIN per vederli.</p><button class="btn btn-inv" id="btnUnlockSecret">Sblocca con PIN</button></div>`;
+  } else {
+    html+=`<div class="secret-area">`;
+    html+= sec.length?sec.map(item).join(""):`<div class="empty" style="color:var(--inv-var)">Nessun contatore lucchettato.</div>`;
+    html+=`<button class="btn btn-text-d btn-block" id="btnRelock" style="margin:2px 0 10px">🔒 Blocca sezione</button></div>`;
+  }
+  main.innerHTML=html;
+}
+
+/* flip pilotato da JS: niente animazioni CSS, la trasformazione viene scritta a ogni frame */
+const activeFlips=[];
+const D1=420, D2=480;             // ms: chiusura placca vecchia, apertura placca nuova
+function startFlip(t,oldD,newD){
+  t.innerHTML=tileFlip(oldD,newD);
+  t.dataset.d=newD;
+  activeFlips.push({
+    t, start:performance.now(),
+    ftop:t.querySelector(".ftop"), fbot:t.querySelector(".fbot")
+  });
+}
+function stepFlips(nowMs){
+  for(let k=activeFlips.length-1;k>=0;k--){
+    const f=activeFlips[k], el=f.t, dt=nowMs-f.start;
+    if(!el.isConnected){activeFlips.splice(k,1);continue;}
+    if(dt<D1){                                  // fase 1: la placca vecchia si chiude sul cardine
+      const p=dt/D1, e=p*p;                     // accelera come cadendo
+      f.ftop.style.transform=`scaleY(${1-e})`;
+      f.fbot.style.transform=`scaleY(0)`;
+    } else if(dt<D1+D2){                        // fase 2: la placca nuova si apre con rimbalzo
+      f.ftop.style.transform=`scaleY(0)`;
+      const p=(dt-D1)/D2;
+      const e=1+2.2*Math.pow(p-1,3)+1.2*Math.pow(p-1,2); // overshoot morbido
+      f.fbot.style.transform=`scaleY(${Math.max(0,e)})`;
+    } else {                                    // fine corsa
+      el.innerHTML=tileStatic(el.dataset.d);
+      activeFlips.splice(k,1);
+    }
+  }
+}
+/* motore doppio: rAF quando disponibile + interval di riserva */
+let lastSec=-1, lastStep=0;
+function engine(){
+  const nowMs=performance.now();
+  if(nowMs-lastStep<12) return;    // evita doppioni rAF+interval
+  lastStep=nowMs;
+  stepFlips(nowMs);
+  const nowS=Math.floor(Date.now()/1e3);
+  if(nowS!==lastSec){
+    lastSec=nowS;
+    // sforamento campanella: notifica una sola volta al passaggio di soglia
+    state.counters.forEach(c=>{
+      if(c.archived)return;
+      const ov=isOver(c);
+      if(c._wasOver!==undefined && ov && !c._wasOver){
+        toast("🔔 "+safeName(c)+": tempo sforato!");
+      }
+      c._wasOver=ov;
+    });
+    // reset programmati scaduti
+    let fired=null;
+    state.counters.forEach(c=>{
+      if(c.scheduledReset && Date.now()>=c.scheduledReset){
+        if(!c.history)c.history=[];
+        c.history.push({start:c.start,end:c.scheduledReset});
+        c.start=c.scheduledReset;
+        c.scheduledReset=null;
+        fired=c;
+      }
+    });
+    if(fired){render();toast("⏲ Reset programmato eseguito: "+safeName(fired));}
+    const beat=$("#beat");
+    beat.classList.toggle("hide",appView!=="flip");
+    beat.classList.toggle("on");
+    if(appView==="detail"){
+      if(sw&&sw.mode==="h")return;
+      document.querySelectorAll(".card").forEach(el=>{
+        const c=state.counters.find(x=>x.id==el.dataset.id);
+        const ct=el.querySelector(".ctime");
+        if(!c||!ct)return;
+        const f=fmt(c);
+        ct.innerHTML=f.html!==undefined?f.html:`${f.big} <small>${f.unit}</small>`;
+        const over=isOver(c);
+        el.classList.toggle("over",over);
+        const b=el.querySelector(".chip");
+        if(b)b.innerHTML=`🔔 ${bellLabel(c.bell)}${over?" · sforato":""}`;
+      });
+    } else {
+      let needRender=false;
+      document.querySelectorAll(".board").forEach(el=>{
+        const c=state.counters.find(x=>x.id==el.dataset.id);
+        if(!c)return;
+        const g=boardGroups(c);
+        if(el.dataset.layout!==layoutOf(g)){needRender=true;return;}   // e' comparso/sparito un gruppo: ricostruisco
+        const dg=g.map(x=>x.d).join("").split("");
+        el.querySelectorAll(".tile").forEach(t=>{
+          const i=+t.dataset.i, cur=t.dataset.d;
+          if(cur!==dg[i]) startFlip(t,cur,dg[i]);
+        });
+        if(el.classList.contains("over")!==isOver(c)) needRender=true;
+      });
+      if(needRender) render();
+    }
+  }
+}
+function rafLoop(){engine();requestAnimationFrame(rafLoop)}
+if(window.requestAnimationFrame) requestAnimationFrame(rafLoop);
+setInterval(engine,33);            // riserva se rAF non gira
+
+let toastT;
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),1900)}
+function open(id){$(id).classList.add("show")}
+function close(id){$(id).classList.remove("show")}
+document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",e=>{e.target.closest(".scrim").classList.remove("show")}));
+
+/* ---- storico ---- */
+function openHist(c){
+  const h=(c.history||[]).slice().sort((a,b)=>a.end-b.end);
+  const timed=h.filter(r=>!r.noTime);
+  $("#histSub").textContent=c.name;
+  const list=$("#histList"), sum=$("#histSum");
+  // round in corso in cima
+  let html = c.archived
+    ? `<div class="round cur">
+        <div><div class="rn">📦 IN ARCHIVIO</div>
+          <div class="rd">dal <b>${sinceFmt(c.archivedAt||Date.now())}</b></div></div>
+        <div class="rdur">⏸</div>
+      </div>`
+    : `<div class="round cur">
+        <div><div class="rn">IN CORSO</div>
+          <div class="rd">dal <b>${sinceFmt(c.start)}</b></div></div>
+        <div class="rdur">${humanDur(Date.now()-c.start)}</div>
+      </div>`;
+  for(let k=h.length-1;k>=0;k--){
+    const r=h[k];
+    if(r.noTime){
+      html+=`<div class="round">
+        <div><div class="rn">🔢 SOLO CONTEGGIO</div>
+          <div class="rd">il <b>${sinceFmt(r.end)}</b></div></div>
+        <div class="rdur" style="color:var(--on-surface-var)">—</div>
+      </div>`;
+    } else {
+      html+=`<div class="round">
+        <div><div class="rn">ROUND ${k+1}</div>
+          <div class="rd">dal <b>${sinceFmt(r.start)}</b><br>al <b>${sinceFmt(r.end)}</b></div></div>
+        <div class="rdur">${humanDur(r.end-r.start)}</div>
+      </div>`;
+    }
+  }
+  if(!h.length) html+=`<div class="empty">Nessun round concluso.<br>Ogni ↺ restart chiude il round e lo salva qui.</div>`;
+  list.innerHTML=html;
+  const stats=$("#histStats");
+  if(h.length){
+    const noT=h.length-timed.length;
+    let sumHtml=`<div>Eventi: <b>${h.length}</b>${noT?` <span style="font-weight:600">(${noT} solo conteggio)</span>`:""}</div>`;
+    if(timed.length){
+      const durs=timed.map(r=>r.end-r.start);
+      const max=Math.max(...durs), avg=durs.reduce((a,b)=>a+b,0)/durs.length;
+      sumHtml+=`<div>Più lungo: <b>${humanDur(max)}</b></div><div>Media: <b>${humanDur(avg)}</b></div>`;
+      var avgT=avg;
+    }
+    sum.innerHTML=sumHtml;
+    // il conteggio usa TUTTI gli eventi (anche quelli senza tempi)
+    const ends=h.map(r=>r.end), nowT=Date.now();
+    const cnt=w=>ends.filter(e=>e>=nowT-w).length;
+    stats.innerHTML=`
+      <div class="hlabel">📊 Quante volte</div>
+      <div class="statgrid">
+        <div class="stat"><b>${cnt(H)}</b><span>ultima ora</span></div>
+        <div class="stat"><b>${cnt(24*H)}</b><span>ultime 24h</span></div>
+        <div class="stat"><b>${cnt(7*D)}</b><span>ultima sett.</span></div>
+        <div class="stat"><b>${cnt(30.44*D)}</b><span>ultimo mese</span></div>
+        <div class="stat"><b>${cnt(Y)}</b><span>ultimo anno</span></div>
+      </div>
+      ${timed.length?`<div class="ritmo">⏱ In media una volta ogni <b>${humanDur(avgT)}</b> <span style="font-weight:600">(solo round con tempi)</span></div>`:""}`;
+  } else { sum.innerHTML=""; stats.innerHTML=""; }
+  $("#histListLabel").style.display=h.length?"":"none";
+  open("#histScrim");
+}
+
+/* ---- opzioni vista flip ---- */
+document.querySelectorAll("#unitChips button").forEach(b=>b.addEventListener("click",()=>{
+  flipCfg.unit=b.dataset.u;
+  document.querySelectorAll("#unitChips button").forEach(x=>x.classList.toggle("on",x===b));
+  render();
+}));
+document.querySelectorAll("#togChips button").forEach(b=>b.addEventListener("click",()=>{
+  flipCfg[b.dataset.t]=!flipCfg[b.dataset.t];
+  b.classList.toggle("on",flipCfg[b.dataset.t]);
+  render();
+}));
+
+/* ---- cambio vista ---- */
+function cascade(){
+  document.querySelectorAll(".board").forEach((b,bi)=>{
+    b.querySelectorAll(".tile").forEach((t,ti)=>{
+      setTimeout(()=>{ startFlip(t,t.dataset.d,t.dataset.d); }, bi*160 + ti*45);
+    });
+  });
+}
+$("#viewBtn").addEventListener("click",()=>{
+  appView = appView==="detail" ? "flip" : "detail";
+  render();
+  if(appView==="flip") cascade();
+  toast(appView==="flip" ? "Vista tabellone" : "Vista dettagliata");
+});
+
+/* ---- edit (bottom sheet) ---- */
+function openEdit(c){
+  editId=c.id;
+  $("#esSub").textContent=c.name;
+  $("#esName").value=c.name;
+  $("#esStart").value=toLocal(c.start);
+  open("#editSheetScrim");
+}
+$("#esNow").addEventListener("click",()=>{$("#esStart").value=toLocal(Date.now())});
+$("#esSave").addEventListener("click",()=>{
+  const c=state.counters.find(x=>x.id===editId);
+  const n=$("#esName").value.trim();
+  if(n)c.name=n;
+  const t=new Date($("#esStart").value).getTime();
+  wasClamped=false;
+  if(!isNaN(t))c.start=clampStart(t);
+  close("#editSheetScrim");render();
+  toast(wasClamped?"⚠️ Data nel futuro: il contatore parte da adesso":"Contatore aggiornato");
+});
+
+/* ---- add ---- */
+let addSecret=false, addBell=false, addStartMode="now";
+$("#fabAdd").addEventListener("click",()=>{
+  $("#fName").value="";$("#fMode").value="full";
+  addBell=false;$("#swBell").classList.remove("on");$("#bellFields").classList.add("hide");
+  addSecret=false;$("#swSecret").classList.remove("on");
+  addStartMode="now";
+  document.querySelectorAll("#segStart button").forEach(b=>b.classList.toggle("on",b.dataset.v==="now"));
+  $("#fStart").classList.add("hide");
+  open("#addScrim");
+});
+document.querySelectorAll("#segStart button").forEach(b=>b.addEventListener("click",()=>{
+  addStartMode=b.dataset.v;
+  document.querySelectorAll("#segStart button").forEach(x=>x.classList.toggle("on",x===b));
+  $("#fStart").classList.toggle("hide",addStartMode!=="custom");
+  if(addStartMode==="custom"&&!$("#fStart").value)$("#fStart").value=toLocal(Date.now());
+}));
+$("#swBell").addEventListener("click",()=>{addBell=!addBell;$("#swBell").classList.toggle("on",addBell);$("#bellFields").classList.toggle("hide",!addBell)});
+$("#swSecret").addEventListener("click",()=>{addSecret=!addSecret;$("#swSecret").classList.toggle("on",addSecret)});
+$("#btnCreate").addEventListener("click",()=>{
+  const name=$("#fName").value.trim();
+  if(!name){$("#fName").focus();return;}
+  let start=Date.now();
+  if(addStartMode==="custom"&&$("#fStart").value){
+    const t=new Date($("#fStart").value).getTime();
+    if(!isNaN(t))start=clampStart(t);
+  }
+  const bell=addBell?{val:Math.max(1,+$("#fBellVal").value||1),unit:$("#fBellUnit").value}:null;
+  const c={id:state.nextId++,name,start,mode:$("#fMode").value,bell,secret:false};
+  state.counters.push(c);
+  close("#addScrim");
+  if(addSecret){
+    if(!state.pin){pendingLockId=c.id;startPinSetup();render();return;}
+    c.secret=true;render();toast("Creato e lucchettato 🔒");
+  } else {render();toast("Contatore creato");}
+});
+
+/* ---- azioni card (solo vista dettagliata) ---- */
+let delId=null,bellId=null;
+let dblTap={id:null,t:0}, restartId=null;
+let sw=null, suppressNextClick=false;
+function askRestart(id){
+  const c=state.counters.find(x=>x.id===id);
+  if(!c||c.archived)return;
+  restartId=id;
+  $("#rsName").textContent=c.name;
+  open("#restartScrim");
+}
+$("#btnRestartYes")&&0;
+let archId=null;
+let rstId=null, rstPendingTimer=null, rstPendingId=null;
+/* per i timer lucchettati le notifiche non devono parlare: niente nome ne' contenuto */
+function safeName(c){ return c.secret ? "un timer lucchettato" : c.name; }
+function doRestart(c,t){
+  if(t<=c.start){ toast("⚠️ Prima dell'inizio del round attuale"); return false; }
+  if(!c.history)c.history=[];
+  c.history.push({start:c.start,end:t});
+  c.start=t;
+  c.scheduledReset=null;               // un reset manuale cancella la programmazione
+  render();
+  return true;
+}
+function scheduleReset(c,t){
+  c.scheduledReset=t;                  // una nuova programmazione sostituisce la vecchia
+  render();
+  toast("⏲ Reset programmato: "+sinceFmt(t));
+}
+function openRestartSheet(c){
+  rstId=c.id;
+  $("#rstSub").textContent=c.name+" — round attuale dal "+sinceFmt(c.start);
+  $("#rstStart").value=toLocal(Date.now());
+  $("#rstLostAt").value=toLocal(Date.now());
+  $("#rstHint").textContent="Nel passato: non prima del "+sinceFmt(c.start)+" (round già loggati intoccabili). Nel futuro: reset programmato."+(c.secret?" 🔒 Notifica anonima (timer lucchettato).":"");
+  const box=$("#rstSchedBox");
+  if(c.scheduledReset){
+    box.classList.remove("hide");
+    $("#rstSchedInfo").innerHTML="⏲ Programmato per <b>"+sinceFmt(c.scheduledReset)+"</b>";
+  } else box.classList.add("hide");
+  open("#rstScrim");
+}
+function listClick(e){
+  if(suppressNextClick){suppressNextClick=false;return;}
+  const actEl=e.target.closest("[data-act]");
+  if(actEl){
+    const card=actEl.closest(".card");
+    const c=state.counters.find(x=>x.id==card.dataset.id);
+    const act=actEl.dataset.act;
+    if(act==="cycle"){c.mode=MODES[(MODES.indexOf(c.mode)+1)%MODES.length];render();}
+    if(act==="restart"){
+      if(rstPendingId===c.id&&rstPendingTimer){       // secondo tap: apri la maschera
+        clearTimeout(rstPendingTimer);rstPendingTimer=null;rstPendingId=null;
+        openRestartSheet(c);
+      } else {                                        // primo tap: restart tra 300ms se non arriva il secondo
+        rstPendingId=c.id;
+        rstPendingTimer=setTimeout(()=>{
+          rstPendingTimer=null;rstPendingId=null;
+          if(doRestart(c,Date.now()))toast("↺ Round salvato, "+c.name+" riparte");
+        },300);
+      }
+    }
+    if(act==="hist"){openHist(c);}
+    if(act==="resume"){
+      c.archived=false; c.archivedAt=null; c.start=Date.now();
+      render(); renderArchive(); toast("▶️ "+c.name+" ripreso: nuovo round da ora");
+    }
+    if(act==="edit"){openEdit(c);}
+    if(act==="del"){delId=c.id;$("#delName").textContent=c.name;open("#delScrim");}
+    if(act==="bell"){
+      bellId=c.id;$("#bellSub").textContent=c.name;
+      if(c.bell){$("#eBellVal").value=c.bell.val;$("#eBellUnit").value=c.bell.unit;$("#btnBellOff").classList.remove("hide");}
+      else{$("#eBellVal").value=1;$("#eBellUnit").value="days";$("#btnBellOff").classList.add("hide");}
+      open("#bellScrim");
+    }
+    if(act==="lock"){
+      if(c.secret){c.secret=false;render();toast("🔓 "+c.name+" slucchettato");}
+      else{
+        if(!state.pin){pendingLockId=c.id;startPinSetup();return;}
+        c.secret=true;render();toast("🔒 "+c.name+" spostato nei lucchettati");
+      }
+    }
+    return;
+  }
+  // doppio tap sul corpo di un contatore (card o tabellone) => conferma restart
+  const cel=e.target.closest(".card,.board");
+  if(cel && !e.target.closest("[data-act]")){
+    const id=+cel.dataset.id, t=Date.now();
+    if(dblTap.id===id && t-dblTap.t<380){
+      dblTap={id:null,t:0};
+      askRestart(id);
+    } else dblTap={id:id,t:t};
+  }
+  if(e.target.id==="btnActivateSecret")startPinSetup();
+  if(e.target.id==="btnUnlockSecret")startPinUnlock();
+  if(e.target.id==="btnRelock"){state.secretUnlocked=false;render();toast("Sezione bloccata");}
+}
+main.addEventListener("click",listClick);
+$("#archList").addEventListener("click",listClick);
+$("#btnRestartYes").addEventListener("click",()=>{
+  const c=state.counters.find(x=>x.id===restartId);
+  close("#restartScrim");
+  if(c&&doRestart(c,Date.now()))toast("↺ Round salvato, "+c.name+" riparte");
+});
+/* sheet riparti avanzato */
+document.querySelectorAll("#rstScrim .quickchips button").forEach(b=>b.addEventListener("click",()=>{
+  const c=state.counters.find(x=>x.id===rstId);
+  if(!c)return;
+  const t=Date.now()-(+b.dataset.ago);
+  if(doRestart(c,t)){
+    close("#rstScrim");
+    toast(+b.dataset.ago===0?"↺ Round salvato, riparte da ora":"↺ Ripartito da "+humanDur(+b.dataset.ago)+" fa");
+  }
+}));
+$("#rstApply").addEventListener("click",()=>{
+  const c=state.counters.find(x=>x.id===rstId);
+  if(!c)return;
+  const t=new Date($("#rstStart").value).getTime();
+  if(isNaN(t)){toast("⚠️ Data non valida");return;}
+  if(t>Date.now()){ scheduleReset(c,t); close("#rstScrim"); }
+  else if(doRestart(c,t)){ close("#rstScrim"); toast("↺ Ripartito dal "+sinceFmt(t)); }
+});
+$("#rstLostAdd").addEventListener("click",()=>{
+  const c=state.counters.find(x=>x.id===rstId);
+  if(!c)return;
+  const t=new Date($("#rstLostAt").value).getTime();
+  if(isNaN(t)){toast("⚠️ Data non valida");return;}
+  if(t>Date.now()){toast("⚠️ Deve essere nel passato");return;}
+  if(!c.history)c.history=[];
+  c.history.push({start:t,end:t,noTime:true});
+  toast("🔢 Evento aggiunto al conteggio ("+sinceFmt(t)+")");
+});
+$("#rstSchedCancel").addEventListener("click",()=>{
+  const c=state.counters.find(x=>x.id===rstId);
+  if(c){c.scheduledReset=null;render();}
+  $("#rstSchedBox").classList.add("hide");
+  toast("Programmazione annullata");
+});
+$("#btnDelYes").addEventListener("click",()=>{
+  state.counters=state.counters.filter(c=>c.id!==delId);
+  close("#delScrim");render();renderArchive();toast("Contatore eliminato");
+});
+$("#btnArchYes").addEventListener("click",()=>{
+  const c=state.counters.find(x=>x.id===archId);
+  if(c&&!c.archived)archiveCounter(c);
+  close("#archScrim");render();renderArchive();
+  if(c)toast("📦 "+c.name+" archiviato");
+});
+$("#archBtn").addEventListener("click",()=>{renderArchive();$("#archivePage").classList.add("show");});
+$("#archClose").addEventListener("click",()=>{$("#archivePage").classList.remove("show");});
+$("#btnBellSave").addEventListener("click",()=>{
+  const c=state.counters.find(x=>x.id===bellId);
+  c.bell={val:Math.max(1,+$("#eBellVal").value||1),unit:$("#eBellUnit").value};
+  close("#bellScrim");render();toast("Campanella impostata");
+});
+$("#btnBellOff").addEventListener("click",()=>{
+  const c=state.counters.find(x=>x.id===bellId);
+  c.bell=null;close("#bellScrim");render();toast("Campanella rimossa");
+});
+
+/* ---- PIN ---- */
+let pinBuf="",pinMode="unlock",pinTmp="";
+const padKeys=["1","2","3","4","5","6","7","8","9","","0","⌫"];
+$("#pinPad").innerHTML=padKeys.map(k=>k===""?`<button class="ghosty" disabled></button>`:`<button data-k="${k}" ${k==="⌫"?'class="ghosty"':''}>${k}</button>`).join("");
+function pinReset(){pinBuf="";pinDots();$("#pinErr").textContent=""}
+function pinDots(){document.querySelectorAll("#pinDots i").forEach((d,i)=>d.classList.toggle("full",i<pinBuf.length))}
+$("#pinPad").addEventListener("click",e=>{
+  const k=e.target.dataset.k;if(!k)return;
+  if(k==="⌫"){pinBuf=pinBuf.slice(0,-1);pinDots();return;}
+  if(pinBuf.length>=5)return;
+  pinBuf+=k;pinDots();
+  if(pinBuf.length===5)setTimeout(pinDone,120);
+});
+function pinDone(){
+  if(pinMode==="unlock"){
+    if(pinBuf===state.pin){close("#pinScrim");state.secretUnlocked=true;render();toast("Sezione segreta sbloccata");}
+    else{$("#pinErr").textContent="PIN errato";pinBuf="";pinDots();}
+  }else if(pinMode==="set1"){
+    pinTmp=pinBuf;pinBuf="";pinDots();
+    pinMode="set2";$("#pinSub").textContent="Ripeti il PIN per conferma";
+  }else if(pinMode==="set2"){
+    if(pinBuf===pinTmp){
+      state.pin=pinBuf;state.secretUnlocked=true;
+      if(pendingLockId){
+        const c=state.counters.find(x=>x.id===pendingLockId);
+        if(c)c.secret=true;
+        pendingLockId=null;
+      }
+      close("#pinScrim");render();toast("Sezione segreta attivata");
+    }else{
+      $("#pinErr").textContent="I PIN non coincidono, riprova";
+      pinMode="set1";pinTmp="";pinBuf="";pinDots();
+      $("#pinSub").textContent="Scegli un PIN a 5 cifre";
+    }
+  }
+}
+function startPinUnlock(){pinMode="unlock";pinReset();$("#pinTitle").textContent="Sezione segreta";$("#pinSub").textContent="Inserisci il PIN a 5 cifre";$("#pinForgot").classList.remove("hide");open("#pinScrim")}
+function startPinSetup(){pinMode="set1";pinTmp="";pinReset();$("#pinTitle").textContent="Crea sezione segreta";$("#pinSub").textContent="Scegli un PIN a 5 cifre";$("#pinForgot").classList.add("hide");open("#pinScrim")}
+$("#pinForgot").addEventListener("click",()=>{close("#pinScrim");open("#destroyScrim")});
+$("#btnDestroyYes").addEventListener("click",()=>{
+  state.counters=state.counters.filter(c=>!c.secret);
+  state.pin=null;state.secretUnlocked=false;
+  close("#destroyScrim");render();toast("Sezione segreta distrutta");
+});
+$("#lockBtn").addEventListener("click",()=>{
+  if(!state.pin)startPinSetup();
+  else if(!state.secretUnlocked)startPinUnlock();
+  else{state.secretUnlocked=false;render();toast("Sezione bloccata");}
+});
+
+/* ---- swipe orizzontale sulle card: destra=elimina, sinistra=archivia ---- */
+function swStart(card,x,y){
+  const wrap=card.parentElement&&card.parentElement.classList.contains("cwrap")?card.parentElement:null;
+  sw={card,wrap,startX:x,startY:y,dx:0,mode:null};
+}
+function swMove(x,y,ev){
+  if(!sw)return;
+  const dx=x-sw.startX, dy=y-sw.startY;
+  if(!sw.mode){
+    if(Math.abs(dx)>14&&Math.abs(dx)>Math.abs(dy)*1.2){sw.mode="h";sw.card.style.transition="none";}
+    else if(Math.abs(dy)>12){sw.mode="v";}
+    else return;
+  }
+  if(sw.mode!=="h")return;
+  if(ev&&ev.cancelable)ev.preventDefault();
+  sw.dx=Math.max(-150,Math.min(150,dx));
+  sw.card.style.transform=`translateX(${sw.dx}px)`;
+  if(sw.wrap){
+    sw.wrap.classList.toggle("dirR",sw.dx>12);
+    sw.wrap.classList.toggle("dirL",sw.dx<-12);
+  }
+}
+function swEnd(){
+  if(!sw)return;
+  const s0=sw; sw=null;
+  if(s0.mode!=="h"){return;}
+  suppressNextClick=true; setTimeout(()=>{suppressNextClick=false},150);
+  const c=state.counters.find(x=>x.id==s0.card.dataset.id);
+  const reset=()=>{
+    s0.card.style.transition="transform .18s ease";
+    s0.card.style.transform="translateX(0)";
+    setTimeout(()=>{s0.card.style.transition="";s0.card.style.transform="";
+      if(s0.wrap)s0.wrap.classList.remove("dirR","dirL");},190);
+  };
+  if(s0.dx>90&&c){                      // destra: eliminazione con conferma
+    reset();
+    delId=c.id;$("#delName").textContent=c.name;open("#delScrim");
+  } else if(s0.dx<-90&&c&&!c.archived){ // sinistra: conferma archiviazione
+    reset();
+    archId=c.id;$("#archName").textContent=c.name;open("#archScrim");
+  } else reset();
+}
+main.addEventListener("touchstart",e=>{
+  const card=e.target.closest(".card");
+  if(card)swStart(card,e.touches[0].clientX,e.touches[0].clientY);
+},{passive:true});
+main.addEventListener("touchmove",e=>swMove(e.touches[0].clientX,e.touches[0].clientY,e),{passive:false});
+main.addEventListener("touchend",swEnd);
+main.addEventListener("mousedown",e=>{
+  const card=e.target.closest(".card");
+  if(!card)return;
+  swStart(card,e.clientX,e.clientY);
+  const mm=ev=>swMove(ev.clientX,ev.clientY,ev);
+  const mu=()=>{swEnd();window.removeEventListener("mousemove",mm);window.removeEventListener("mouseup",mu);};
+  window.addEventListener("mousemove",mm);
+  window.addEventListener("mouseup",mu);
+});
+
+/* ---- swipe down per chiudere gli sheet ---- */
+function makeSwipeable(sheet){
+  const scrim=sheet.closest(".scrim");
+  let startY=0,lastY=0,lastT=0,dragging=false,armed=false,vel=0;
+  function start(y,target){
+    armed = sheet.scrollTop<=0 || (target&&target.closest&&target.closest(".grab"));
+    startY=lastY=y; lastT=performance.now(); dragging=false; vel=0;
+  }
+  function move(y,ev){
+    const dy=y-startY;
+    if(!dragging){
+      if(dy>8 && armed && sheet.scrollTop<=0){ dragging=true; sheet.style.transition="none"; }
+      else return;
+    }
+    if(ev&&ev.cancelable) ev.preventDefault();
+    sheet.style.transform=`translateY(${Math.max(0,dy)}px)`;
+    const t=performance.now();
+    vel=(y-lastY)/Math.max(1,t-lastT);
+    lastY=y; lastT=t;
+  }
+  function end(){
+    if(!dragging) return;
+    dragging=false;
+    const off=parseFloat((sheet.style.transform.match(/([\d.]+)px/)||[0,"0"])[1]);
+    if(off>110 || vel>0.55){
+      sheet.style.transition="transform .2s ease";
+      sheet.style.transform="translateY(110%)";
+      setTimeout(()=>{
+        scrim.classList.remove("show");
+        sheet.style.transition="";sheet.style.transform="";
+      },200);
+    } else {
+      sheet.style.transition="transform .18s ease";
+      sheet.style.transform="translateY(0)";
+      setTimeout(()=>{sheet.style.transition="";sheet.style.transform="";},190);
+    }
+  }
+  sheet.addEventListener("touchstart",e=>start(e.touches[0].clientY,e.target),{passive:true});
+  sheet.addEventListener("touchmove",e=>move(e.touches[0].clientY,e),{passive:false});
+  sheet.addEventListener("touchend",end);
+  sheet.addEventListener("mousedown",e=>{
+    start(e.clientY,e.target);
+    const mm=ev=>move(ev.clientY,ev);
+    const mu=()=>{end();window.removeEventListener("mousemove",mm);window.removeEventListener("mouseup",mu);};
+    window.addEventListener("mousemove",mm);
+    window.addEventListener("mouseup",mu);
+  });
+}
+document.querySelectorAll(".sheet").forEach(makeSwipeable);
+/* tap fuori dallo sheet: chiude */
+document.querySelectorAll(".scrim").forEach(sc=>sc.addEventListener("click",e=>{
+  if(e.target===sc && sc.querySelector(".sheet")) sc.classList.remove("show");
+}));
+
+render();
+})();
+</script>
+</body>
+</html>
