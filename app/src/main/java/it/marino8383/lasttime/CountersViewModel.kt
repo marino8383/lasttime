@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
+import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
 import kotlinx.coroutines.flow.SharingStarted
@@ -56,7 +57,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
-            db.counterDao().update(counter.copy(startMs = now, bellNotified = false, snoozeUntilMs = null))
+            db.counterDao().update(counter.restarted(now))
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }

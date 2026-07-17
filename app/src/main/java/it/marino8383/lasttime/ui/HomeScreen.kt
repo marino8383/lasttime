@@ -56,6 +56,7 @@ import it.marino8383.lasttime.CountersViewModel
 import it.marino8383.lasttime.ViewMode
 import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.bellDeadline
 import it.marino8383.lasttime.formatDateTime
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.timeParts
@@ -220,9 +221,18 @@ fun HomeScreen(
         BellDialog(
             counter = counter,
             onDismiss = { bellTarget = null },
-            onSave = { minutes ->
-                vm.updateCounter(counter.copy(bellMinutes = minutes, bellNotified = false, snoozeUntilMs = null))
-                if (minutes != null) AlarmScheduler.ensureExactAlarmPermission(context)
+            onSave = { minutes, mode, enabled ->
+                vm.updateCounter(
+                    counter.copy(
+                        bellMinutes = minutes,
+                        bellMode = mode,
+                        bellEnabled = enabled,
+                        bellNotified = false,
+                        snoozeUntilMs = null,
+                        nextBellAtMs = minutes?.let { counter.startMs + it * 60_000 },
+                    )
+                )
+                if (minutes != null && enabled) AlarmScheduler.ensureExactAlarmPermission(context)
                 bellTarget = null
             },
         )
@@ -263,7 +273,8 @@ private fun CounterCard(
     onDelete: () -> Unit,
 ) {
     val elapsed = now - counter.startMs
-    val over = counter.bellMinutes?.let { elapsed > it * 60_000 } ?: false
+    val deadline = counter.bellDeadline()
+    val over = counter.bellEnabled && deadline != null && now > deadline
 
     Card(
         shape = RoundedCornerShape(26.dp),
@@ -290,13 +301,22 @@ private fun CounterCard(
                     modifier = Modifier.weight(1f),
                 )
                 counter.bellMinutes?.let { bell ->
+                    val muted = !counter.bellEnabled
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = if (over) MaterialTheme.colorScheme.primary else PrimaryContainer,
-                        contentColor = if (over) MaterialTheme.colorScheme.onPrimary else OnPrimaryContainer,
+                        color = when {
+                            muted -> MaterialTheme.colorScheme.surfaceContainerHigh
+                            over -> MaterialTheme.colorScheme.primary
+                            else -> PrimaryContainer
+                        },
+                        contentColor = when {
+                            muted -> MaterialTheme.colorScheme.onSurfaceVariant
+                            over -> MaterialTheme.colorScheme.onPrimary
+                            else -> OnPrimaryContainer
+                        },
                     ) {
                         Text(
-                            "🔔 ${bellLabel(bell)}",
+                            "${if (muted) "🔕" else "🔔"} ${bellLabel(bell)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp),
