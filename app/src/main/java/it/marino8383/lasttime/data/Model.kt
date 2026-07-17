@@ -31,10 +31,12 @@ data class Counter(
     val snoozeUntilMs: Long? = null,
     /** Campanella accesa/spenta senza perderne la configurazione ("Scarta" la spegne). */
     val bellEnabled: Boolean = true,
-    /** INTERVAL = prossima campanella X dopo il Fatto; FIXED = mantiene il ritmo (X dopo la scadenza precedente). */
+    /** INTERVAL = prossima campanella X dopo il Fatto; FIXED = mantiene il ritmo (solo per le ricorrenti). */
     val bellMode: String = "INTERVAL",
-    /** Scadenza campanella corrente; se null si ricava da startMs + bellMinutes. */
+    /** Prossimo squillo programmato; null = nessuno (es. singola già suonata). */
     val nextBellAtMs: Long? = null,
+    /** false = singola (suona una volta e si spegne), true = ricorrente (si riarma ogni X). */
+    val bellRepeat: Boolean = true,
     val secret: Boolean = false,
     val archived: Boolean = false,
     val scheduledResetMs: Long? = null,
@@ -70,18 +72,21 @@ interface CounterDao {
     @Query("SELECT * FROM counters WHERE archived = 1 ORDER BY createdMs")
     fun archivedCounters(): Flow<List<Counter>>
 
-    /** Prossima scadenza campanella: soglia corrente, oppure il rinvio se già notificata e rimandata. */
+    /** Prossimo evento campanella: squillo programmato oppure rinvio, il più vicino. */
     @Query(
-        "SELECT MIN(CASE WHEN bellNotified = 0 THEN COALESCE(nextBellAtMs, startMs + bellMinutes * 60000) ELSE snoozeUntilMs END) " +
-            "FROM counters WHERE archived = 0 AND bellMinutes IS NOT NULL AND bellEnabled = 1 " +
-            "AND (bellNotified = 0 OR snoozeUntilMs IS NOT NULL)"
+        "SELECT MIN(CASE " +
+            "WHEN nextBellAtMs IS NOT NULL AND snoozeUntilMs IS NOT NULL THEN MIN(nextBellAtMs, snoozeUntilMs) " +
+            "WHEN nextBellAtMs IS NOT NULL THEN nextBellAtMs " +
+            "ELSE snoozeUntilMs END) " +
+            "FROM counters WHERE archived = 0 AND bellEnabled = 1 " +
+            "AND (nextBellAtMs IS NOT NULL OR snoozeUntilMs IS NOT NULL)"
     )
     suspend fun nextBellDeadline(): Long?
 
     @Query(
-        "SELECT * FROM counters WHERE archived = 0 AND bellMinutes IS NOT NULL AND bellEnabled = 1 " +
-            "AND ((bellNotified = 0 AND COALESCE(nextBellAtMs, startMs + bellMinutes * 60000) <= :now) " +
-            "OR (bellNotified = 1 AND snoozeUntilMs IS NOT NULL AND snoozeUntilMs <= :now))"
+        "SELECT * FROM counters WHERE archived = 0 AND bellEnabled = 1 " +
+            "AND ((nextBellAtMs IS NOT NULL AND nextBellAtMs <= :now) " +
+            "OR (snoozeUntilMs IS NOT NULL AND snoozeUntilMs <= :now))"
     )
     suspend fun dueBellCounters(now: Long): List<Counter>
 
@@ -107,7 +112,7 @@ interface RoundDao {
     fun roundsFor(counterId: Long): Flow<List<Round>>
 }
 
-@Database(entities = [Counter::class, Round::class], version = 3, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -127,26 +132,45 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
-/** Scadenza campanella corrente del contatore (null se senza campanella). */
-fun Counter.bellDeadline(): Long? =
-    bellMinutes?.let { nextBellAtMs ?: (startMs + it * 60_000) }
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN bellRepeat INTEGER NOT NULL DEFAULT 1")
+        // Backfill: da qui in poi la scadenza vive solo in nextBellAtMs
+        db.execSQL(
+            "UPDATE counters SET nextBellAtMs = startMs + bellMinutes * 60000 " +
+                "WHERE bellMinutes IS NOT NULL AND nextBellAtMs IS NULL"
+        )
+    }
+}
 
 /**
  * Restart del contatore ("Fatto" o ↺): round chiuso altrove, qui il nuovo stato.
- * INTERVAL: prossima campanella tra X da adesso. FIXED: mantiene il ritmo,
- * X dopo la scadenza precedente (se in ritardo di 1h su 8h, suona tra 7h).
+ * Ricorrente INTERVAL: prossimo squillo tra X da adesso. Ricorrente FIXED: il ritmo
+ * non cambia (lo squillo già programmato resta). Singola non ancora suonata: segue
+ * il nuovo round (X da adesso). Singola già suonata: si spegne ("e bona").
  */
 fun Counter.restarted(now: Long): Counter {
-    val bell = bellMinutes
-    val nextBell = if (bell == null) null else {
-        val step = bell * 60_000
-        if (bellMode == "FIXED") {
-            var next = (bellDeadline() ?: now) + step
-            while (next <= now) next += step // saltati più giri interi: aggancia al prossimo futuro
-            next
+    val step = bellMinutes?.times(60_000)
+    var nextBell = nextBellAtMs
+    var enabled = bellEnabled
+    if (step != null && bellEnabled) {
+        if (bellRepeat) {
+            nextBell = if (bellMode == "FIXED" && nextBellAtMs != null) {
+                var next = nextBellAtMs
+                while (next <= now) next += step
+                next
+            } else {
+                now + step
+            }
         } else {
-            now + step
+            if (nextBellAtMs == null) enabled = false else nextBell = now + step
         }
     }
-    return copy(startMs = now, bellNotified = false, snoozeUntilMs = null, nextBellAtMs = nextBell)
+    return copy(
+        startMs = now,
+        bellNotified = false,
+        snoozeUntilMs = null,
+        nextBellAtMs = nextBell,
+        bellEnabled = enabled,
+    )
 }

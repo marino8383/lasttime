@@ -56,7 +56,6 @@ import it.marino8383.lasttime.CountersViewModel
 import it.marino8383.lasttime.ViewMode
 import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
-import it.marino8383.lasttime.data.bellDeadline
 import it.marino8383.lasttime.formatDateTime
 import it.marino8383.lasttime.formatDurationTwoParts
 import it.marino8383.lasttime.formatRingTime
@@ -223,15 +222,16 @@ fun HomeScreen(
         BellDialog(
             counter = counter,
             onDismiss = { bellTarget = null },
-            onSave = { minutes, mode, enabled ->
+            onSave = { minutes, repeat, mode, enabled, nextBellAt ->
                 vm.updateCounter(
                     counter.copy(
                         bellMinutes = minutes,
+                        bellRepeat = repeat,
                         bellMode = mode,
                         bellEnabled = enabled,
                         bellNotified = false,
                         snoozeUntilMs = null,
-                        nextBellAtMs = minutes?.let { counter.startMs + it * 60_000 },
+                        nextBellAtMs = nextBellAt,
                     )
                 )
                 if (minutes != null && enabled) AlarmScheduler.ensureExactAlarmPermission(context)
@@ -275,8 +275,11 @@ private fun CounterCard(
     onDelete: () -> Unit,
 ) {
     val elapsed = now - counter.startMs
-    val deadline = counter.bellDeadline()
-    val over = counter.bellEnabled && deadline != null && now > deadline
+    val snoozePending = counter.snoozeUntilMs?.takeIf { it > now }
+    // Sforata: campanella attiva, nessun rinvio in corso, e lo squillo è passato
+    // (o consumato: singola già suonata resta evidenziata finché non fai Fatto/Scarta)
+    val over = counter.bellEnabled && counter.bellMinutes != null && snoozePending == null &&
+        (counter.nextBellAtMs == null || counter.nextBellAtMs <= now)
 
     Card(
         shape = RoundedCornerShape(26.dp),
@@ -304,7 +307,7 @@ private fun CounterCard(
                 )
                 counter.bellMinutes?.let { bell ->
                     val muted = !counter.bellEnabled
-                    val snoozeLeft = counter.snoozeUntilMs?.minus(now)?.takeIf { it > 0 && !muted }
+                    val snoozeLeft = if (muted) null else snoozePending?.minus(now)
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = when {
@@ -323,6 +326,7 @@ private fun CounterCard(
                                 muted -> "🔕 ${bellLabel(bell)}"
                                 // Campanella rimandata: countdown al nuovo avviso
                                 snoozeLeft != null -> "⏰ tra ${formatDurationTwoParts(snoozeLeft)}"
+                                counter.bellRepeat -> "🔔 ${bellLabel(bell)} ↻"
                                 else -> "🔔 ${bellLabel(bell)}"
                             },
                             fontSize = 12.sp,
@@ -357,11 +361,11 @@ private fun CounterCard(
                     // Solo le cifre cambiano vista al tap (v21)
                     .clickable { onCycleView() },
             )
-            // Prossimo squillo effettivo: rinvio pendente, oppure scadenza non ancora notificata
+            // Prossimo squillo effettivo: rinvio pendente, oppure squillo programmato futuro
             val nextRing = when {
                 counter.bellMinutes == null || !counter.bellEnabled -> null
-                counter.snoozeUntilMs?.let { it > now } == true -> counter.snoozeUntilMs
-                !counter.bellNotified && deadline != null && deadline > now -> deadline
+                snoozePending != null -> snoozePending
+                counter.nextBellAtMs?.let { it > now } == true -> counter.nextBellAtMs
                 else -> null
             }
             Text(

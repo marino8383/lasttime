@@ -69,6 +69,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             db.counterDao().update(
                 counter.copy(
                     bellNotified = true,
+                    bellEnabled = true, // il rinvio deve poter suonare anche se la singola si era spenta
                     snoozeUntilMs = System.currentTimeMillis() + snoozeMinutes * 60_000,
                 )
             )

@@ -17,10 +17,25 @@ class BellReceiver : BroadcastReceiver() {
             try {
                 val app = context.applicationContext as LastTimeApp
                 val dao = app.db.counterDao()
-                val due = dao.dueBellCounters(System.currentTimeMillis())
+                val now = System.currentTimeMillis()
+                val due = dao.dueBellCounters(now)
                 due.forEach { counter ->
                     Notifications.notifyBell(context, counter)
-                    dao.update(counter.copy(bellNotified = true, snoozeUntilMs = null))
+                    val step = (counter.bellMinutes ?: 0) * 60_000
+                    // rinvio consumato
+                    val snooze = counter.snoozeUntilMs?.takeIf { it > now }
+                    // squillo programmato consumato: ricorrente si riarma, singola no
+                    var next = counter.nextBellAtMs
+                    if (next != null && next <= now) {
+                        next = if (counter.bellRepeat && step > 0) {
+                            var n = next
+                            while (n <= now) n += step
+                            n
+                        } else null
+                    }
+                    dao.update(
+                        counter.copy(bellNotified = true, snoozeUntilMs = snooze, nextBellAtMs = next)
+                    )
                 }
                 AlarmScheduler.scheduleNext(context)
             } finally {
