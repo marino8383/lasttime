@@ -13,8 +13,8 @@ android {
         applicationId = "it.marino8383.lasttime"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.4.2"
+        versionCode = 8
+        versionName = "0.4.3"
     }
 
     // Chiave debug fissa committata nel repo: senza, ogni build CI firmerebbe con una

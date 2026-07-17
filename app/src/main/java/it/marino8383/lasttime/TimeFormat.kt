@@ -72,6 +72,22 @@ fun formatDateTime(epochMs: Long): String =
 fun formatShortDateTime(epochMs: Long): String =
     shortDateTimeFmt.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
 
+private val clockFmt = DateTimeFormatter.ofPattern("HH:mm", Locale.ITALIAN)
+private val shortDateFmt = DateTimeFormatter.ofPattern("dd/MM", Locale.ITALIAN)
+
+/** Orario di un evento futuro in forma parlante: "alle 18:30", "domani alle 08:15", "il 20/07 alle 08:15". */
+fun formatRingTime(epochMs: Long): String {
+    val zone = ZoneId.systemDefault()
+    val target = Instant.ofEpochMilli(epochMs).atZone(zone)
+    val today = java.time.LocalDate.now(zone)
+    val clock = clockFmt.format(target)
+    return when (target.toLocalDate()) {
+        today -> "alle $clock"
+        today.plusDays(1) -> "domani alle $clock"
+        else -> "il ${shortDateFmt.format(target)} alle $clock"
+    }
+}
+
 private data class DurUnit(val sec: Long, val one: String, val many: String)
 
 private val durUnits = listOf(

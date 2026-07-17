@@ -59,6 +59,7 @@ import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.bellDeadline
 import it.marino8383.lasttime.formatDateTime
 import it.marino8383.lasttime.formatDurationTwoParts
+import it.marino8383.lasttime.formatRingTime
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.timeParts
 import it.marino8383.lasttime.ui.theme.OnErrorContainer
@@ -356,8 +357,18 @@ private fun CounterCard(
                     // Solo le cifre cambiano vista al tap (v21)
                     .clickable { onCycleView() },
             )
+            // Prossimo squillo effettivo: rinvio pendente, oppure scadenza non ancora notificata
+            val nextRing = when {
+                counter.bellMinutes == null || !counter.bellEnabled -> null
+                counter.snoozeUntilMs?.let { it > now } == true -> counter.snoozeUntilMs
+                !counter.bellNotified && deadline != null && deadline > now -> deadline
+                else -> null
+            }
             Text(
-                "dal ${formatDateTime(counter.startMs)}",
+                buildString {
+                    append("dal ${formatDateTime(counter.startMs)}")
+                    nextRing?.let { append("  ·  🔔 ${formatRingTime(it)}") }
+                },
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
