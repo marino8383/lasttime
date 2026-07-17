@@ -72,21 +72,23 @@ interface CounterDao {
     @Query("SELECT * FROM counters WHERE archived = 1 ORDER BY createdMs")
     fun archivedCounters(): Flow<List<Counter>>
 
-    /** Prossimo evento campanella: squillo programmato oppure rinvio, il più vicino. */
+    /**
+     * Prossimo evento campanella: squillo programmato non ancora notificato, oppure
+     * rinvio pendente. Una campanella già suonata (bellNotified) NON risuona da sola:
+     * si riarma solo con Fatto/reset/Rimanda.
+     */
     @Query(
-        "SELECT MIN(CASE " +
-            "WHEN nextBellAtMs IS NOT NULL AND snoozeUntilMs IS NOT NULL THEN MIN(nextBellAtMs, snoozeUntilMs) " +
-            "WHEN nextBellAtMs IS NOT NULL THEN nextBellAtMs " +
-            "ELSE snoozeUntilMs END) " +
+        "SELECT MIN(CASE WHEN bellNotified = 0 THEN nextBellAtMs ELSE snoozeUntilMs END) " +
             "FROM counters WHERE archived = 0 AND bellEnabled = 1 " +
-            "AND (nextBellAtMs IS NOT NULL OR snoozeUntilMs IS NOT NULL)"
+            "AND ((bellNotified = 0 AND nextBellAtMs IS NOT NULL) " +
+            "OR (bellNotified = 1 AND snoozeUntilMs IS NOT NULL))"
     )
     suspend fun nextBellDeadline(): Long?
 
     @Query(
         "SELECT * FROM counters WHERE archived = 0 AND bellEnabled = 1 " +
-            "AND ((nextBellAtMs IS NOT NULL AND nextBellAtMs <= :now) " +
-            "OR (snoozeUntilMs IS NOT NULL AND snoozeUntilMs <= :now))"
+            "AND ((bellNotified = 0 AND nextBellAtMs IS NOT NULL AND nextBellAtMs <= :now) " +
+            "OR (bellNotified = 1 AND snoozeUntilMs IS NOT NULL AND snoozeUntilMs <= :now))"
     )
     suspend fun dueBellCounters(now: Long): List<Counter>
 
@@ -162,9 +164,9 @@ fun advanceToFuture(from: Long, stepMs: Long, now: Long): Long {
  * ciclica a metà ciclo non è "in ritardo". Serve a decidere se il Fatto deve chiedere.
  */
 fun Counter.bellLatenessMs(now: Long): Long? {
-    val step = bellMinutes?.times(60_000) ?: return null
-    if (!bellRepeat || !bellEnabled || !bellNotified || nextBellAtMs == null) return null
-    return (now - (nextBellAtMs - step)).takeIf { it >= 0 }
+    if (bellMinutes == null || !bellRepeat || !bellEnabled || !bellNotified || nextBellAtMs == null) return null
+    // la scadenza suonata resta in nextBellAtMs (non si auto-avanza più)
+    return (now - nextBellAtMs).takeIf { it >= 0 }
 }
 
 /**

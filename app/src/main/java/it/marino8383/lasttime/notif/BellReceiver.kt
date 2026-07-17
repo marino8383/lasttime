@@ -21,18 +21,12 @@ class BellReceiver : BroadcastReceiver() {
                 val due = dao.dueBellCounters(now)
                 due.forEach { counter ->
                     Notifications.notifyBell(context, counter)
-                    val step = (counter.bellMinutes ?: 0) * 60_000
                     // rinvio consumato
                     val snooze = counter.snoozeUntilMs?.takeIf { it > now }
-                    // squillo programmato consumato: ricorrente si riarma, singola no
-                    var next = counter.nextBellAtMs
-                    if (next != null && next <= now) {
-                        next = if (counter.bellRepeat && step > 0) {
-                            var n = next
-                            while (n <= now) n += step
-                            n
-                        } else null
-                    }
+                    // Nessun riarmo automatico: la ricorrente tiene la scadenza suonata
+                    // (serve per "mantieni il ritmo" al Fatto), la singola la consuma
+                    val next = if (counter.bellRepeat) counter.nextBellAtMs
+                    else counter.nextBellAtMs?.takeIf { it > now }
                     dao.update(
                         counter.copy(bellNotified = true, snoozeUntilMs = snooze, nextBellAtMs = next)
                     )
