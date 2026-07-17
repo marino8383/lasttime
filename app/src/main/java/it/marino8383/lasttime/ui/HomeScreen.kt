@@ -65,7 +65,11 @@ import it.marino8383.lasttime.ui.theme.PrimaryContainer
 import kotlinx.coroutines.delay
 
 @Composable
-fun HomeScreen(vm: CountersViewModel) {
+fun HomeScreen(
+    vm: CountersViewModel,
+    snoozeCounterId: Long? = null,
+    onSnoozeHandled: () -> Unit = {},
+) {
     val counters by vm.counters.collectAsStateWithLifecycle()
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -126,6 +130,20 @@ fun HomeScreen(vm: CountersViewModel) {
 
     if (showDiagnostics) {
         DiagnosticsSheet(onDismiss = { showDiagnostics = false })
+    }
+
+    // "Rimanda" dalla notifica: maschera di snooze appena i contatori sono caricati
+    snoozeCounterId?.let { id ->
+        counters.firstOrNull { it.id == id }?.let { counter ->
+            SnoozeDialog(
+                counter = counter,
+                onDismiss = onSnoozeHandled,
+                onSave = { minutes ->
+                    vm.snooze(counter, minutes)
+                    onSnoozeHandled()
+                },
+            )
+        }
     }
 
     historyTarget?.let { target ->
@@ -203,7 +221,7 @@ fun HomeScreen(vm: CountersViewModel) {
             counter = counter,
             onDismiss = { bellTarget = null },
             onSave = { minutes ->
-                vm.updateCounter(counter.copy(bellMinutes = minutes, bellNotified = false))
+                vm.updateCounter(counter.copy(bellMinutes = minutes, bellNotified = false, snoozeUntilMs = null))
                 if (minutes != null) AlarmScheduler.ensureExactAlarmPermission(context)
                 bellTarget = null
             },

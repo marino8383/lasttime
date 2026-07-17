@@ -16,6 +16,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTop"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -25,6 +26,10 @@
 
         <receiver
             android:name=".notif.BellReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".notif.NotificationActionReceiver"
             android:exported="false" />
 
         <receiver

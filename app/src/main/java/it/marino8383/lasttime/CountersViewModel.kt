@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.notif.AlarmScheduler
+import it.marino8383.lasttime.notif.Notifications
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -55,7 +56,22 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
-            db.counterDao().update(counter.copy(startMs = now, bellNotified = false))
+            db.counterDao().update(counter.copy(startMs = now, bellNotified = false, snoozeUntilMs = null))
+            Notifications.cancel(getApplication(), counter.id)
+            AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    /** Rimanda la campanella: ri-notifica tra [snoozeMinutes] minuti, il contatore continua. */
+    fun snooze(counter: Counter, snoozeMinutes: Long) {
+        viewModelScope.launch {
+            db.counterDao().update(
+                counter.copy(
+                    bellNotified = true,
+                    snoozeUntilMs = System.currentTimeMillis() + snoozeMinutes * 60_000,
+                )
+            )
+            Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }
     }

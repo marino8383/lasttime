@@ -20,7 +20,7 @@ class BellReceiver : BroadcastReceiver() {
                 val due = dao.dueBellCounters(System.currentTimeMillis())
                 due.forEach { counter ->
                     Notifications.notifyBell(context, counter)
-                    dao.update(counter.copy(bellNotified = true))
+                    dao.update(counter.copy(bellNotified = true, snoozeUntilMs = null))
                 }
                 AlarmScheduler.scheduleNext(context)
             } finally {
