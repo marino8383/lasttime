@@ -74,7 +74,7 @@
 <div class="cover">
   <h1>Last <span class="amber">Time</span></h1>
   <div class="sub">Manuale utente</div>
-  <div class="meta">Versione app 0.8.1 · 19 luglio 2026 · powered by Marino8383</div>
+  <div class="meta"><b>Versione app 0.8.2</b> · 19 luglio 2026<br>powered by <b>Marino8383</b></div>
 </div>
 
 <div class="toc">
@@ -88,7 +88,7 @@
     <li>La notifica: Scarta, Fatto, Rimanda</li>
     <li>Sforato e Fatto in ritardo</li>
     <li>Riparti avanzato e reset programmato</li>
-    <li>Giri persi (solo conteggio)</li>
+    <li>Eventi dimenticati: con orario o solo conteggio</li>
     <li>Vista tabellone Solari 🚉</li>
     <li>Storico e statistiche</li>
     <li>Opzioni ⚙️ e Diagnostica 🩺</li>
@@ -109,7 +109,7 @@
 </ol>
 <div class="box">
   <b>Aggiornamenti</b>
-  Le nuove versioni si installano <b>sopra</b> quella esistente: contatori e storico restano. In fondo alla schermata principale leggi versione e data di compilazione (es. "v0.8.1 (20) · build 19/07/2026 19:45"), così sai sempre se hai l'ultima.
+  Le nuove versioni si installano <b>sopra</b> quella esistente: contatori e storico restano. In fondo alla schermata principale leggi versione, data di compilazione e firma (es. "v0.8.2 (21) · build 19/07/2026 20:00 · powered by Marino8383"), così sai sempre se hai l'ultima.
 </div>
 
 <h2>3. La schermata principale</h2>
@@ -201,13 +201,18 @@
   <li><b>Nel futuro</b>: il pulsante diventa <b>"⏲ Programma il reset"</b> — il timer continua fino a quell'ora e si resetta da solo, anche ad app chiusa, con notifica "⏲ Reset programmato eseguito". Sulla card compare il badge ⏲. <b>L'ultimo comando vince</b>: un restart manuale o una nuova programmazione sostituiscono la precedente (nella maschera puoi anche annullarla).</li>
 </ul>
 
-<h2>9. Giri persi (solo conteggio)</h2>
-<p>"So che ho bevuto 2 volte ma non ho loggato": nella stessa maschera del riparti avanzato, sezione <b>"🔢 Giri persi"</b>:</p>
+<h2>9. Eventi dimenticati: con orario o solo conteggio</h2>
+<p>"È venerdì e so che è successo martedì alle 13 e mercoledì alle 15, ma non ho loggato": nella maschera del riparti avanzato, sezione <b>"🔢 Eventi dimenticati"</b>, imposti data/ora e scegli fra due bottoni:</p>
+<h3>➕ Con orario — round veri retroattivi</h3>
+<p>Chiude il round a quell'istante e il timer <b>riparte da lì</b> (si "rifasa"). La maschera resta aperta, quindi per più eventi li inserisci uno dietro l'altro <b>in ordine cronologico</b> (il più vecchio per primo — l'interfaccia lo impone da sola):</p>
 <ol>
-  <li>imposta data/ora <b>approssimativa</b> dell'evento</li>
-  <li><b>"➕ Aggiungi evento al conteggio"</b> — ripetibile per più eventi (vedi "aggiunti: N")</li>
+  <li>martedì 13:00 → ➕ Con orario → salvato il round "…→ martedì 13:00"</li>
+  <li>mercoledì 15:00 → ➕ Con orario → salvato il round "martedì 13:00 → mercoledì 15:00" (26 h vere)</li>
+  <li>chiudi: il timer ora conta da mercoledì 15:00, e i round <b>contano in media, più lungo e ritmo</b></li>
 </ol>
-<p>Questi eventi <b>contano</b> nel "📊 Quante volte" e nel totale ("Eventi: 12, di cui 2 solo conteggio") ma sono <b>esclusi</b> da media, più lungo e ritmo. Nello storico: "🔢 SOLO CONTEGGIO — il 19/07 21:30". Il timer non viene toccato.</p>
+<p>Anche la campanella si rifasa dall'istante inserito, secondo le sue regole (cap. 5). Vale solo per istanti dentro il round attuale, non nel futuro.</p>
+<h3>➕ Solo conteggio — date a spanne</h3>
+<p>Se l'orario lo sai solo vagamente: l'evento <b>conta</b> nel "📊 Quante volte" e nel totale ("Eventi: 12, di cui 2 solo conteggio") ma è <b>escluso</b> da media, più lungo e ritmo, per non sporcare le statistiche sui tempi con durate inventate. Nello storico: "🔢 SOLO CONTEGGIO — il 19/07 21:30". Il timer non viene toccato. Funziona anche per date più vecchie del round attuale.</p>
 
 <div class="pagebreak"></div>
 
@@ -252,13 +257,13 @@
 <h3>Perché la campanella non risuona da sola se la ignoro?</h3>
 <p>È una scelta di design: suona una volta, poi la card ambra fa da promemoria. Per un nuovo avviso usa Rimanda.</p>
 <h3>Posso aggiungere eventi che ho dimenticato di loggare?</h3>
-<p>Sì: doppio tap su ↺ → "Giri persi (solo conteggio)" (cap. 9). Contano nel conteggio, non nei tempi.</p>
+<p>Sì: doppio tap su ↺ → "Eventi dimenticati" (cap. 9). Se sai l'orario, "➕ Con orario" crea round veri e rifasa il timer; se lo sai a spanne, "➕ Solo conteggio".</p>
 <h3>Cosa succede se riavvio il telefono o cambio l'ora?</h3>
 <p>Nulla da fare: sveglie e reset programmati vengono ri-registrati automaticamente.</p>
 <h3>I miei dati dove stanno?</h3>
 <p>Solo sul telefono, in un database locale. Nessun account, nessun invio in rete. Disinstallare l'app cancella tutto.</p>
 
-<p class="footer-note">Last Time · manuale utente per la versione 0.8.1 · generato il 19/07/2026 · powered by Marino8383</p>
+<p class="footer-note">Last Time · manuale utente per la <b>versione 0.8.2</b> · generato il 19/07/2026 · powered by <b>Marino8383</b></p>
 
 </body>
 </html>
