@@ -46,7 +46,22 @@
   .card-demo .tempo { font-size: 20pt; font-weight: 800; margin: 6px 0 2px; }
   .card-demo .tempo small { font-size: 9pt; color: #9AA0A8; }
   .card-demo .dal { color: #9AA0A8; font-size: 8.5pt; }
+  .card-demo .sfor { color: #FFB84D; font-size: 8.5pt; font-weight: 700; }
   .card-demo .azioni { border-top: 1px solid #33383F; margin-top: 8px; padding-top: 6px; text-align: right; font-size: 11pt; letter-spacing: 8px; }
+  .board-demo {
+    background: #14161A; border-radius: 12px; padding: 12px 14px; width: 360px;
+    margin: 12px auto; page-break-inside: avoid;
+  }
+  .board-demo .bname { color: #E8E9E6; font-weight: 800; letter-spacing: 3px; font-size: 9pt; margin-bottom: 8px; }
+  .board-demo .tiles { text-align: center; }
+  .board-demo .tile {
+    display: inline-block; background: #080909; color: #F4F5F1; border-radius: 4px;
+    width: 22px; height: 34px; line-height: 34px; text-align: center;
+    font-weight: 800; font-size: 14pt; margin: 0 1px;
+    background-image: linear-gradient(#101216 49%, #000 50%, #101216 51%);
+  }
+  .board-demo .gap { display: inline-block; width: 10px; }
+  .board-demo .lbl { color: #7A8089; font-size: 7pt; letter-spacing: 2px; text-align: center; margin-top: 3px; }
   .footer-note { color: #888; font-size: 9pt; margin-top: 30px; text-align: center; }
   .toc { background: #FAFAF8; border: 1px solid #E5E5E0; border-radius: 6px; padding: 12px 18px; margin: 20px 0; }
   .toc ol { margin: 4px 0; }
@@ -59,7 +74,7 @@
 <div class="cover">
   <h1>Last <span class="amber">Time</span></h1>
   <div class="sub">Manuale utente</div>
-  <div class="meta">Versione app 0.6.2 · 17 luglio 2026 · powered by Marino8383</div>
+  <div class="meta">Versione app 0.8.1 · 19 luglio 2026 · powered by Marino8383</div>
 </div>
 
 <div class="toc">
@@ -71,7 +86,10 @@
     <li>Creare e gestire un contatore</li>
     <li>La campanella</li>
     <li>La notifica: Scarta, Fatto, Rimanda</li>
-    <li>Fatto in ritardo: mantieni il ritmo o riparti</li>
+    <li>Sforato e Fatto in ritardo</li>
+    <li>Riparti avanzato e reset programmato</li>
+    <li>Giri persi (solo conteggio)</li>
+    <li>Vista tabellone Solari 🚉</li>
     <li>Storico e statistiche</li>
     <li>Opzioni ⚙️ e Diagnostica 🩺</li>
     <li>Domande frequenti</li>
@@ -79,161 +97,168 @@
 </div>
 
 <h2>1. Cos'è Last Time</h2>
-<p>Last Time conta <b>da quanto tempo non succede qualcosa</b>: da quanto non bevi un bicchiere d'acqua, da quanto non prendi una pillola, da quanto non chiami qualcuno. Ogni voce è un <b>contatore</b> che scorre in tempo reale. Quando l'evento si ripete, fai <b>ripartire</b> il contatore: il periodo appena concluso (un <b>round</b>) viene salvato nello storico, con statistiche.</p>
+<p>Last Time conta <b>da quanto tempo non succede qualcosa</b>: da quanto non bevi, da quanto non prendi una pillola, da quanto non chiami qualcuno. Ogni voce è un <b>contatore</b> che scorre in tempo reale. Quando l'evento si ripete, fai <b>ripartire</b> il contatore: il periodo concluso (un <b>round</b>) finisce nello storico, con statistiche.</p>
 <p>Tutto funziona <b>in locale</b>, senza account e senza internet: i dati restano solo sul tuo telefono.</p>
 
 <h2>2. Installazione e aggiornamenti</h2>
 <ol>
   <li>Vai su <b>github.com/marino8383/lasttime</b> → scheda <b>Actions</b></li>
   <li>Apri l'ultimo run "Build APK" riuscito (spunta verde)</li>
-  <li>In fondo alla pagina, sezione <b>Artifacts</b>, scarica <b>lasttime-debug-apk</b></li>
+  <li>In fondo, sezione <b>Artifacts</b>, scarica <b>lasttime-debug-apk</b></li>
   <li>È uno zip: dentro c'è <code>app-debug.apk</code>. Copialo sul telefono e installalo</li>
 </ol>
 <div class="box">
   <b>Aggiornamenti</b>
-  Le nuove versioni si installano <b>sopra</b> quella esistente: i contatori e lo storico restano. In fondo alla schermata principale leggi sempre versione e data di compilazione (es. "v0.6.2 (17) · build 17/07/2026 15:00"), così sai se hai l'ultima.
+  Le nuove versioni si installano <b>sopra</b> quella esistente: contatori e storico restano. In fondo alla schermata principale leggi versione e data di compilazione (es. "v0.8.1 (20) · build 19/07/2026 19:45"), così sai sempre se hai l'ultima.
 </div>
 
 <h2>3. La schermata principale</h2>
 <div class="card-demo">
-  <span class="chipd">🔔 8 h ↻</span>
-  <div class="nome">BEVUTO ACQUA</div>
+  <span class="chipd">🔔 1 h ↻</span>
+  <div class="nome">PILLOLA</div>
   <div class="tempo">3<small>h</small> 12<small>m</small> 05<small>s</small></div>
-  <div class="dal">dal 17/07/2026 10:30</div>
+  <div class="dal">dal 19/07/2026 10:30</div>
+  <div class="sfor">🔔 sforata da 2 h e 12 min</div>
   <div class="azioni">🕘 🔔 ✏️ ↺ 🗑</div>
 </div>
-<p>Ogni contatore è una <b>card</b>. Dall'alto:</p>
+<p>Ogni contatore è una <b>card</b>:</p>
 <ul>
-  <li><b>Nome</b> e, se impostata, il <b>chip della campanella</b> (in alto a destra)</li>
-  <li><b>Tempo trascorso</b>, grande. <b>Tocca le cifre</b> per cambiare vista: completa → solo anni → solo giorni → solo minuti → solo secondi → di nuovo completa. Ogni contatore ricorda la sua vista.</li>
-  <li>Riga <b>"dal …"</b>: quando è iniziato il round corrente</li>
-  <li>Fila di <b>pulsanti</b>: 🕘 storico · 🔔 campanella · ✏️ modifica · ↺ riparti · 🗑 elimina</li>
+  <li><b>Nome</b> e <b>chip campanella</b> (in alto a destra)</li>
+  <li><b>Tempo trascorso</b>, grande. <b>Tocca le cifre</b> per cambiare vista: completa → anni → giorni → minuti → secondi. Ogni contatore ricorda la sua vista.</li>
+  <li>Riga <b>"dal …"</b>: inizio del round corrente; sotto, quando serve, il badge <b>"⏲ reset programmato alle …"</b> o la riga <b>"🔔 sforata da …"</b> (un timer vivo che avanza)</li>
+  <li>Pulsanti: 🕘 storico · 🔔 campanella · ✏️ modifica · ↺ riparti (doppio tap = riparti avanzato) · 🗑 elimina</li>
 </ul>
-<p>Nell'intestazione in alto: <b>🩺 Diagnostica</b> notifiche e <b>⚙️ Opzioni</b>. Il pulsante <b>+</b> in basso crea un nuovo contatore.</p>
-<div class="box">
-  <b>Card in ambra ("sforato")</b>
-  Quando una campanella suona e non hai ancora risposto, la card si evidenzia in ambra e ci resta finché non agisci (Fatto, Rimanda o Scarta).
-</div>
+<p>Nell'intestazione: <b>🚉 vista tabellone</b>, <b>🩺 Diagnostica</b>, <b>⚙️ Opzioni</b>. Il <b>+</b> in basso crea un contatore.</p>
+
+<h3>Il chip campanella</h3>
+<p>Si <b>tocca</b> e cicla tra tre viste:</p>
+<ul>
+  <li><span class="chip">🔔 8 h ↻</span> valore impostato (↻ = ricorrente)</li>
+  <li><span class="chip">⏰ 4 h e 47 min</span> countdown al prossimo squillo, in sincrono col timer — da sforata mostra <span class="chip">⏰ +2 h e 12 min</span> (da quanto è passata)</li>
+  <li><span class="chip">🕐 alle 18:30</span> orario dello squillo (prossimo o, da sforata, quello mancato)</li>
+</ul>
+<p>Con un <b>rinvio attivo</b> il countdown appare da solo. Campanella spenta = <span class="chip">🔕 8 h</span> grigio.</p>
 
 <h2>4. Creare e gestire un contatore</h2>
-<h3>Creare</h3>
-<p>Tocca <b>+</b>: dai un nome e scegli l'inizio — <b>Adesso</b> (default) oppure <b>Data e ora</b> nel passato (una data futura viene riportata ad adesso, con avviso).</p>
-<h3>Ripartire (restart)</h3>
-<p>Due modi, entrambi con richiesta di conferma:</p>
-<ul>
-  <li>tocca <b>↺</b> sulla card</li>
-  <li><b>doppio tap</b> in un punto qualsiasi della card</li>
-</ul>
-<p>Alla conferma, il round corrente viene chiuso e salvato nello storico e il contatore riparte da zero.</p>
-<h3>Modificare ed eliminare</h3>
-<p><b>✏️</b> cambia nome o data di inizio del round corrente. <b>🗑</b> elimina il contatore <b>e tutto il suo storico</b>, previa conferma.</p>
+<p><b>Creare</b>: tocca +, dai un nome, scegli l'inizio (Adesso, o data/ora nel passato; il futuro viene riportato ad adesso con avviso).</p>
+<p><b>Ripartire</b>: tocca ↺ oppure doppio tap sulla card → conferma → il round va nello storico e si riparte da zero. Per ripartire da un momento diverso, vedi il capitolo 8.</p>
+<p><b>Modificare / eliminare</b>: ✏️ cambia nome o inizio del round corrente; 🗑 elimina contatore e storico, con conferma.</p>
 
 <div class="pagebreak"></div>
 
 <h2>5. La campanella</h2>
-<p>La campanella (🔔 sulla card) ti avvisa con una notifica quando è passato troppo tempo. Si imposta per singolo contatore: quantità + unità (minuti, ore, giorni).</p>
+<p>Si imposta dal 🔔 della card: quantità + unità (minuti, ore, giorni). Regola d'oro: <b>ogni campanella suona una volta sola</b> e poi aspetta una tua risposta — non ti tempesta mai da sola.</p>
 
 <h3>Singola o Ricorrente</h3>
 <table>
   <tr><th></th><th>Singola</th><th>Ricorrente ↻</th></tr>
-  <tr><td><b>Allo squillo</b></td><td>Suona una volta, il timer va in sforato</td><td>Suona una volta, il timer va in sforato</td></tr>
+  <tr><td><b>Allo squillo</b></td><td>Suona una volta, timer sforato</td><td>Suona una volta, timer sforato</td></tr>
   <tr><td><b>Dopo Fatto / ↺</b></td><td>Si <b>spegne</b> (chip 🔕)</td><td>Si <b>riarma</b> per il giro successivo</td></tr>
+  <tr><td><b>Rimanda</b></td><td>Risuona allo scadere del rinvio</td><td>Risuona allo scadere del rinvio</td></tr>
   <tr><td><b>Uso tipico</b></td><td>"Avvisami tra 2 ore" una tantum</td><td>"Pillola ogni 8 ore"</td></tr>
 </table>
-<p>Nessuna campanella risuona da sola dopo lo squillo: per sentirla di nuovo devi rispondere (Fatto, che la riarma se ricorrente) o rimandarla.</p>
 
-<h3>Il ritmo (solo ricorrenti): "dopo il Fatto"</h3>
+<h3>Il ritmo delle ricorrenti ("dopo il Fatto")</h3>
 <ul>
-  <li><b>Riparti da adesso</b> — la prossima suona X tempo dopo il momento in cui premi Fatto</li>
-  <li><b>Mantieni il ritmo</b> — la cadenza resta agganciata all'orario: pillola ogni 8 ore, confermi con 1 ora di ritardo → la prossima suona dopo 7 ore</li>
+  <li><b>Riparti da adesso</b> — la prossima suona X tempo dopo il Fatto</li>
+  <li><b>Mantieni il ritmo</b> — la cadenza resta agganciata all'orologio: ogni 8 ore, confermi con 1 ora di ritardo → la prossima suona dopo 7 ore</li>
 </ul>
 
 <h3>Da quando parte</h3>
-<p>Quando imposti la campanella, il punto di partenza è deciso così:</p>
 <ul>
-  <li>se la soglia contata dall'inizio del timer è <b>già passata</b> (timer partito 4 ore fa, campanella 2 minuti) → parte <b>da adesso</b>, senza domande</li>
-  <li>se il timer è <b>appena partito</b> → le due opzioni coincidono, nessuna domanda</li>
-  <li>nel caso ambiguo → compare la scelta <b>"Da inizio timer / Da adesso"</b></li>
+  <li>soglia dall'inizio del timer <b>già superata</b> (timer di 4 ore fa, campanella 2 min) → parte <b>da adesso</b>, automaticamente</li>
+  <li>timer <b>appena partito</b> → le opzioni coincidono, nessuna domanda</li>
+  <li>caso ambiguo → scelta <b>"Da inizio timer / Da adesso"</b> nella maschera</li>
 </ul>
-<p>In fondo alla maschera vedi sempre l'anteprima: <b>"🔔 suonerà alle 18:32"</b>.</p>
-
-<h3>Il chip sulla card</h3>
-<p>Il chip in alto a destra si <b>tocca</b> e cicla tra tre viste:</p>
-<ul>
-  <li><span class="chip">🔔 8 h ↻</span> valore impostato (↻ = ricorrente)</li>
-  <li><span class="chip">⏰ 4 h e 47 min</span> countdown al prossimo squillo (scorre in sincrono col timer)</li>
-  <li><span class="chip">🕐 alle 18:30</span> orario dello squillo ("domani alle…", "il 20/07 alle…")</li>
-</ul>
-<p>Con un <b>rinvio attivo</b> il chip mostra da solo il countdown. Campanella spenta = <span class="chip">🔕 8 h</span> grigio.</p>
-
-<h3>Accendere e spegnere</h3>
-<p>Nella maschera campanella c'è l'interruttore <b>"Campanella attiva"</b>: la spegni e riaccendi senza perdere la configurazione. Anche <b>Scarta</b> sulla notifica la spegne.</p>
+<p>In fondo alla maschera c'è sempre l'anteprima <b>"🔔 suonerà alle 18:32"</b>. L'interruttore <b>"Campanella attiva"</b> la spegne/riaccende senza perdere la configurazione.</p>
 
 <h2>6. La notifica: Scarta, Fatto, Rimanda</h2>
-<p>Quando la campanella suona arriva una notifica (con suono e vibrazione) con tre pulsanti:</p>
+<p>Allo squillo arriva una notifica (suono + vibrazione) con tre pulsanti:</p>
 <table>
   <tr><th>Pulsante</th><th>Effetto</th></tr>
-  <tr><td><b>Scarta</b></td><td>Chiude la notifica e <b>spegne la campanella</b> (chip 🔕). Il timer continua a contare.</td></tr>
-  <tr><td><b>Fatto</b></td><td>Senza aprire l'app: il round viene salvato nello storico e il timer <b>riparte da zero</b>. La campanella si riarma (ricorrente) o si spegne (singola).</td></tr>
-  <tr><td><b>Rimanda</b></td><td>Apre la maschera di rinvio: quantità + unità (minuti / ore / giorni / mesi), default 10 minuti, con anteprima. La campanella risuonerà allo scadere; <b>il timer non viene toccato</b>.</td></tr>
+  <tr><td><b>Scarta</b></td><td>Chiude la notifica e <b>spegne la campanella</b> (🔕). Il timer continua.</td></tr>
+  <tr><td><b>Fatto</b></td><td>Senza aprire l'app: round nello storico, timer riparte. Campanella riarmata (ricorrente) o spenta (singola). Se sei molto in ritardo applica <b>in silenzio il default</b> del setup — la scelta esplicita c'è solo dentro l'app (cap. 7).</td></tr>
+  <tr><td><b>Rimanda</b></td><td>Apre la maschera di rinvio: quantità + unità (min/ore/giorni/mesi), default 10 minuti. Risuona allo scadere; il timer non viene toccato.</td></tr>
 </table>
-<p>Toccando il corpo della notifica si apre semplicemente l'app.</p>
 
-<h2>7. Fatto in ritardo: mantieni il ritmo o riparti</h2>
-<p>Per le <b>ricorrenti</b>, cosa succede quando fai Fatto o ↺ dopo che la campanella ha suonato dipende dal ritardo accumulato (misurato <b>dallo squillo originale</b>, anche se nel frattempo hai rimandato):</p>
+<h2>7. Sforato e Fatto in ritardo</h2>
+<p>Se non rispondi allo squillo, il timer resta <b>sforato</b>: card ambra, riga <b>"🔔 sforata da …"</b> che avanza, e silenzio — nessun nuovo avviso finché non agisci.</p>
+<p>Quando poi fai <b>Fatto/↺ nell'app</b> su una ricorrente, il ritardo (misurato dallo squillo originale, anche dopo N rimandi) decide:</p>
 <ul>
-  <li><b>entro la tolleranza</b> (per default il 3% del periodo: ~15 min su 8 ore) → il ritmo viene mantenuto in silenzio, nessuna domanda</li>
-  <li><b>oltre la tolleranza</b> → compare la scelta con gli orari calcolati:
-    <ul>
-      <li><b>Mantieni il ritmo</b> — prossima alle 16:00</li>
-      <li><b>Riparti da adesso</b> — prossima alle 17:23</li>
-      <li><b>Disattiva la campanella 🔕</b> — il timer riparte senza avvisi</li>
-    </ul>
-    con preselezionato il default scelto nel setup della campanella.</li>
+  <li><b>entro la tolleranza</b> (default 3% del periodo: ~2 min su 1 ora, ~15 min su 8 ore) → ritmo mantenuto in silenzio</li>
+  <li><b>oltre</b> → dialog con gli orari calcolati: <b>Mantieni il ritmo</b> / <b>Riparti da adesso</b> / <b>Disattiva la campanella</b>, con preselezionato il default del setup</li>
 </ul>
-<div class="box warn">
-  <b>Attenzione</b>
-  La domanda compare solo facendo Fatto/↺ <b>dentro l'app</b>. Il pulsante "Fatto" sulla notifica non può aprire maschere: applica in silenzio il default della campanella.
+<div class="box">
+  <b>Esempio</b>
+  Campanella ogni ora, riprendi il telefono dopo 1 h 30: ↺ → conferma → "La campanella è suonata 30 min fa. E la prossima?" → mantieni il ritmo (tra 30 min) / da adesso (tra 1 h) / disattiva.
 </div>
+
+<h2>8. Riparti avanzato e reset programmato</h2>
+<p><b>Doppio tap su ↺</b> apre la maschera "Riparti avanzato":</p>
+<ul>
+  <li><b>Chip rapide</b>: Adesso / 10 min fa / 30 min fa / 1 h fa / 1 g fa, oppure <b>Data e ora</b> precise</li>
+  <li><b>Nel passato</b>: il round attuale viene chiuso all'istante scelto e il nuovo parte da lì. Non si può andare prima dell'inizio del round attuale (per non sovrapporsi ai round già salvati).</li>
+  <li><b>Nel futuro</b>: il pulsante diventa <b>"⏲ Programma il reset"</b> — il timer continua fino a quell'ora e si resetta da solo, anche ad app chiusa, con notifica "⏲ Reset programmato eseguito". Sulla card compare il badge ⏲. <b>L'ultimo comando vince</b>: un restart manuale o una nuova programmazione sostituiscono la precedente (nella maschera puoi anche annullarla).</li>
+</ul>
+
+<h2>9. Giri persi (solo conteggio)</h2>
+<p>"So che ho bevuto 2 volte ma non ho loggato": nella stessa maschera del riparti avanzato, sezione <b>"🔢 Giri persi"</b>:</p>
+<ol>
+  <li>imposta data/ora <b>approssimativa</b> dell'evento</li>
+  <li><b>"➕ Aggiungi evento al conteggio"</b> — ripetibile per più eventi (vedi "aggiunti: N")</li>
+</ol>
+<p>Questi eventi <b>contano</b> nel "📊 Quante volte" e nel totale ("Eventi: 12, di cui 2 solo conteggio") ma sono <b>esclusi</b> da media, più lungo e ritmo. Nello storico: "🔢 SOLO CONTEGGIO — il 19/07 21:30". Il timer non viene toccato.</p>
 
 <div class="pagebreak"></div>
 
-<h2>8. Storico e statistiche</h2>
-<p>Il pulsante <b>🕘</b> sulla card apre lo storico del contatore:</p>
+<h2>10. Vista tabellone Solari 🚉</h2>
+<div class="board-demo">
+  <div class="bname">PILLOLA</div>
+  <div class="tiles">
+    <span class="tile">0</span><span class="tile">0</span><span class="tile">3</span><span class="gap"></span><span class="tile">0</span><span class="tile">4</span><span class="gap"></span><span class="tile">1</span><span class="tile">2</span><span class="gap"></span><span class="tile">0</span><span class="tile">5</span>
+  </div>
+  <div class="lbl">GIORNI&nbsp;&nbsp;&nbsp;&nbsp;ORE&nbsp;&nbsp;&nbsp;&nbsp;MIN&nbsp;&nbsp;&nbsp;&nbsp;SEC</div>
+</div>
+<p>Il <b>🚉</b> nell'header trasforma la lista in un tabellone da stazione anni '70: un board per contatore, placche quasi nere con cifre bianche che <b>si girano davvero</b> (animazione split-flap) a ogni cambio. Targhetta <b>SFORATO</b> ambra e cifre ambrate quando la campanella è suonata senza risposta.</p>
 <ul>
-  <li><b>Round in corso</b>, evidenziato, con durata e inizio</li>
-  <li><b>Riepilogo</b>: numero di eventi, round più lungo, media</li>
-  <li><b>📊 Quante volte</b>: conteggi nell'ultima ora / 24 h / 7 giorni / 30 giorni / anno</li>
-  <li><b>⏱ Ritmo</b>: "in media una volta ogni 2 h e 53 min"</li>
-  <li><b>Elenco dei round conclusi</b>: intervallo e durata ("1 h e 5 min", "6 giorni e 4 h")</li>
+  <li><b>Barra opzioni</b>: Spezzato / Anni / Mesi / Giorni / Minuti / Secondi (i totali mostrano un'unica fila di placche)</li>
+  <li>in Spezzato: toggle <b>"Mostra anni"</b> e <b>"Mostra secondi"</b>; il gruppo anni sparisce da solo se è a zero</li>
+  <li>le placche si <b>ridimensionano automaticamente</b> per riempire la riga</li>
+  <li>nessun pulsante: l'unica interazione è il <b>doppio tap sul board = riparti</b> (con conferma). Le scelte della vista restano memorizzate.</li>
 </ul>
-<p>Le durate sono sempre a due componenti: unità dominante + successiva.</p>
+<p>Si torna alle card con <b>🗂</b>.</p>
 
-<h2>9. Opzioni ⚙️ e Diagnostica 🩺</h2>
+<h2>11. Storico e statistiche</h2>
+<p>Il pulsante <b>🕘</b> apre lo storico del contatore:</p>
+<ul>
+  <li><b>Round in corso</b> evidenziato, con durata e inizio</li>
+  <li><b>Riepilogo</b>: eventi (con i "solo conteggio" distinti), round più lungo, media</li>
+  <li><b>📊 Quante volte</b>: ultima ora / 24 h / 7 giorni / 30 giorni / anno</li>
+  <li><b>⏱ Ritmo</b>: "in media una volta ogni 2 h e 53 min" (solo round con tempi)</li>
+  <li><b>Elenco round</b>: intervallo e durata a due componenti ("1 h e 5 min", "6 giorni e 4 h")</li>
+</ul>
+
+<h2>12. Opzioni ⚙️ e Diagnostica 🩺</h2>
 <h3>⚙️ Opzioni</h3>
-<p><b>Tolleranza "mantieni il ritmo"</b>: la percentuale del periodo entro cui il Fatto in ritardo riarma senza chiedere (default 3%, impostabile 1–50%). Esempi col 3%: 8 ore → ~15 minuti; 1 minuto → ~2 secondi.</p>
+<p><b>Tolleranza "mantieni il ritmo"</b>: percentuale del periodo entro cui il Fatto in ritardo riarma senza chiedere (default 3%, campo 1–50%, salvata mentre digiti).</p>
 <h3>🩺 Diagnostica notifiche</h3>
-<p>Tre controlli, ognuno con pulsante "Sistema" che apre la schermata giusta:</p>
-<ol>
-  <li><b>Notifiche</b> — il permesso di mostrarle</li>
-  <li><b>Sveglie esatte</b> — senza, gli avvisi possono slittare di minuti (Android 12+)</li>
-  <li><b>Ottimizzazione batteria</b> — il punto critico: su molti telefoni (Samsung, Xiaomi…) il risparmio energetico blocca gli avvisi ad app chiusa. Esenta l'app.</li>
-</ol>
-<p>Con tutti e tre i punti verdi, le campanelle arrivano puntuali anche a telefono in tasca da ore.</p>
+<p>Tre check con pulsante "Sistema": <b>Notifiche</b> (permesso), <b>Sveglie esatte</b> (Android 12+), <b>Ottimizzazione batteria</b> (il punto critico su Samsung/Xiaomi: esenta l'app). Tutti verdi = campanelle puntuali anche a telefono addormentato. I check si aggiornano da soli quando torni dalle impostazioni.</p>
 
-<h2>10. Domande frequenti</h2>
-<h3>La notifica non arriva (o arriva solo quando apro l'app)</h3>
-<p>Apri 🩺 e sistema i punti gialli, in particolare l'ottimizzazione batteria. Se il telefono è in modalità silenziosa/DND, suono e vibrazione seguono le regole di sistema.</p>
-<h3>Ho rimandato: dove vedo quando risuonerà?</h3>
-<p>Sul chip della card, che durante un rinvio mostra da solo il countdown ("⏰ 54 s"). Toccandolo vedi anche l'orario esatto.</p>
-<h3>Perché la campanella è partita "da adesso" e non dall'inizio del timer?</h3>
-<p>Perché la soglia contata dall'inizio era già superata: sarebbe suonata immediatamente. Nei casi ambigui l'app chiede.</p>
+<h2>13. Domande frequenti</h2>
+<h3>Riprendo il telefono ore dopo lo squillo: cosa posso fare?</h3>
+<p>La card è ambra con "sforata da X". Puoi: <b>Fatto/↺</b> (con la scelta del ritmo se sei oltre la tolleranza), <b>doppio tap su ↺</b> per ripartire retroattivamente ("in realtà l'ho fatto 2 ore fa"), <b>Rimanda</b> dalla notifica se è ancora nella tendina, spegnere la campanella (Scarta o 🔔 → interruttore), o non fare nulla: il timer continua e la card resta ambra come promemoria.</p>
+<h3>La notifica non arriva ad app chiusa</h3>
+<p>Apri 🩺 e sistema i punti gialli, soprattutto l'ottimizzazione batteria.</p>
+<h3>Perché la campanella non risuona da sola se la ignoro?</h3>
+<p>È una scelta di design: suona una volta, poi la card ambra fa da promemoria. Per un nuovo avviso usa Rimanda.</p>
+<h3>Posso aggiungere eventi che ho dimenticato di loggare?</h3>
+<p>Sì: doppio tap su ↺ → "Giri persi (solo conteggio)" (cap. 9). Contano nel conteggio, non nei tempi.</p>
 <h3>Cosa succede se riavvio il telefono o cambio l'ora?</h3>
-<p>Nulla da fare: le sveglie vengono ri-registrate automaticamente al riavvio e ai cambi di ora o fuso.</p>
+<p>Nulla da fare: sveglie e reset programmati vengono ri-registrati automaticamente.</p>
 <h3>I miei dati dove stanno?</h3>
 <p>Solo sul telefono, in un database locale. Nessun account, nessun invio in rete. Disinstallare l'app cancella tutto.</p>
 
-<p class="footer-note">Last Time · manuale utente per la versione 0.6.2 · generato il 17/07/2026 · powered by Marino8383</p>
+<p class="footer-note">Last Time · manuale utente per la versione 0.8.1 · generato il 19/07/2026 · powered by Marino8383</p>
 
 </body>
 </html>
