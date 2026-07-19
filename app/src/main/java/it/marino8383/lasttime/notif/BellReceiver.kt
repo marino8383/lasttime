@@ -36,15 +36,10 @@ class BellReceiver : BroadcastReceiver() {
                 val due = dao.dueBellCounters(now)
                 due.forEach { counter ->
                     Notifications.notifyBell(context, counter)
-                    // rinvio consumato
+                    // rinvio consumato; la scadenza suonata resta in nextBellAtMs
+                    // (serve per "mantieni il ritmo" e per mostrare "sforata da X")
                     val snooze = counter.snoozeUntilMs?.takeIf { it > now }
-                    // Nessun riarmo automatico: la ricorrente tiene la scadenza suonata
-                    // (serve per "mantieni il ritmo" al Fatto), la singola la consuma
-                    val next = if (counter.bellRepeat) counter.nextBellAtMs
-                    else counter.nextBellAtMs?.takeIf { it > now }
-                    dao.update(
-                        counter.copy(bellNotified = true, snoozeUntilMs = snooze, nextBellAtMs = next)
-                    )
+                    dao.update(counter.copy(bellNotified = true, snoozeUntilMs = snooze))
                 }
                 AlarmScheduler.scheduleNext(context)
             } finally {

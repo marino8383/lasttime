@@ -412,6 +412,9 @@ private fun CounterCard(
                 counter.bellMinutes?.let { bell ->
                     val muted = !counter.bellEnabled
                     val remaining = nextRing?.let { (it - counter.startMs - elapsed).coerceAtLeast(0) }
+                    // da quanto è sforata, sulla stessa griglia dei secondi del timer
+                    val overdue = if (over) counter.nextBellAtMs
+                        ?.let { (counter.startMs + elapsed - it).coerceAtLeast(0) } else null
                     val label = bellLabel(bell) + if (counter.bellRepeat) " ↻" else ""
                     Surface(
                         shape = RoundedCornerShape(10.dp),
@@ -432,7 +435,10 @@ private fun CounterCard(
                             when {
                                 muted -> "🔕 $label"
                                 chipMode == 1 && remaining != null -> "⏰ ${formatDurationTwoParts(remaining)}"
+                                chipMode == 1 && overdue != null -> "⏰ +${formatDurationTwoParts(overdue)}"
                                 chipMode == 2 && nextRing != null -> "🕐 ${formatRingTime(nextRing)}"
+                                chipMode == 2 && over && counter.nextBellAtMs != null ->
+                                    "🕐 ${formatRingTime(counter.nextBellAtMs)}"
                                 // rinvio attivo: countdown in evidenza senza dover toccare
                                 snoozePending != null && remaining != null ->
                                     "⏰ ${formatDurationTwoParts(remaining)}"
@@ -485,6 +491,19 @@ private fun CounterCard(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 2.dp),
                 )
+            }
+            // sforata da quanto: timer che avanza, sincronizzato ai secondi del contatore
+            if (over) {
+                counter.nextBellAtMs?.let { deadline ->
+                    val overdueLine = (counter.startMs + elapsed - deadline).coerceAtLeast(0)
+                    Text(
+                        "🔔 sforata da ${formatDurationTwoParts(overdueLine)}",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = OnErrorContainer,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))
