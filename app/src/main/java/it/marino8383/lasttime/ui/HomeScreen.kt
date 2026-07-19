@@ -268,6 +268,8 @@ fun HomeScreen(
             },
             onCancelSchedule = { vm.cancelScheduledReset(counter) },
             onAddMissed = { at -> vm.addMissedEvent(counter, at) },
+            // evento con orario: round chiuso lì e timer rifasato, la maschera resta aperta
+            onAddTimedEvent = { at -> vm.restartAt(counter, at) },
         )
     }
 

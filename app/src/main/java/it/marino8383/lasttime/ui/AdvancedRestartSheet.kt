@@ -74,6 +74,7 @@ fun AdvancedRestartSheet(
     onSchedule: (Long) -> Unit,
     onCancelSchedule: () -> Unit,
     onAddMissed: (Long) -> Unit,
+    onAddTimedEvent: (Long) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -197,7 +198,7 @@ fun AdvancedRestartSheet(
             Spacer(Modifier.height(14.dp))
 
             Text(
-                "🔢 GIRI PERSI (SOLO CONTEGGIO)",
+                "🔢 EVENTI DIMENTICATI",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp,
@@ -205,23 +206,46 @@ fun AdvancedRestartSheet(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Eventi dimenticati, con data approssimativa: contano nel “Quante volte” ma sono esclusi da media e più lungo.",
+                "“Con orario” chiude il round a quell'istante e il timer riparte da lì (inserisci in ordine cronologico, il più vecchio per primo). " +
+                    "“Solo conteggio” per date approssimative: conta nel “Quante volte” ma è escluso da media e più lungo.",
                 fontSize = 11.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(8.dp))
             DateTimeRow(valueMs = missedMs, onChange = { missedMs = it })
+
+            val timedOk = missedMs >= counter.startMs && missedMs <= nowMs
+            if (!timedOk) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (missedMs < counter.startMs)
+                        "⚠️ “Con orario” vale solo dentro il round attuale (dal ${formatDateTime(counter.startMs)}); per date più vecchie usa “Solo conteggio”."
+                    else
+                        "⚠️ “Con orario” non può essere nel futuro.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    enabled = timedOk,
+                    onClick = {
+                        onAddTimedEvent(missedMs)
+                        missedAdded++
+                        Toast.makeText(context, "↺ Round chiuso: il timer riparte da lì", Toast.LENGTH_SHORT).show()
+                    },
+                ) {
+                    Text("➕ Con orario")
+                }
                 OutlinedButton(onClick = {
                     onAddMissed(missedMs)
                     missedAdded++
                     Toast.makeText(context, "🔢 Evento aggiunto al conteggio", Toast.LENGTH_SHORT).show()
                 }) {
-                    Text("➕ Aggiungi evento al conteggio")
+                    Text("➕ Solo conteggio")
                 }
                 if (missedAdded > 0) {
-                    Spacer(Modifier.padding(start = 10.dp))
                     Text(
                         "aggiunti: $missedAdded",
                         fontSize = 12.sp,
