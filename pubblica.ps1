@@ -73,26 +73,24 @@ Info "commit $($sha.Substring(0,7))"
 
 # --- run della CI -----------------------------------------------------------
 Step "Cerco la build su GitHub Actions"
-$run = $null
+# Lo sha viaggia dentro l'URL e l'espressione jq non contiene virgolette: un filtro
+# con le virgolette dentro non funziona, perche' PowerShell le toglie prima di
+# consegnare l'argomento a gh e jq finisce per leggere lo sha come una funzione.
+$apiPath = "repos/{owner}/{repo}/actions/workflows/$Workflow/runs?head_sha=$sha"
+$id = ""
+$idNum = [int64]0
 for ($i = 0; $i -lt 40; $i++) {
-    $json = gh run list --workflow $Workflow --branch main --limit 20 --json databaseId,headSha,status,conclusion
-    if ($LASTEXITCODE -eq 0 -and $json) {
-        # PowerShell 5.1: ConvertFrom-Json restituisce l'array come UN solo oggetto, quindi
-        # un Where-Object in pipeline confronterebbe l'intero array e lascerebbe passare tutto.
-        # Il foreach esplicito e' l'unico modo pulito di prendere davvero una riga sola.
-        $runs = @( ($json -join "`n") | ConvertFrom-Json )
-        foreach ($r in $runs) {
-            if ($r.headSha -eq $sha) { $run = $r; break }
-        }
-    }
-    if ($run) { break }
+    $id = (gh api $apiPath --jq '.workflow_runs[0].id // empty' | Out-String).Trim()
+    if ([int64]::TryParse($id, [ref]$idNum)) { break }
+    $id = ""
     if ($i -eq 0) { Info "La build non e' ancora partita, aspetto..." }
     Start-Sleep -Seconds 3
 }
-if (-not $run) { Fail "Nessuna build trovata per questo commit dopo 2 minuti. Controlla il tab Actions su GitHub." }
+if (-not $id) { Fail "Nessuna build trovata per questo commit dopo 2 minuti. Controlla il tab Actions su GitHub." }
 
-$id = [int64]$run.databaseId
-if ($run.status -eq 'completed' -and $run.conclusion -eq 'success') {
+$statoRun = (gh run view $id --json status --jq '.status' | Out-String).Trim()
+$esito = (gh run view $id --json conclusion --jq '.conclusion' | Out-String).Trim()
+if ($statoRun -eq 'completed' -and $esito -eq 'success') {
     Ok "Build gia' pronta (run $id), la riuso."
 } else {
     Info "Run $id in corso, aspetto che finisca (di solito 2-4 minuti)..."
