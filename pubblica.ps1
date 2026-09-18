@@ -77,7 +77,13 @@ $run = $null
 for ($i = 0; $i -lt 40; $i++) {
     $json = gh run list --workflow $Workflow --branch main --limit 20 --json databaseId,headSha,status,conclusion
     if ($LASTEXITCODE -eq 0 -and $json) {
-        $run = $json | ConvertFrom-Json | Where-Object { $_.headSha -eq $sha } | Select-Object -First 1
+        # PowerShell 5.1: ConvertFrom-Json restituisce l'array come UN solo oggetto, quindi
+        # un Where-Object in pipeline confronterebbe l'intero array e lascerebbe passare tutto.
+        # Il foreach esplicito e' l'unico modo pulito di prendere davvero una riga sola.
+        $runs = @( ($json -join "`n") | ConvertFrom-Json )
+        foreach ($r in $runs) {
+            if ($r.headSha -eq $sha) { $run = $r; break }
+        }
     }
     if ($run) { break }
     if ($i -eq 0) { Info "La build non e' ancora partita, aspetto..." }
@@ -85,7 +91,7 @@ for ($i = 0; $i -lt 40; $i++) {
 }
 if (-not $run) { Fail "Nessuna build trovata per questo commit dopo 2 minuti. Controlla il tab Actions su GitHub." }
 
-$id = $run.databaseId
+$id = [int64]$run.databaseId
 if ($run.status -eq 'completed' -and $run.conclusion -eq 'success') {
     Ok "Build gia' pronta (run $id), la riuso."
 } else {
