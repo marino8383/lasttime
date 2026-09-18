@@ -82,7 +82,7 @@ fun HistorySheet(
                 Spacer(Modifier.height(14.dp))
             }
 
-            // Round in corso
+            // Round in corso, oppure lo stato di congelamento se il timer è archiviato (v24)
             item {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -91,15 +91,23 @@ fun HistorySheet(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(Modifier.padding(14.dp)) {
-                        Text("ROUND IN CORSO", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+                        val archivedMs = counter.archivedMs.takeIf { counter.archived }
+                        Text(
+                            if (archivedMs != null) "📦 IN ARCHIVIO" else "ROUND IN CORSO",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.5.sp,
+                        )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            formatDurationTwoParts(now - counter.startMs),
+                            if (archivedMs != null) "⏸ fermo da ${formatDurationTwoParts(now - archivedMs)}"
+                            else formatDurationTwoParts(now - counter.startMs),
                             fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
                         )
                         Text(
-                            "dal ${formatDateTime(counter.startMs)}",
+                            if (archivedMs != null) "archiviato il ${formatDateTime(archivedMs)}"
+                            else "dal ${formatDateTime(counter.startMs)}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                         )

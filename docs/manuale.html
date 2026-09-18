@@ -109,7 +109,7 @@
 </ol>
 <div class="box">
   <b>Aggiornamenti</b>
-  Le nuove versioni si installano <b>sopra</b> quella esistente: contatori e storico restano. In fondo alla schermata principale leggi versione, data di compilazione e firma (es. "v0.8.2 (21) · build 19/07/2026 20:00 · powered by Marino8383"), così sai sempre se hai l'ultima.
+  Le nuove versioni si installano <b>sopra</b> quella esistente: contatori e storico restano. In fondo alla schermata principale leggi versione, data di compilazione e firma (es. "v0.9.0 (22) · build 19/09/2026 00:00 · powered by Marino8383"), così sai sempre se hai l'ultima.
 </div>
 
 <h2>3. La schermata principale</h2>
@@ -128,7 +128,8 @@
   <li>Riga <b>"dal …"</b>: inizio del round corrente; sotto, quando serve, il badge <b>"⏲ reset programmato alle …"</b> o la riga <b>"🔔 sforata da …"</b> (un timer vivo che avanza)</li>
   <li>Pulsanti: 🕘 storico · 🔔 campanella · ✏️ modifica · ↺ riparti (doppio tap = riparti avanzato) · 🗑 elimina</li>
 </ul>
-<p>Nell'intestazione: <b>🚉 vista tabellone</b>, <b>🩺 Diagnostica</b>, <b>⚙️ Opzioni</b>. Il <b>+</b> in basso crea un contatore.</p>
+<p>Nell'intestazione: <b>🚉 vista tabellone</b>, <b>📦 Archivio</b>, <b>🩺 Diagnostica</b>, <b>⚙️ Opzioni</b>. Il <b>+</b> in basso crea un contatore.</p>
+<p><b>Swipe sulla card</b>: trascina <b>verso destra</b> per eliminare, <b>verso sinistra</b> per archiviare. Sotto la card compare l'azione che stai per fare, e in entrambi i casi arriva una conferma prima che succeda qualcosa. Lo scorrimento della lista resta normale: lo swipe parte solo se il dito va davvero di lato.</p>
 
 <h3>Il chip campanella</h3>
 <p>Si <b>tocca</b> e cicla tra tre viste:</p>
@@ -233,23 +234,38 @@
 </ul>
 <p>Si torna alle card con <b>🗂</b>.</p>
 
-<h2>11. Storico e statistiche</h2>
+<h2>11. Archivio 📦</h2>
+<p>Archiviare serve per i timer che non vuoi più vedere in home ma di cui non vuoi <b>perdere lo storico</b>: la stagione finita, l'abitudine sospesa, la cura che hai terminato.</p>
+<p>Quando archivi, il <b>round in corso viene chiuso e salvato</b>, poi il timer si <b>ferma</b>: non conta più, non suona più, e un eventuale reset programmato viene annullato. Sparisce dalla home e dal tabellone 🚉.</p>
+<p>Il <b>📦</b> nell'intestazione apre l'archivio. Ogni card archiviata mostra da quanto è ferma, quanti round ha accumulato e quanto è durato l'ultimo, con tre pulsanti:</p>
+<ul>
+  <li><b>🕘</b> storico e statistiche complete, esattamente come per un timer attivo</li>
+  <li><b>▶️ Riprendi</b> — torna fra gli attivi e <b>parte un round nuovo da adesso</b>; se aveva una campanella, riparte anche quella con lo stesso intervallo</li>
+  <li><b>🗑</b> elimina definitivamente (con conferma): qui lo storico si perde davvero</li>
+</ul>
+<p>Anche in archivio lo <b>swipe verso destra</b> elimina. Verso sinistra non fa nulla: è già archiviato.</p>
+<div class="box">
+  <b>Archiviare o eliminare?</b>
+  Archivia se un domani potresti volere i numeri. Elimina solo se sei sicuro: l'eliminazione porta via anche tutti i round, e non si torna indietro.
+</div>
+
+<h2>12. Storico e statistiche</h2>
 <p>Il pulsante <b>🕘</b> apre lo storico del contatore:</p>
 <ul>
-  <li><b>Round in corso</b> evidenziato, con durata e inizio</li>
+  <li><b>Round in corso</b> evidenziato, con durata e inizio. Se il timer è archiviato, al suo posto trovi <b>📦 IN ARCHIVIO</b> con da quanto è fermo.</li>
   <li><b>Riepilogo</b>: eventi (con i "solo conteggio" distinti), round più lungo, media</li>
   <li><b>📊 Quante volte</b>: ultima ora / 24 h / 7 giorni / 30 giorni / anno</li>
   <li><b>⏱ Ritmo</b>: "in media una volta ogni 2 h e 53 min" (solo round con tempi)</li>
   <li><b>Elenco round</b>: intervallo e durata a due componenti ("1 h e 5 min", "6 giorni e 4 h")</li>
 </ul>
 
-<h2>12. Opzioni ⚙️ e Diagnostica 🩺</h2>
+<h2>13. Opzioni ⚙️ e Diagnostica 🩺</h2>
 <h3>⚙️ Opzioni</h3>
 <p><b>Tolleranza "mantieni il ritmo"</b>: percentuale del periodo entro cui il Fatto in ritardo riarma senza chiedere (default 3%, campo 1–50%, salvata mentre digiti).</p>
 <h3>🩺 Diagnostica notifiche</h3>
 <p>Tre check con pulsante "Sistema": <b>Notifiche</b> (permesso), <b>Sveglie esatte</b> (Android 12+), <b>Ottimizzazione batteria</b> (il punto critico su Samsung/Xiaomi: esenta l'app). Tutti verdi = campanelle puntuali anche a telefono addormentato. I check si aggiornano da soli quando torni dalle impostazioni.</p>
 
-<h2>13. Domande frequenti</h2>
+<h2>14. Domande frequenti</h2>
 <h3>Riprendo il telefono ore dopo lo squillo: cosa posso fare?</h3>
 <p>La card è ambra con "sforata da X". Puoi: <b>Fatto/↺</b> (con la scelta del ritmo se sei oltre la tolleranza), <b>doppio tap su ↺</b> per ripartire retroattivamente ("in realtà l'ho fatto 2 ore fa"), <b>Rimanda</b> dalla notifica se è ancora nella tendina, spegnere la campanella (Scarta o 🔔 → interruttore), o non fare nulla: il timer continua e la card resta ambra come promemoria.</p>
 <h3>La notifica non arriva ad app chiusa</h3>
@@ -263,7 +279,7 @@
 <h3>I miei dati dove stanno?</h3>
 <p>Solo sul telefono, in un database locale. Nessun account, nessun invio in rete. Disinstallare l'app cancella tutto.</p>
 
-<p class="footer-note">Last Time · manuale utente per la <b>versione 0.8.2</b> · generato il 19/07/2026 · powered by <b>Marino8383</b></p>
+<p class="footer-note">Last Time · manuale utente per la <b>versione 0.9.0</b> · generato il 19/09/2026 · powered by <b>Marino8383</b></p>
 
 </body>
 </html>

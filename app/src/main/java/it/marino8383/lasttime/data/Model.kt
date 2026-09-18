@@ -39,6 +39,8 @@ data class Counter(
     val bellRepeat: Boolean = true,
     val secret: Boolean = false,
     val archived: Boolean = false,
+    /** Quando è stato archiviato; il timer resta congelato a quell'istante. */
+    val archivedMs: Long? = null,
     val scheduledResetMs: Long? = null,
     val createdMs: Long,
 )
@@ -118,9 +120,27 @@ interface RoundDao {
 
     @Query("SELECT * FROM rounds WHERE counterId = :counterId ORDER BY endMs DESC")
     fun roundsFor(counterId: Long): Flow<List<Round>>
+
+    /** Una riga per contatore, per la card d'archivio: quanti round e quanto è durato l'ultimo. */
+    @Query(
+        "SELECT r.counterId AS counterId, COUNT(*) AS rounds, " +
+            "(SELECT r2.endMs - r2.startMs FROM rounds r2 " +
+            "WHERE r2.counterId = r.counterId AND r2.noTime = 0 " +
+            "ORDER BY r2.endMs DESC LIMIT 1) AS lastDurationMs " +
+            "FROM rounds r GROUP BY r.counterId"
+    )
+    fun summaries(): Flow<List<RoundSummary>>
 }
 
-@Database(entities = [Counter::class, Round::class], version = 4, exportSchema = false)
+/** Riepilogo dei round di un contatore (vedi [RoundDao.summaries]). */
+data class RoundSummary(
+    val counterId: Long,
+    val rounds: Int,
+    /** Durata dell'ultimo round con tempi; null se ci sono solo giri persi. */
+    val lastDurationMs: Long?,
+)
+
+@Database(entities = [Counter::class, Round::class], version = 5, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -148,6 +168,14 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
             "UPDATE counters SET nextBellAtMs = startMs + bellMinutes * 60000 " +
                 "WHERE bellMinutes IS NOT NULL AND nextBellAtMs IS NULL"
         )
+    }
+}
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN archivedMs INTEGER")
+        // Archiviati di prima (non ce ne sono, ma il DB non deve restare incoerente)
+        db.execSQL("UPDATE counters SET archivedMs = createdMs WHERE archived = 1 AND archivedMs IS NULL")
     }
 }
 

@@ -15,6 +15,8 @@ Kotlin + Jetpack Compose (minSdk 26, package `it.fabriziomari.lasttime`), Room p
 
 L'APK di debug viene compilato da GitHub Actions a ogni push su `main` (workflow [`build.yml`](.github/workflows/build.yml)) ed è scaricabile dagli artifacts del run (`lasttime-debug-apk`).
 
+Doppio clic su [`pubblica.cmd`](pubblica.cmd) fa tutto da solo: chiede conferma se ci sono modifiche non committate, pusha, aspetta la build e copia l'APK in `G:Il mio DriveAppLastTime` (una copia con versione e data più `lasttime-ultima.apk` sovrascritta ogni volta). Serve la CLI di GitHub: `winget install --id GitHub.cli -e` e poi `gh auth login`.
+
 ## Stato
 
 - ✅ Milestone 1 — home con card contatori (crea/modifica/elimina/riparti con log round su Room), cambio vista toccando le cifre, campanella con evidenza sforato (v0.1)
@@ -27,4 +29,5 @@ L'APK di debug viene compilato da GitHub Actions a ogni push su `main` (workflow
 - ✅ Milestone 6 — campanella rifinita sul campo: singola/ricorrente senza riarmo automatico (riarmo solo con Fatto/reset/Rimanda), tolleranza "mantieni il ritmo" in % configurabile (⚙️ Opzioni), chip a 3 viste col countdown automatico sui rinvii, canali con suono e vibrazione, footer con versione e data build (v0.5.x–v0.6.x)
 - ✅ Milestone 7 — riparti avanzato (v25) e giri persi (v27): doppio tap su ↺ apre la maschera con chip rapide (adesso/10m/30m/1h/1g fa) e data/ora precisa, vincolo all'inizio del round attuale, reset programmato nel futuro (badge ⏲ sulla card, esecuzione automatica via AlarmManager, notifica di avvenuto reset, l'ultimo comando vince), eventi "solo conteggio" con data approssimativa (v0.7)
 - ✅ Milestone 8 — vista tabellone Solari (🚉 in header): un board split-flap per contatore con animazione a placche (scaleY sul cardine, v9), stile stazione (placche quasi nere, cifre bianche, targhetta SFORATO ambra), barra opzioni Spezzato/Anni/Mesi/Giorni/Minuti/Secondi con toggle "Mostra anni"/"Mostra secondi" persistiti, gruppo anni auto-rimosso se a zero, placche auto-ridimensionate, niente controlli e doppio tap sul board = riparti (v0.8)
-- Prossime: swipe elimina/archivia, sezione segreta con PIN, archivio
+- ✅ Milestone 9 — archivio e swipe (v23/v24): swipe destra = elimina e sinistra = archivia, entrambi con conferma e con l'underlay colorato dell'azione; pagina archivio dedicata (📦 in header) con storico completo, ▶️ Riprendi (nuovo round da adesso, campanella riarmata) ed eliminazione; archiviare chiude e salva il round in corso, congela il timer e annulla il reset programmato; gli archiviati spariscono da home e tabellone (v0.9.0, migrazione Room 4→5)
+- Prossime: sezione segreta con PIN, timer condivisi fra due dispositivi

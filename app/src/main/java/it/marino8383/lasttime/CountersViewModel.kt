@@ -21,6 +21,13 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     val counters = db.counterDao().activeCounters()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val archived = db.counterDao().archivedCounters()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Riepilogo round per contatore, per le card d'archivio. */
+    val roundSummaries = db.roundDao().summaries()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun roundsFor(counterId: Long) = db.roundDao().roundsFor(counterId)
 
     fun addCounter(name: String, startMs: Long, bellMinutes: Long?) {
@@ -50,6 +57,48 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteCounter(counter: Counter) {
         viewModelScope.launch {
             db.counterDao().delete(counter) // i round seguono in cascata
+            AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    /**
+     * Archivia (v23): il round in corso viene chiuso e loggato, poi il timer si congela.
+     * Le query di campanella e reset programmato filtrano già archived = 0, ma il reset
+     * pendente va cancellato o al ripristino scatterebbe subito perché ormai nel passato.
+     */
+    fun archiveCounter(counter: Counter) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
+            db.counterDao().update(
+                counter.copy(
+                    archived = true,
+                    archivedMs = now,
+                    snoozeUntilMs = null,
+                    scheduledResetMs = null,
+                )
+            )
+            Notifications.cancel(getApplication(), counter.id)
+            AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    /** Riprendi dall'archivio (v23): torna fra gli attivi con un round nuovo da adesso. */
+    fun resumeCounter(counter: Counter) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val step = counter.bellMinutes?.times(60_000)
+            db.counterDao().update(
+                counter.copy(
+                    archived = false,
+                    archivedMs = null,
+                    startMs = now,
+                    bellNotified = false,
+                    snoozeUntilMs = null,
+                    // la campanella riparte da adesso, qualunque fosse il ritmo di prima
+                    nextBellAtMs = if (step != null && counter.bellEnabled) now + step else null,
+                )
+            )
             AlarmScheduler.scheduleNext(getApplication())
         }
     }

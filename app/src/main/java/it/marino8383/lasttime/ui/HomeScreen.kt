@@ -1,5 +1,6 @@
 package it.marino8383.lasttime.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -82,6 +83,8 @@ fun HomeScreen(
     onSnoozeHandled: () -> Unit = {},
 ) {
     val counters by vm.counters.collectAsStateWithLifecycle()
+    val archived by vm.archived.collectAsStateWithLifecycle()
+    val roundSummaries by vm.roundSummaries.collectAsStateWithLifecycle()
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -96,6 +99,8 @@ fun HomeScreen(
     var showAdd by remember { mutableStateOf(false) }
     var showOptions by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
+    var showArchive by remember { mutableStateOf(false) }
+    var archiveTarget by remember { mutableStateOf<Counter?>(null) }
     var historyTarget by remember { mutableStateOf<Counter?>(null) }
     var editTarget by remember { mutableStateOf<Counter?>(null) }
     var deleteTarget by remember { mutableStateOf<Counter?>(null) }
@@ -103,6 +108,8 @@ fun HomeScreen(
     var advancedTarget by remember { mutableStateOf<Counter?>(null) }
     var lateBellTarget by remember { mutableStateOf<Counter?>(null) }
     var bellTarget by remember { mutableStateOf<Counter?>(null) }
+
+    BackHandler(enabled = showArchive) { showArchive = false }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -119,8 +126,8 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            // niente FAB in vista tabellone (v4)
-            if (!flipMode) {
+            // niente FAB in vista tabellone (v4) né in archivio (v24)
+            if (!flipMode && !showArchive) {
                 FloatingActionButton(
                     onClick = { showAdd = true },
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -132,11 +139,24 @@ fun HomeScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            if (showArchive) {
+                ArchiveScreen(
+                    counters = archived,
+                    summaries = roundSummaries,
+                    now = now,
+                    onBack = { showArchive = false },
+                    onHistory = { historyTarget = it },
+                    onResume = { vm.resumeCounter(it) },
+                    onDelete = { deleteTarget = it },
+                )
+                return@Column
+            }
             Header(
                 flipMode = flipMode,
                 onFlip = { flipMode = !flipMode },
                 onOptions = { showOptions = true },
                 onDiagnostics = { showDiagnostics = true },
+                onArchive = { showArchive = true },
             )
             if (flipMode) {
                 FlipView(
@@ -154,17 +174,23 @@ fun HomeScreen(
             } else {
                 LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 120.dp)) {
                     items(counters, key = { it.id }) { counter ->
-                        CounterCard(
-                            counter = counter,
-                            now = now,
-                            onCycleView = { vm.cycleViewMode(counter) },
-                            onHistory = { historyTarget = counter },
-                            onRestart = { restartTarget = counter },
-                            onAdvancedRestart = { advancedTarget = counter },
-                            onEdit = { editTarget = counter },
-                            onBell = { bellTarget = counter },
-                            onDelete = { deleteTarget = counter },
-                        )
+                        // swipe destra = elimina, sinistra = archivia, entrambi con conferma (v23/v24)
+                        SwipeableCard(
+                            onSwipeDelete = { deleteTarget = counter },
+                            onSwipeArchive = { archiveTarget = counter },
+                        ) {
+                            CounterCard(
+                                counter = counter,
+                                now = now,
+                                onCycleView = { vm.cycleViewMode(counter) },
+                                onHistory = { historyTarget = counter },
+                                onRestart = { restartTarget = counter },
+                                onAdvancedRestart = { advancedTarget = counter },
+                                onEdit = { editTarget = counter },
+                                onBell = { bellTarget = counter },
+                                onDelete = { deleteTarget = counter },
+                            )
+                        }
                     }
                 }
             }
@@ -302,6 +328,28 @@ fun HomeScreen(
         )
     }
 
+    archiveTarget?.let { counter ->
+        AlertDialog(
+            onDismissRequest = { archiveTarget = null },
+            title = { Text("📦 Archiviare il timer?") },
+            text = {
+                Text(
+                    "“${counter.name}” finisce in archivio: il round in corso viene salvato " +
+                        "nello storico e il timer si ferma. Puoi riprenderlo quando vuoi."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.archiveCounter(counter)
+                    archiveTarget = null
+                }) { Text("Sì, archivia") }
+            },
+            dismissButton = {
+                TextButton(onClick = { archiveTarget = null }) { Text("No") }
+            },
+        )
+    }
+
     bellTarget?.let { counter ->
         BellDialog(
             counter = counter,
@@ -331,6 +379,7 @@ private fun Header(
     onFlip: () -> Unit,
     onOptions: () -> Unit,
     onDiagnostics: () -> Unit,
+    onArchive: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(20.dp, 20.dp, 20.dp, 10.dp),
@@ -348,6 +397,9 @@ private fun Header(
         )
         IconButton(onClick = onFlip) {
             Text(if (flipMode) "🗂" else "🚉", fontSize = 17.sp)
+        }
+        IconButton(onClick = onArchive) {
+            Text("📦", fontSize = 17.sp)
         }
         IconButton(onClick = onDiagnostics) {
             Text("🩺", fontSize = 17.sp)
@@ -395,7 +447,6 @@ private fun CounterCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp)
             // Doppio tap ovunque sulla card = restart con conferma (v20)
             .pointerInput(counter.id) {
                 detectTapGestures(onDoubleTap = { onRestart() })

@@ -20,6 +20,12 @@ val ErrorColor = Color(0xFFE0562F)
 val ErrorContainer = Color(0xFF2E2410)
 val OnErrorContainer = Color(0xFFFFB84D)
 
+// Underlay dello swipe sulle card (v23): destra = elimina, sinistra = archivia
+val SwipeDeleteBg = Color(0xFF3A1712)
+val SwipeDeleteFg = Color(0xFFF08A6B)
+val SwipeArchiveBg = Color(0xFF2E2410)
+val SwipeArchiveFg = Color(0xFFFFC966)
+
 private val LastTimeColors = darkColorScheme(
     primary = Primary,
     onPrimary = OnPrimary,
