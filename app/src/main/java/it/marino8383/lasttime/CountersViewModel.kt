@@ -56,6 +56,35 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Modifica dalla ✏️: nome e inizio del round. Se l'inizio si sposta la campanella va
+     * rifatta, altrimenti resta agganciata a un round che non esiste più (era il bug per
+     * cui "riparti da ieri alle 15" lasciava lo squillo all'orario vecchio).
+     *
+     * Eccezione voluta: una ricorrente in modalità FIXED non si tocca. Tenere il ritmo
+     * a prescindere da quando confermi è esattamente il suo motivo di esistere — la
+     * pillola delle 8 resta delle 8 anche se correggi l'ora in cui l'hai presa.
+     */
+    fun editCounter(counter: Counter, name: String, startMs: Long) {
+        viewModelScope.launch {
+            val start = startMs.coerceAtMost(System.currentTimeMillis())
+            val step = counter.bellMinutes?.times(60_000)
+            var updated = counter.copy(name = name.trim(), startMs = start)
+            if (step != null && start != counter.startMs &&
+                counter.bellEnabled && counter.bellMode != "FIXED"
+            ) {
+                updated = updated.copy(
+                    nextBellAtMs = start + step,
+                    bellNotified = false,
+                    snoozeUntilMs = null,
+                )
+            }
+            db.counterDao().save(updated)
+            Notifications.cancel(getApplication(), counter.id)
+            AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
     fun deleteCounter(counter: Counter) {
         viewModelScope.launch {
             db.counterDao().delete(counter) // i round seguono in cascata

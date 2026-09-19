@@ -5,6 +5,12 @@
   Doppio clic su pubblica.cmd (il doppio clic su un .ps1 apre Blocco note).
 #>
 
+param(
+    # Niente domande e niente pausa finale: serve per lanciarlo da remoto.
+    [switch]$Auto,
+    [string]$Messaggio
+)
+
 $Repo     = $PSScriptRoot
 $Dest     = 'G:\Il mio Drive\App\LastTime'
 $Artifact = 'lasttime-debug-apk'
@@ -14,7 +20,7 @@ function Step($t) { Write-Host "`n>> $t" -ForegroundColor Cyan }
 function Ok($t)   { Write-Host "   $t" -ForegroundColor Green }
 function Info($t) { Write-Host "   $t" -ForegroundColor Gray }
 function Warn($t) { Write-Host "   $t" -ForegroundColor Yellow }
-function Fine($code) { Read-Host "`nPremi INVIO per chiudere" | Out-Null; exit $code }
+function Fine($code) { if (-not $Auto) { Read-Host "`nPremi INVIO per chiudere" | Out-Null }; exit $code }
 function Fail($t) { Write-Host "`n!! $t" -ForegroundColor Red; Fine 1 }
 
 Write-Host "===  Last Time - pubblica APK  ===" -ForegroundColor White
@@ -45,6 +51,15 @@ if ($dirty) {
     Warn "Ci sono modifiche non committate:"
     git status --short
     Write-Host ""
+    if ($Auto) {
+        $msg = if ([string]::IsNullOrWhiteSpace($Messaggio)) { "Build APK v$ver" } else { $Messaggio }
+        Info "Modalita' automatica: committo con -> $msg"
+        git add -A
+        if ($LASTEXITCODE -ne 0) { Fail "git add fallito." }
+        git commit -m $msg
+        if ($LASTEXITCODE -ne 0) { Fail "git commit fallito." }
+        Ok "Commit creato."
+    } else {
     $ans = Read-Host "Committo e pusho queste modifiche? [s/N]"
     if ($ans -match '^[sSyY]') {
         $msg = Read-Host "Messaggio di commit (INVIO per 'Build APK v$ver')"
@@ -59,6 +74,7 @@ if ($dirty) {
         Warn "quindi le modifiche qui sopra NON finiranno nell'APK."
         $go = Read-Host "Procedo lo stesso? [s/N]"
         if ($go -notmatch '^[sSyY]') { Write-Host "`nAnnullato."; Fine 0 }
+    }
     }
 } else {
     Ok "Working tree pulito."
@@ -94,11 +110,28 @@ if ($statoRun -eq 'completed' -and $esito -eq 'success') {
     Ok "Build gia' pronta (run $id), la riuso."
 } else {
     Info "Run $id in corso, aspetto che finisca (di solito 2-4 minuti)..."
-    gh run watch $id --exit-status
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "`n!! La build e' FALLITA. Ultimi errori:" -ForegroundColor Red
-        gh run view $id --log-failed
-        Fine 1
+    if ($Auto) {
+        # gh run watch ridisegna lo schermo con sequenze ANSI: in un output catturato
+        # diventa illeggibile. Qui basta richiedere lo stato ogni dieci secondi.
+        for ($w = 0; $w -lt 60; $w++) {
+            Start-Sleep -Seconds 10
+            $statoRun = (gh run view $id --json status --jq '.status' | Out-String).Trim()
+            if ($statoRun -eq 'completed') { break }
+        }
+        if ($statoRun -ne 'completed') { Fail "La build non e' finita entro 10 minuti." }
+        $esito = (gh run view $id --json conclusion --jq '.conclusion' | Out-String).Trim()
+        if ($esito -ne 'success') {
+            Write-Host "`n!! La build e' FALLITA. Ultimi errori:" -ForegroundColor Red
+            gh run view $id --log-failed
+            Fine 1
+        }
+    } else {
+        gh run watch $id --exit-status
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "`n!! La build e' FALLITA. Ultimi errori:" -ForegroundColor Red
+            gh run view $id --log-failed
+            Fine 1
+        }
     }
     Ok "Build completata."
 }

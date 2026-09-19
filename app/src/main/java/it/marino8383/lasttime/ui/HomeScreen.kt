@@ -248,7 +248,7 @@ fun HomeScreen(
             counter = counter,
             onDismiss = { editTarget = null },
             onSave = { name, startMs ->
-                vm.updateCounter(counter.copy(name = name.trim(), startMs = startMs))
+                vm.editCounter(counter, name, startMs)
                 editTarget = null
             },
         )
