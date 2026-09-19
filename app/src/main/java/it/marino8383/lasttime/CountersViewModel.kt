@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.advanceToFuture
+import it.marino8383.lasttime.data.create
+import it.marino8383.lasttime.data.save
 import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
@@ -34,7 +36,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             // Data nel futuro -> clamp ad adesso (v16)
             val start = startMs.coerceAtMost(System.currentTimeMillis())
-            db.counterDao().insert(
+            db.counterDao().create(
                 Counter(
                     name = name.trim(),
                     startMs = start,
@@ -49,7 +51,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun updateCounter(counter: Counter) {
         viewModelScope.launch {
             val clamped = counter.copy(startMs = counter.startMs.coerceAtMost(System.currentTimeMillis()))
-            db.counterDao().update(clamped)
+            db.counterDao().save(clamped)
             AlarmScheduler.scheduleNext(getApplication())
         }
     }
@@ -70,7 +72,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
-            db.counterDao().update(
+            db.counterDao().save(
                 counter.copy(
                     archived = true,
                     archivedMs = now,
@@ -88,7 +90,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val step = counter.bellMinutes?.times(60_000)
-            db.counterDao().update(
+            db.counterDao().save(
                 counter.copy(
                     archived = false,
                     archivedMs = null,
@@ -108,7 +110,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = now))
-            db.counterDao().update(counter.restarted(now, AppSettings.latePercent(getApplication())))
+            db.counterDao().save(counter.restarted(now, AppSettings.latePercent(getApplication())))
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }
@@ -123,7 +125,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             val at = atMs.coerceAtMost(System.currentTimeMillis())
             if (at < counter.startMs) return@launch // la UI valida già; qui è solo difesa
             db.roundDao().insert(Round(counterId = counter.id, startMs = counter.startMs, endMs = at))
-            db.counterDao().update(counter.restarted(at, AppSettings.latePercent(getApplication())))
+            db.counterDao().save(counter.restarted(at, AppSettings.latePercent(getApplication())))
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }
@@ -132,14 +134,14 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     /** Reset programmato nel futuro: il timer continua e si resetta da solo a [atMs]. L'ultimo comando vince. */
     fun scheduleReset(counter: Counter, atMs: Long) {
         viewModelScope.launch {
-            db.counterDao().update(counter.copy(scheduledResetMs = atMs))
+            db.counterDao().save(counter.copy(scheduledResetMs = atMs))
             AlarmScheduler.scheduleNext(getApplication())
         }
     }
 
     fun cancelScheduledReset(counter: Counter) {
         viewModelScope.launch {
-            db.counterDao().update(counter.copy(scheduledResetMs = null))
+            db.counterDao().save(counter.copy(scheduledResetMs = null))
             AlarmScheduler.scheduleNext(getApplication())
         }
     }
@@ -172,7 +174,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                 LateBellChoice.DISABLE ->
                     base.copy(bellEnabled = false)
             }
-            db.counterDao().update(updated)
+            db.counterDao().save(updated)
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }
@@ -181,7 +183,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     /** Rimanda la campanella: ri-notifica tra [snoozeMinutes] minuti, il contatore continua. */
     fun snooze(counter: Counter, snoozeMinutes: Long) {
         viewModelScope.launch {
-            db.counterDao().update(
+            db.counterDao().save(
                 counter.copy(
                     bellNotified = true,
                     bellEnabled = true, // il rinvio deve poter suonare anche se la singola si era spenta
@@ -196,7 +198,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun cycleViewMode(counter: Counter) {
         viewModelScope.launch {
             val next = ViewMode.from(counter.viewMode).next()
-            db.counterDao().update(counter.copy(viewMode = next.name))
+            db.counterDao().save(counter.copy(viewMode = next.name))
         }
     }
 }

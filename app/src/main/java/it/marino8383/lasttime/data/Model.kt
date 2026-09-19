@@ -14,14 +14,20 @@ import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import java.util.UUID
 
 /**
  * Un contatore "da quanto tempo non...". startMs è l'inizio del round corrente;
  * i round conclusi vivono nella tabella rounds. Tutto in UTC epoch millis.
  */
-@Entity(tableName = "counters")
+@Entity(tableName = "counters", indices = [Index(value = ["uuid"], unique = true)])
 data class Counter(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /**
+     * Identità stabile del contatore fra dispositivi: l'id autoincrementale è locale,
+     * due telefoni assegnano lo stesso numero a contatori diversi.
+     */
+    val uuid: String = UUID.randomUUID().toString(),
     val name: String,
     val startMs: Long,
     val viewMode: String = "FULL",
@@ -43,6 +49,8 @@ data class Counter(
     val archivedMs: Long? = null,
     val scheduledResetMs: Long? = null,
     val createdMs: Long,
+    /** Ultima scrittura: è il timestamp su cui si risolveranno i conflitti fra dispositivi. */
+    val updatedMs: Long = 0,
 )
 
 @Entity(
@@ -55,10 +63,15 @@ data class Counter(
             onDelete = ForeignKey.CASCADE,
         )
     ],
-    indices = [Index("counterId", "endMs")],
+    indices = [
+        Index("counterId", "endMs"),
+        Index(value = ["uuid"], unique = true),
+    ],
 )
 data class Round(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Come [Counter.uuid]: serve a non duplicare lo stesso evento arrivando da due telefoni. */
+    val uuid: String = UUID.randomUUID().toString(),
     val counterId: Long,
     val startMs: Long,
     val endMs: Long,
@@ -104,14 +117,26 @@ interface CounterDao {
     suspend fun dueScheduledResets(now: Long): List<Counter>
 
     @Insert
-    suspend fun insert(counter: Counter): Long
+    suspend fun insertRaw(counter: Counter): Long
 
     @Update
-    suspend fun update(counter: Counter)
+    suspend fun updateRaw(counter: Counter)
 
     @Delete
     suspend fun delete(counter: Counter)
 }
+
+/**
+ * Ogni scrittura su un contatore passa di qui, così updatedMs non può restare indietro
+ * per distrazione: è il timestamp su cui la sincronizzazione deciderà chi ha ragione.
+ * I metodi grezzi del DAO esistono solo perché Room li vuole generare.
+ */
+suspend fun CounterDao.save(counter: Counter) {
+    updateRaw(counter.copy(updatedMs = System.currentTimeMillis()))
+}
+
+suspend fun CounterDao.create(counter: Counter): Long =
+    insertRaw(counter.copy(updatedMs = System.currentTimeMillis()))
 
 @Dao
 interface RoundDao {
@@ -140,7 +165,7 @@ data class RoundSummary(
     val lastDurationMs: Long?,
 )
 
-@Database(entities = [Counter::class, Round::class], version = 5, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 6, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -176,6 +201,26 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         db.execSQL("ALTER TABLE counters ADD COLUMN archivedMs INTEGER")
         // Archiviati di prima (non ce ne sono, ma il DB non deve restare incoerente)
         db.execSQL("UPDATE counters SET archivedMs = createdMs WHERE archived = 1 AND archivedMs IS NULL")
+    }
+}
+
+/**
+ * Identità stabili in vista della sincronizzazione fra dispositivi. Solo ALTER TABLE e
+ * UPDATE, nessuna tabella ricreata: è l'unica forma che non può perdere dati.
+ * randomblob() non è deterministica, quindi genera un valore diverso per ogni riga.
+ * I nomi degli indici sono quelli che Room si aspetta (index_<tabella>_<colonna>):
+ * se non corrispondono, la validazione dello schema fallisce all'apertura del database.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE counters ADD COLUMN updatedMs INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE rounds ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+        db.execSQL("UPDATE counters SET uuid = lower(hex(randomblob(16))) WHERE uuid = ''")
+        db.execSQL("UPDATE counters SET updatedMs = createdMs WHERE updatedMs = 0")
+        db.execSQL("UPDATE rounds SET uuid = lower(hex(randomblob(16))) WHERE uuid = ''")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_counters_uuid ON counters (uuid)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_rounds_uuid ON rounds (uuid)")
     }
 }
 

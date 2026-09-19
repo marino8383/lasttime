@@ -7,6 +7,7 @@ import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.LastTimeApp
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.restarted
+import it.marino8383.lasttime.data.save
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -30,14 +31,14 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     when (action) {
                         // Scarta: il contatore continua, la campanella si spegne (🔕 sulla card)
                         Notifications.ACTION_DISMISS ->
-                            dao.update(counter.copy(bellEnabled = false, snoozeUntilMs = null))
+                            dao.save(counter.copy(bellEnabled = false, snoozeUntilMs = null))
 
                         // Fatto: round loggato, riparte; la prossima campanella segue il bellMode
                         Notifications.ACTION_DONE -> {
                             app.db.roundDao().insert(
                                 Round(counterId = counter.id, startMs = counter.startMs, endMs = now)
                             )
-                            dao.update(counter.restarted(now, AppSettings.latePercent(context)))
+                            dao.save(counter.restarted(now, AppSettings.latePercent(context)))
                         }
                     }
                     AlarmScheduler.scheduleNext(context)
