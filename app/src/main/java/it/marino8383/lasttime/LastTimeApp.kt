@@ -9,6 +9,7 @@ import it.marino8383.lasttime.data.MIGRATION_3_4
 import it.marino8383.lasttime.data.MIGRATION_4_5
 import it.marino8383.lasttime.data.MIGRATION_5_6
 import it.marino8383.lasttime.notif.Notifications
+import it.marino8383.lasttime.sync.Cloud
 
 class LastTimeApp : Application() {
 
@@ -21,5 +22,6 @@ class LastTimeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Notifications.createChannels(this)
+        Cloud.connect()
     }
 }

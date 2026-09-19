@@ -7,6 +7,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -17,8 +18,8 @@ android {
         applicationId = "it.marino8383.lasttime"
         minSdk = 26
         targetSdk = 34
-        versionCode = 25
-        versionName = "0.9.3"
+        versionCode = 26
+        versionName = "0.9.4"
 
         buildConfigField("String", "BUILD_TIME", "\"${buildTimestamp()}\"")
     }
@@ -80,6 +81,11 @@ dependencies {
     // 2.8.4: le 2.8.0 crashano all'avvio con Compose 1.6 (LocalLifecycleOwner not present)
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
+
+    // Firebase: auth anonima per l'identita' del dispositivo, Firestore per lo stato condiviso
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

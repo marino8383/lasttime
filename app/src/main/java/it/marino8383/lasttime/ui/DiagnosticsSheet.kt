@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -38,7 +39,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.marino8383.lasttime.notif.AlarmScheduler
+import it.marino8383.lasttime.sync.Cloud
+import it.marino8383.lasttime.sync.CloudState
 
 private class CheckInfo(
     val title: String,
@@ -70,6 +74,8 @@ fun DiagnosticsSheet(onDismiss: () -> Unit) {
     LaunchedEffect(refresh) { AlarmScheduler.scheduleNext(context) }
 
     val checks = remember(refresh) { buildChecks(context) }
+    val cloud by Cloud.state.collectAsStateWithLifecycle()
+    LaunchedEffect(refresh) { Cloud.connect() }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -114,6 +120,44 @@ fun DiagnosticsSheet(onDismiss: () -> Unit) {
                         TextButton(onClick = { check.fix.invoke(context) }) {
                             Text("Sistema", fontWeight = FontWeight.Bold)
                         }
+                    }
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    when (cloud) {
+                        is CloudState.Ready -> "✅"
+                        is CloudState.Failed -> "⚠️"
+                        else -> "⏳"
+                    },
+                    fontSize = 20.sp,
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Timer condivisi",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        when (val c = cloud) {
+                            is CloudState.Ready -> "Collegato · id ${c.uid.take(8)}"
+                            is CloudState.Failed -> "Non collegato: ${c.message}"
+                            CloudState.Connecting -> "Collegamento in corso..."
+                            CloudState.Idle -> "Non ancora collegato"
+                        },
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (cloud is CloudState.Failed) {
+                    TextButton(onClick = { Cloud.retry() }) {
+                        Text("Riprova", fontWeight = FontWeight.Bold)
                     }
                 }
             }
