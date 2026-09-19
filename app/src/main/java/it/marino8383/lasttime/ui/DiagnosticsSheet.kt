@@ -81,11 +81,7 @@ fun DiagnosticsSheet(onDismiss: () -> Unit) {
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
         ) {
-            Text(
-                "🩺 Diagnostica notifiche",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.ExtraBold,
-            )
+            SheetTitle(title = "🩺 Diagnostica notifiche", onClose = onDismiss)
             Spacer(Modifier.height(6.dp))
             Text(
                 "Perché le campanelle arrivino puntuali anche ad app chiusa, tutti e tre i punti devono essere verdi.",

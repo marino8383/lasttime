@@ -99,10 +99,9 @@ fun AdvancedRestartSheet(
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
         ) {
-            Text(
-                "↺ Riparti — ${counter.name.uppercase()}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.ExtraBold,
+            SheetTitle(
+                title = "↺ Riparti — ${counter.name.uppercase()}",
+                onClose = onDismiss,
                 letterSpacing = 1.sp,
             )
             Spacer(Modifier.height(14.dp))

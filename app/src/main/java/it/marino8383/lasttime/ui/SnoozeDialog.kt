@@ -45,7 +45,13 @@ fun SnoozeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("⏰ Rimanda — ${counter.name}") },
+        title = {
+            SheetTitle(
+                title = "⏰ Rimanda — ${counter.name}",
+                onClose = onDismiss,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+        },
         text = {
             Column {
                 Text(
@@ -88,8 +94,6 @@ fun SnoozeDialog(
                 onClick = { onSave(amount!! * unit.minutes) },
             ) { Text("Rimanda") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annulla") }
-        },
+        dismissButton = {},
     )
 }

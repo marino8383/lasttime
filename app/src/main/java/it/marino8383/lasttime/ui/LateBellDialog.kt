@@ -52,7 +52,13 @@ fun LateBellDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("↺ Riparti") },
+        title = {
+            SheetTitle(
+                title = "↺ Riparti",
+                onClose = onDismiss,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+        },
         text = {
             Column {
                 Text(
@@ -84,9 +90,7 @@ fun LateBellDialog(
         confirmButton = {
             TextButton(onClick = { onChoose(choice) }) { Text("Riparti") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annulla") }
-        },
+        dismissButton = {},
     )
 }
 

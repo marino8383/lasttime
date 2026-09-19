@@ -73,10 +73,9 @@ fun HistorySheet(
             contentPadding = PaddingValues(20.dp, 0.dp, 20.dp, 28.dp),
         ) {
             item {
-                Text(
-                    "🕘 Storico — ${counter.name.uppercase()}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
+                SheetTitle(
+                    title = "🕘 Storico — ${counter.name.uppercase()}",
+                    onClose = onDismiss,
                     letterSpacing = 1.sp,
                 )
                 Spacer(Modifier.height(14.dp))

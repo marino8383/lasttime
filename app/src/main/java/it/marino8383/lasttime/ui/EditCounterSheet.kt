@@ -73,10 +73,9 @@ fun EditCounterSheet(
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
         ) {
-            Text(
-                if (counter == null) "Nuovo contatore" else "Modifica contatore",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.ExtraBold,
+            SheetTitle(
+                title = if (counter == null) "Nuovo contatore" else "Modifica contatore",
+                onClose = onDismiss,
             )
             Spacer(Modifier.height(16.dp))
 

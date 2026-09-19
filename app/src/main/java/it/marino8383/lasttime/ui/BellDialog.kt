@@ -89,7 +89,13 @@ fun BellDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("🔔 Avvisami dopo") },
+        title = {
+            SheetTitle(
+                title = "🔔 Avvisami dopo",
+                onClose = onDismiss,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+        },
         text = {
             Column {
                 OutlinedTextField(
@@ -230,12 +236,11 @@ fun BellDialog(
             ) { Text("Salva") }
         },
         dismissButton = {
+            // Niente "Annulla": si chiude dalla ✕ in alto, come in tutte le altre maschere.
             if (existing != null) {
                 TextButton(onClick = { onSave(null, false, mode, true, null) }) {
                     Text("Rimuovi", color = MaterialTheme.colorScheme.error)
                 }
-            } else {
-                TextButton(onClick = onDismiss) { Text("Annulla") }
             }
         },
     )

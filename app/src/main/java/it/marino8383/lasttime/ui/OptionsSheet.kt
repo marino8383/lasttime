@@ -45,11 +45,7 @@ fun OptionsSheet(onDismiss: () -> Unit) {
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
         ) {
-            Text(
-                "⚙️ Opzioni",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.ExtraBold,
-            )
+            SheetTitle(title = "⚙️ Opzioni", onClose = onDismiss)
             Spacer(Modifier.height(16.dp))
 
             Text(
