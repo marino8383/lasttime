@@ -1,0 +1,66 @@
+rules_version = '2';
+
+// Regole di sicurezza di Last Time.
+//
+// Con l'auth anonima chiunque puo' ottenere un'identita' sul progetto: queste regole
+// sono l'unica cosa che separa i dati di un gruppo dal resto del mondo. Il principio e'
+// uno solo: si legge e si scrive dentro un gruppo solo se si e' membri di quel gruppo,
+// e si diventa membri solo presentando un invito valido.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(groupId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
+    }
+
+    function validInvite(groupId, code) {
+      let inv = get(/databases/$(database)/documents/invites/$(code)).data;
+      return inv.groupId == groupId && inv.expiresMs > request.time.toMillis();
+    }
+
+    // Inviti. Si leggono solo conoscendo il codice esatto: "list" resta negato, cosi'
+    // nessuno puo' scorrere gli inviti in giro per trovarne uno valido.
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if signedIn(); // serve a marcarlo usato
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /groups/{groupId} {
+      // Niente "list": il client conosce sempre l'id dei suoi gruppi, non li cerca.
+      allow get: if isMember(groupId);
+      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isMember(groupId);
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isMember(groupId);
+        // Entrare nel gruppo: solo per se stessi, e solo con un invito valido per
+        // questo gruppo. E' l'unico punto in cui un non membro puo' scrivere.
+        allow create: if signedIn()
+                      && uid == request.auth.uid
+                      && validInvite(groupId, request.resource.data.code);
+        allow update, delete: if signedIn() && uid == request.auth.uid;
+      }
+
+      match /counters/{counterUuid} {
+        allow read, write: if isMember(groupId);
+      }
+
+      match /rounds/{roundUuid} {
+        allow read, create: if isMember(groupId);
+        // I round sono append-only: un evento gia' scritto non si corregge e non si
+        // cancella, altrimenti due telefoni potrebbero riscrivere la storia a vicenda.
+        allow update, delete: if false;
+      }
+    }
+  }
+}

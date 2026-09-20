@@ -13,6 +13,7 @@ import androidx.room.RoomDatabase
 import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import it.marino8383.lasttime.sync.SyncEngine
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
@@ -51,6 +52,11 @@ data class Counter(
     val createdMs: Long,
     /** Ultima scrittura: è il timestamp su cui si risolveranno i conflitti fra dispositivi. */
     val updatedMs: Long = 0,
+    /**
+     * Gruppo con cui questo contatore è condiviso; null = solo su questo telefono.
+     * È un campo locale, non si sincronizza: è il telefono che decide cosa condivide.
+     */
+    val sharedGroupId: String? = null,
 )
 
 @Entity(
@@ -110,6 +116,13 @@ interface CounterDao {
     @Query("SELECT * FROM counters WHERE id = :id")
     suspend fun byId(id: Long): Counter?
 
+    @Query("SELECT * FROM counters WHERE uuid = :uuid")
+    suspend fun byUuid(uuid: String): Counter?
+
+    /** Tutti i condivisi, archiviati compresi: il sync non guarda l'archivio. */
+    @Query("SELECT * FROM counters WHERE sharedGroupId IS NOT NULL")
+    suspend fun shared(): List<Counter>
+
     @Query("SELECT MIN(scheduledResetMs) FROM counters WHERE archived = 0 AND scheduledResetMs IS NOT NULL")
     suspend fun nextScheduledReset(): Long?
 
@@ -132,7 +145,11 @@ interface CounterDao {
  * I metodi grezzi del DAO esistono solo perché Room li vuole generare.
  */
 suspend fun CounterDao.save(counter: Counter) {
-    updateRaw(counter.copy(updatedMs = System.currentTimeMillis()))
+    val stamped = counter.copy(updatedMs = System.currentTimeMillis())
+    updateRaw(stamped)
+    // Il push sta qui e non nei singoli casi d'uso: e' l'unico modo per essere certi
+    // che nessuna scrittura resti a terra, receiver delle notifiche compresi.
+    SyncEngine.pushIfShared(stamped)
 }
 
 suspend fun CounterDao.create(counter: Counter): Long =
@@ -165,7 +182,7 @@ data class RoundSummary(
     val lastDurationMs: Long?,
 )
 
-@Database(entities = [Counter::class, Round::class], version = 6, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 7, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -221,6 +238,12 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         db.execSQL("UPDATE rounds SET uuid = lower(hex(randomblob(16))) WHERE uuid = ''")
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_counters_uuid ON counters (uuid)")
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_rounds_uuid ON rounds (uuid)")
+    }
+}
+
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN sharedGroupId TEXT")
     }
 }
 

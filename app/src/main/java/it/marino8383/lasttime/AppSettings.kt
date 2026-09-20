@@ -18,6 +18,16 @@ object AppSettings {
             .edit().putInt(KEY_LATE_PERCENT, value.coerceIn(1, 50)).apply()
     }
 
+    /** Nome con cui mi presento nei gruppi condivisi. Chiesto una volta sola. */
+    fun myName(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString("my_name", "") ?: ""
+
+    fun setMyName(context: Context, value: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putString("my_name", value.trim()).apply()
+    }
+
     // ---- vista tabellone Solari ----
 
     fun flipUnit(context: Context): String =

@@ -12,6 +12,8 @@ import it.marino8383.lasttime.data.save
 import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
+import it.marino8383.lasttime.sync.Groups
+import it.marino8383.lasttime.sync.SyncEngine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -222,6 +224,65 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }
+    }
+
+    // ---------------------------------------------------------------- condivisione
+
+    /**
+     * Condivide un contatore. Se esiste gia' un gruppo (la coppia di sempre) ci entra
+     * dentro senza chiedere niente a nessuno e ritorna null: l'invito serve solo per
+     * far entrare una persona nuova, non per ogni timer.
+     * Se invece il gruppo va creato, ritorna il codice da dettare all'altro.
+     */
+    fun shareCounter(counter: Counter, myName: String, onDone: (String?, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val esistente = db.counterDao().shared().firstNotNullOfOrNull { it.sharedGroupId }
+                val groupId = esistente ?: Groups.create(myName)
+                val codice = if (esistente == null) Groups.invite(groupId) else null
+
+                val condiviso = counter.copy(sharedGroupId = groupId)
+                db.counterDao().save(condiviso)
+                Groups.push(groupId, condiviso)
+                SyncEngine.listen(getApplication(), groupId)
+                onDone(codice, null)
+            } catch (t: Throwable) {
+                onDone(null, t.message ?: "condivisione fallita")
+            }
+        }
+    }
+
+    /** Codice nuovo per far entrare un'altra persona in un gruppo che esiste gia'. */
+    fun newInvite(groupId: String, onDone: (String?, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                onDone(Groups.invite(groupId), null)
+            } catch (t: Throwable) {
+                onDone(null, t.message ?: "invito fallito")
+            }
+        }
+    }
+
+    fun joinGroup(code: String, myName: String, onDone: (Groups.JoinResult) -> Unit) {
+        viewModelScope.launch {
+            val esito = Groups.join(code, myName)
+            if (esito is Groups.JoinResult.Ok) SyncEngine.listen(getApplication(), esito.groupId)
+            onDone(esito)
+        }
+    }
+
+    /**
+     * Smette di condividere: il contatore resta qui com'e', semplicemente non parla
+     * piu' col gruppo. La copia degli altri continua per conto suo.
+     */
+    fun unshare(counter: Counter) {
+        viewModelScope.launch {
+            db.counterDao().save(counter.copy(sharedGroupId = null))
+        }
+    }
+
+    fun membersOf(groupId: String, onDone: (Map<String, String>) -> Unit) {
+        viewModelScope.launch { onDone(Groups.members(groupId)) }
     }
 
     fun cycleViewMode(counter: Counter) {

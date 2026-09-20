@@ -18,8 +18,8 @@ android {
         applicationId = "it.marino8383.lasttime"
         minSdk = 26
         targetSdk = 34
-        versionCode = 26
-        versionName = "0.9.4"
+        versionCode = 27
+        versionName = "0.10.0"
 
         buildConfigField("String", "BUILD_TIME", "\"${buildTimestamp()}\"")
     }
@@ -86,6 +86,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

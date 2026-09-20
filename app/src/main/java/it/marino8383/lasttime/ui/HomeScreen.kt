@@ -70,6 +70,10 @@ import it.marino8383.lasttime.formatDateTime
 import it.marino8383.lasttime.formatDurationTwoParts
 import it.marino8383.lasttime.formatRingTime
 import it.marino8383.lasttime.notif.AlarmScheduler
+import it.marino8383.lasttime.sync.Cloud
+import it.marino8383.lasttime.sync.CloudState
+import it.marino8383.lasttime.sync.Groups
+import it.marino8383.lasttime.sync.SyncEngine
 import it.marino8383.lasttime.timeParts
 import it.marino8383.lasttime.ui.theme.OnErrorContainer
 import it.marino8383.lasttime.ui.theme.OnPrimaryContainer
@@ -95,6 +99,11 @@ fun HomeScreen(
     }
 
     val context = LocalContext.current
+    val cloud by Cloud.state.collectAsStateWithLifecycle()
+    LaunchedEffect(cloud) {
+        if (cloud is CloudState.Ready) SyncEngine.start(context)
+    }
+
     var flipMode by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var showOptions by remember { mutableStateOf(false) }
@@ -108,6 +117,7 @@ fun HomeScreen(
     var advancedTarget by remember { mutableStateOf<Counter?>(null) }
     var lateBellTarget by remember { mutableStateOf<Counter?>(null) }
     var bellTarget by remember { mutableStateOf<Counter?>(null) }
+    var shareTarget by remember { mutableStateOf<Counter?>(null) }
 
     BackHandler(enabled = showArchive) { showArchive = false }
 
@@ -188,6 +198,7 @@ fun HomeScreen(
                                 onAdvancedRestart = { advancedTarget = counter },
                                 onEdit = { editTarget = counter },
                                 onBell = { bellTarget = counter },
+                                onShare = { shareTarget = counter },
                                 onDelete = { deleteTarget = counter },
                             )
                         }
@@ -198,7 +209,22 @@ fun HomeScreen(
     }
 
     if (showOptions) {
-        OptionsSheet(onDismiss = { showOptions = false })
+        OptionsSheet(
+            onDismiss = { showOptions = false },
+            onJoin = { code, myName, onDone ->
+                vm.joinGroup(code, myName) { esito ->
+                    onDone(
+                        when (esito) {
+                            is Groups.JoinResult.Ok ->
+                                "✅ Sei nel gruppo. I timer condivisi compaiono fra qualche secondo."
+                            Groups.JoinResult.CodeNotFound -> "⚠️ Codice non trovato."
+                            Groups.JoinResult.Expired -> "⚠️ Codice scaduto: fattene dare uno nuovo."
+                            is Groups.JoinResult.Failed -> "⚠️ " + esito.message
+                        }
+                    )
+                }
+            },
+        )
     }
 
     if (showDiagnostics) {
@@ -350,6 +376,18 @@ fun HomeScreen(
         )
     }
 
+    shareTarget?.let { target ->
+        val counter = counters.firstOrNull { it.id == target.id } ?: target
+        ShareSheet(
+            counter = counter,
+            onDismiss = { shareTarget = null },
+            onShare = { myName, onDone -> vm.shareCounter(counter, myName, onDone) },
+            onNewInvite = { groupId, onDone -> vm.newInvite(groupId, onDone) },
+            onUnshare = { vm.unshare(counter) },
+            onMembers = { groupId, onDone -> vm.membersOf(groupId, onDone) },
+        )
+    }
+
     bellTarget?.let { counter ->
         BellDialog(
             counter = counter,
@@ -420,6 +458,7 @@ private fun CounterCard(
     onAdvancedRestart: () -> Unit,
     onEdit: () -> Unit,
     onBell: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
     // Allineato al secondo del timer: anche il countdown campanella deriva da qui,
@@ -578,6 +617,15 @@ private fun CounterCard(
                     Icon(
                         Icons.Filled.Edit, contentDescription = "Modifica",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // 👥 acceso = condiviso: sulla card si vede a colpo d'occhio
+                IconButton(onClick = onShare) {
+                    Text(
+                        "👥",
+                        fontSize = 15.sp,
+                        color = if (counter.sharedGroupId != null) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 // ↺: tap = riparti con conferma, doppio tap = riparti avanzato (v25)

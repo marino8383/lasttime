@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -29,11 +31,18 @@ import it.marino8383.lasttime.AppSettings
 /** Pannello Opzioni (⚙️): per ora la tolleranza "mantieni il ritmo". */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OptionsSheet(onDismiss: () -> Unit) {
+fun OptionsSheet(
+    onDismiss: () -> Unit,
+    onJoin: (code: String, myName: String, onDone: (String) -> Unit) -> Unit = { _, _, _ -> },
+) {
     val context = LocalContext.current
     var percentText by remember {
         mutableStateOf(AppSettings.latePercent(context).toString())
     }
+    var codice by remember { mutableStateOf("") }
+    var mioNome by remember { mutableStateOf(AppSettings.myName(context)) }
+    var esito by remember { mutableStateOf<String?>(null) }
+    var attesa by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -76,6 +85,61 @@ fun OptionsSheet(onDismiss: () -> Unit) {
                 fontSize = 11.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(26.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            Spacer(Modifier.height(18.dp))
+
+            Text(
+                "TIMER CONDIVISI",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Se qualcuno ti ha dettato un codice, mettilo qui: i timer che condivide " +
+                    "compariranno fra i tuoi.",
+                fontSize = 11.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = codice,
+                onValueChange = { codice = it.uppercase().filter(Char::isLetterOrDigit).take(6) },
+                label = { Text("Codice d'invito") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = mioNome,
+                onValueChange = { mioNome = it },
+                label = { Text("Il tuo nome") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+            Button(
+                enabled = codice.length == 6 && mioNome.isNotBlank() && !attesa,
+                onClick = {
+                    attesa = true
+                    esito = null
+                    AppSettings.setMyName(context, mioNome)
+                    onJoin(codice, mioNome.trim()) { messaggio ->
+                        attesa = false
+                        esito = messaggio
+                        if (messaggio.startsWith("✅")) codice = ""
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (attesa) "Attendi..." else "Entra con un codice", fontWeight = FontWeight.Bold) }
+
+            esito?.let {
+                Spacer(Modifier.height(10.dp))
+                Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+            }
+
             Spacer(Modifier.height(24.dp))
         }
     }
