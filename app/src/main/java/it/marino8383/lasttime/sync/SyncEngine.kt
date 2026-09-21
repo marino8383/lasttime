@@ -218,8 +218,17 @@ object SyncEngine {
         if (local.sharedGroupId == null) {
             Log.i(TAG, "contatore $uuid riagganciato al gruppo $groupId")
             annota("${nowClock()} riagganciato ${local.name}")
-            dao.updateRaw(local.copy(sharedGroupId = groupId))
+            val riagganciato = local.copy(sharedGroupId = groupId)
+            dao.updateRaw(riagganciato)
             SyncWorker.refresh(app)
+            // Mentre era sganciato le modifiche restavano in casa: pushIfShared esce
+            // subito se il contatore non e' condiviso. Ora che lo e' di nuovo, quello che
+            // e' successo nel frattempo va mandato su, altrimenti resta indietro per
+            // sempre — nessuno lo rimanderebbe mai.
+            if (riagganciato.updatedMs > remoteUpdated) {
+                annota("${nowClock()} rimando su ${local.name}, era indietro sul server")
+                pushIfShared(riagganciato)
+            }
         }
 
         // Last-write-wins: se la nostra copia e' piu' recente, la remota non ci interessa
@@ -296,10 +305,7 @@ object SyncEngine {
             SyncStatus.fallito()
             return true
         }
-        val locali = app.db.counterDao().shared()
-
         gruppi.forEach { groupId ->
-            val contatori = locali.filter { it.sharedGroupId == groupId }
             try {
                 val remoti = db.collection("groups").document(groupId)
                     .collection("counters").get().await()
@@ -307,6 +313,12 @@ object SyncEngine {
 
                 // remoto -> locale
                 remoti.values.forEach { applyRemote(app, groupId, it) }
+
+                // La lista locale si rilegge qui, non prima: applyRemote puo' aver appena
+                // riagganciato un contatore, e con una lista vecchia resterebbe fuori dal
+                // giro di invio proprio nel momento in cui ne ha piu' bisogno.
+                val contatori = app.db.counterDao().shared()
+                    .filter { it.sharedGroupId == groupId }
 
                 // locale -> remoto, solo dove siamo davvero piu' avanti
                 Groups.recentRounds(groupId).forEach { applyRemoteRound(app, it) }
