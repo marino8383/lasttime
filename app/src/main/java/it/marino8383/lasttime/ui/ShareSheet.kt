@@ -1,6 +1,12 @@
 package it.marino8383.lasttime.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Intent
+import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -135,11 +141,32 @@ fun ShareSheet(
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Vale 24 ore. Dettalo all'altra persona: apre Last Time, " +
-                                "⚙️ Opzioni, “Entra con un codice”.",
-                            fontSize = 11.5.sp,
-                        )
+                        Text("Vale 24 ore.", fontSize = 11.5.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = {
+                                val cb = context.getSystemService(ClipboardManager::class.java)
+                                cb.setPrimaryClip(ClipData.newPlainText("Codice Last Time", code))
+                                Toast.makeText(context, "Codice copiato", Toast.LENGTH_SHORT).show()
+                            }) { Text("Copia") }
+                            TextButton(onClick = {
+                                // Stringa multiriga: gli a capo stanno nel sorgente,
+                                // niente sequenze di escape da sbagliare.
+                                val testo = """
+                                    Ti ho condiviso il timer “${counter.name}” su Last Time.
+
+                                    Codice: $code
+
+                                    Apri Last Time, ⚙️ Opzioni, “Entra con un codice” e incolla.
+                                    Il codice vale 24 ore.
+                                """.trimIndent()
+                                val invito = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, testo)
+                                }
+                                context.startActivity(Intent.createChooser(invito, "Invita"))
+                            }) { Text("Invia", fontWeight = FontWeight.Bold) }
+                        }
                     }
                 }
             }

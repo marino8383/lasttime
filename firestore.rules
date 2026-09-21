@@ -19,6 +19,11 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
     }
 
+    function isCreator(groupId) {
+      return signedIn() &&
+        get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid;
+    }
+
     function validInvite(groupId, code) {
       let inv = get(/databases/$(database)/documents/invites/$(code)).data;
       return inv.groupId == groupId && inv.expiresMs > request.time.toMillis();
@@ -43,11 +48,16 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isMember(groupId);
-        // Entrare nel gruppo: solo per se stessi, e solo con un invito valido per
-        // questo gruppo. E' l'unico punto in cui un non membro puo' scrivere.
+        // Entrare nel gruppo: solo per se stessi, e in uno di due modi. O hai appena
+        // creato il gruppo — e allora il primo membro sei tu, senza invitarti da solo —
+        // oppure presenti un invito valido per questo gruppo. E' l'unico punto in cui
+        // chi non e' ancora membro puo' scrivere qualcosa.
         allow create: if signedIn()
                       && uid == request.auth.uid
-                      && validInvite(groupId, request.resource.data.code);
+                      && (
+                           isCreator(groupId)
+                           || validInvite(groupId, request.resource.data.code)
+                         );
         allow update, delete: if signedIn() && uid == request.auth.uid;
       }
 
