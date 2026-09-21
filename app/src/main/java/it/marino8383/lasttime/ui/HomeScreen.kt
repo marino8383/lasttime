@@ -659,6 +659,24 @@ private fun CounterCard(
                     val overdue = if (scaduta) counter.nextBellAtMs
                         ?.let { (counter.startMs + elapsed - it).coerceAtLeast(0) } else null
                     val label = bellLabel(bell) + if (counter.bellRepeat) " ↻" else ""
+                    // Le viste sono quelle che hanno davvero qualcosa da dire: senza una
+                    // scadenza programmata, countdown e orario non esistono. Ciclare su tre
+                    // modalità fisse faceva sembrare il chip rotto — toccavi e non cambiava
+                    // niente, perché due delle tre ricadevano sullo stesso testo.
+                    val orario = nextRing ?: counter.nextBellAtMs
+                    val viste = buildList {
+                        // con un rinvio in corso il countdown viene per primo: è l'informazione
+                        // del momento, e si vede senza dover toccare
+                        if (snoozePending != null && remaining != null) {
+                            add("⏰ ${formatDurationTwoParts(remaining)}")
+                        }
+                        add("${if (muted) "🔕" else "🔔"} $label")
+                        if (snoozePending == null) {
+                            remaining?.let { add("⏰ ${formatDurationTwoParts(it)}") }
+                            overdue?.let { add("⏰ +${formatDurationTwoParts(it)}") }
+                        }
+                        orario?.let { add("🕐 ${formatRingTime(it)}") }
+                    }
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = when {
@@ -671,21 +689,16 @@ private fun CounterCard(
                             muted -> MaterialTheme.colorScheme.onSurfaceVariant
                             else -> OnPrimaryContainer
                         },
-                        // Tap sul chip: valore impostato -> countdown -> orario di squillo
-                        modifier = Modifier.clickable { chipMode = (chipMode + 1) % 3 },
+                        // Cliccabile solo se c'è più di una vista: un chip che non reagisce
+                        // è meglio di un chip che reagisce senza cambiare nulla.
+                        modifier = if (viste.size > 1) {
+                            Modifier.clickable { chipMode = (chipMode + 1) % viste.size }
+                        } else {
+                            Modifier
+                        },
                     ) {
                         Text(
-                            when {
-                                chipMode == 1 && remaining != null -> "⏰ ${formatDurationTwoParts(remaining)}"
-                                chipMode == 1 && overdue != null -> "⏰ +${formatDurationTwoParts(overdue)}"
-                                chipMode == 2 && nextRing != null -> "🕐 ${formatRingTime(nextRing)}"
-                                chipMode == 2 && counter.nextBellAtMs != null ->
-                                    "🕐 ${formatRingTime(counter.nextBellAtMs)}"
-                                // rinvio attivo: countdown in evidenza senza dover toccare
-                                snoozePending != null && remaining != null ->
-                                    "⏰ ${formatDurationTwoParts(remaining)}"
-                                else -> "${if (muted) "🔕" else "🔔"} $label"
-                            },
+                            viste[chipMode % viste.size],
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp),
