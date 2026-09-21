@@ -193,14 +193,27 @@ object SyncEngine {
             archivedMs = (data["archivedMs"] as? Number)?.toLong(),
             historyFromMs = (data["historyFromMs"] as? Number)?.toLong(),
         )
-        // L'altro ha fatto ripartire il timer: qui lo "sforato" si spegne da solo e la
-        // sveglia si rifa'. Una FIXED tiene il suo ritmo, come ovunque nell'app.
-        if (movedStart && step != null && bellMode != "FIXED") {
+        // Quando rifare la scadenza locale. Oltre al caso ovvio — l'altro ha fatto
+        // ripartire il timer, e qui lo "sforato" si spegne da solo — ce ne sono due che
+        // erano scoperti:
+        //  - la campanella e' stata configurata o cambiata dall'altro dopo la condivisione
+        //  - non abbiamo nessuna scadenza, tipico di un contatore arrivato senza campanella
+        //    e configurato solo dopo: il badge compariva ma non c'era niente da suonare
+        // Una FIXED tiene il suo ritmo quando si sposta solo l'inizio, ma se il ritmo
+        // stesso cambia o manca del tutto va comunque ricalcolata.
+        val cambiataCampanella = bellMinutes != local.bellMinutes
+        val senzaScadenza = local.nextBellAtMs == null
+        val rifasa = step != null &&
+            (cambiataCampanella || senzaScadenza || (movedStart && bellMode != "FIXED"))
+        if (rifasa) {
             updated = updated.copy(
-                nextBellAtMs = startMs + step,
+                nextBellAtMs = startMs + step!!,
                 bellNotified = false,
                 snoozeUntilMs = null,
             )
+        } else if (step == null) {
+            // campanella tolta dall'altro: qui sparisce anche la scadenza
+            updated = updated.copy(nextBellAtMs = null, bellNotified = false, snoozeUntilMs = null)
         }
         dao.updateRaw(updated) // updateRaw: updatedMs e' quello remoto, non va ritimbrato
         aligned[uuid] = remoteUpdated
