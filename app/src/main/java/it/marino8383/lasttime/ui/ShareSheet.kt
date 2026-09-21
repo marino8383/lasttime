@@ -235,6 +235,12 @@ fun ShareSheet(
                         }
                     },
                 ) { Text("Invita un'altra persona") }
+                Text(
+                    "Smettendo di condividere il timer esce dal gruppo per tutti, e ogni " +
+                        "telefono se lo tiene com'è, con il suo storico, per conto proprio.",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 TextButton(onClick = {
                     onUnshare()
                     onDismiss()

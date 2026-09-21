@@ -89,9 +89,20 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Elimina il contatore da questo telefono. Se era condiviso lo toglie prima dal
+     * gruppo, così sugli altri telefoni non resta una copia agganciata al vuoto: là
+     * il timer sopravvive, con il suo storico, e torna autonomo. Non si cancella mai
+     * niente per conto di qualcun altro.
+     */
     fun deleteCounter(counter: Counter) {
         viewModelScope.launch {
+            counter.sharedGroupId?.let { gruppo ->
+                runCatching { Groups.remove(gruppo, counter.uuid) }
+            }
             db.counterDao().delete(counter) // i round seguono in cascata
+            SyncWorker.refresh(getApplication())
+            refreshGroupLabels()
             AlarmScheduler.scheduleNext(getApplication())
         }
     }
@@ -322,11 +333,19 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Smette di condividere: il contatore resta qui com'e', semplicemente non parla
-     * piu' col gruppo. La copia degli altri continua per conto suo.
+     * Smette di condividere, per tutti. Il contatore esce dal gruppo e ogni telefono che
+     * ce l'aveva se lo tiene, con il suo storico, come timer autonomo: da lì in poi le
+     * due copie vivono vite separate.
+     *
+     * L'alternativa — "esco solo io e gli altri continuano" — avrebbe senso da tre persone
+     * in su, ma richiederebbe di tenere traccia di chi partecipa a quale contatore. In due
+     * le due cose coincidono, perché chi resta è comunque solo.
      */
     fun unshare(counter: Counter) {
         viewModelScope.launch {
+            counter.sharedGroupId?.let { gruppo ->
+                runCatching { Groups.remove(gruppo, counter.uuid) }
+            }
             db.counterDao().save(counter.copy(sharedGroupId = null))
             // Se non resta piu' niente di condiviso, il giro periodico si spegne da solo
             SyncWorker.refresh(getApplication())

@@ -115,6 +115,15 @@ object Groups {
         "updatedMs" to counter.updatedMs,
     )
 
+    /**
+     * Toglie un contatore dal gruppo. Non cancella niente a nessuno: sugli altri telefoni
+     * la copia resta, con tutto il suo storico, e torna semplicemente autonoma.
+     */
+    suspend fun remove(groupId: String, uuid: String) {
+        db.collection("groups").document(groupId)
+            .collection("counters").document(uuid).delete().await()
+    }
+
     /** Scrive (o aggiorna) un contatore dentro il gruppo. */
     suspend fun push(groupId: String, counter: Counter) {
         db.collection("groups").document(groupId)

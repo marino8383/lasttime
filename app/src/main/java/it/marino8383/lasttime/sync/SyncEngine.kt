@@ -2,6 +2,7 @@ package it.marino8383.lasttime.sync
 
 import android.content.Context
 import android.util.Log
+import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import it.marino8383.lasttime.LastTimeApp
@@ -69,7 +70,13 @@ object SyncEngine {
                     // completi di allineamento, non l'arrivo di un dato. Se il listener
                     // marcasse "aggiornato" all'aggancio, all'apertura dell'app leggeresti
                     // sempre "adesso" e non sapresti mai se il worker sta lavorando.
-                    snap.documents.forEach { doc -> applyRemote(app, groupId, doc.data) }
+                    snap.documentChanges.forEach { change ->
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            detach(app, change.document.id)
+                        } else {
+                            applyRemote(app, groupId, change.document.data)
+                        }
+                    }
                 }
             }
     }
@@ -186,6 +193,22 @@ object SyncEngine {
         AlarmScheduler.scheduleNext(app)
         SyncStatus.ok(app)
         return true
+    }
+
+    /**
+     * Il contatore e' uscito dal gruppo: qui resta, con tutto il suo storico, e torna
+     * autonomo. Non si cancella mai niente per conto di qualcun altro — chi elimina un
+     * timer condiviso elimina il suo, non il tuo.
+     *
+     * updateRaw e non save: non c'e' piu' nessun posto dove mandare questa modifica, e
+     * ritimbrare updatedMs falserebbe i confronti se un domani si ricondividesse.
+     */
+    private suspend fun detach(app: LastTimeApp, uuid: String) {
+        val locale = app.db.counterDao().byUuid(uuid) ?: return
+        if (locale.sharedGroupId == null) return
+        app.db.counterDao().updateRaw(locale.copy(sharedGroupId = null))
+        aligned.remove(uuid)
+        SyncWorker.refresh(app)
     }
 
     /** Manda su la nostra versione, se questo contatore e' condiviso. */
