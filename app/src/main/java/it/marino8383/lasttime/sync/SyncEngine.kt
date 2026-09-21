@@ -61,11 +61,15 @@ object SyncEngine {
             .addSnapshotListener { snap, error ->
                 if (error != null) {
                     Log.w(TAG, "listener del gruppo $groupId in errore", error)
+                    SyncStatus.fallito()
                     return@addSnapshotListener
                 }
                 snap ?: return@addSnapshotListener
                 scope.launch {
                     snap.documents.forEach { doc -> applyRemote(app, groupId, doc.data) }
+                    // isFromCache: se il dato arriva dalla cache non prova che siamo
+                    // allineati, prova solo che qualcosa e' cambiato in locale.
+                    if (!snap.metadata.isFromCache) SyncStatus.ok(app)
                 }
             }
     }
@@ -142,9 +146,16 @@ object SyncEngine {
      * poter sovrascrivere con una copia vecchia una modifica piu' recente dell'altro.
      */
     suspend fun syncOnce(app: LastTimeApp): Boolean {
-        Cloud.ensureSignedIn() ?: return false
+        SyncStatus.start()
+        Cloud.ensureSignedIn() ?: run {
+            SyncStatus.fallito()
+            return false
+        }
         val locali = app.db.counterDao().shared()
-        if (locali.isEmpty()) return true
+        if (locali.isEmpty()) {
+            SyncStatus.fallito()
+            return true
+        }
 
         locali.groupBy { it.sharedGroupId }.forEach { (groupId, contatori) ->
             groupId ?: return@forEach
@@ -168,10 +179,12 @@ object SyncEngine {
                 }
             } catch (t: Throwable) {
                 Log.w(TAG, "allineamento del gruppo $groupId fallito", t)
+                SyncStatus.fallito()
                 return false
             }
         }
         AlarmScheduler.scheduleNext(app)
+        SyncStatus.ok(app)
         return true
     }
 

@@ -336,6 +336,11 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Allineamento su richiesta: e' il tap sull'indicatore in intestazione. */
+    fun syncNow() {
+        viewModelScope.launch { SyncEngine.syncOnce(getApplication()) }
+    }
+
     fun membersOf(groupId: String, onDone: (Map<String, String>) -> Unit) {
         viewModelScope.launch { onDone(Groups.members(groupId)) }
     }

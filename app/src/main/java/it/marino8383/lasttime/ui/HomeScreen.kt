@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -67,6 +68,7 @@ import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.bellLateThreshold
 import it.marino8383.lasttime.data.bellLatenessMs
 import it.marino8383.lasttime.formatDateTime
+import it.marino8383.lasttime.formatClock
 import it.marino8383.lasttime.formatDurationTwoParts
 import it.marino8383.lasttime.formatRingTime
 import it.marino8383.lasttime.notif.AlarmScheduler
@@ -74,6 +76,7 @@ import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.sync.CloudState
 import it.marino8383.lasttime.sync.Groups
 import it.marino8383.lasttime.sync.SyncEngine
+import it.marino8383.lasttime.sync.SyncStatus
 import it.marino8383.lasttime.sync.SyncWorker
 import it.marino8383.lasttime.timeParts
 import it.marino8383.lasttime.ui.theme.OnErrorContainer
@@ -91,6 +94,9 @@ fun HomeScreen(
     val archived by vm.archived.collectAsStateWithLifecycle()
     val roundSummaries by vm.roundSummaries.collectAsStateWithLifecycle()
     val groupLabels by vm.groupLabels.collectAsStateWithLifecycle()
+    val syncStato by SyncStatus.stato.collectAsStateWithLifecycle()
+    // il solo passare del tempo puo' rendere vecchio l'allineamento: va riletto
+    LaunchedEffect(now / 30_000) { SyncStatus.ricalcola() }
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -173,6 +179,9 @@ fun HomeScreen(
                 onOptions = { showOptions = true },
                 onDiagnostics = { showDiagnostics = true },
                 onArchive = { showArchive = true },
+                // l'indicatore esiste solo se c'e' davvero qualcosa di condiviso
+                syncStato = syncStato.takeIf { counters.any { c -> c.sharedGroupId != null } },
+                onSync = { vm.syncNow() },
             )
             if (flipMode) {
                 FlipView(
@@ -426,6 +435,8 @@ private fun Header(
     onOptions: () -> Unit,
     onDiagnostics: () -> Unit,
     onArchive: () -> Unit,
+    syncStato: SyncStatus.Stato?,
+    onSync: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(20.dp, 20.dp, 20.dp, 10.dp),
@@ -441,6 +452,28 @@ private fun Header(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
+        syncStato?.let { stato ->
+            val vecchio = stato is SyncStatus.Stato.Vecchio
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = if (vecchio) MaterialTheme.colorScheme.errorContainer else PrimaryContainer,
+                contentColor = if (vecchio) OnErrorContainer else OnPrimaryContainer,
+                modifier = Modifier.clickable { onSync() },
+            ) {
+                Text(
+                    when (stato) {
+                        is SyncStatus.Stato.InCorso -> "⟳"
+                        is SyncStatus.Stato.Aggiornato -> "✓ ${formatClock(stato.atMs)}"
+                        is SyncStatus.Stato.Vecchio ->
+                            stato.atMs?.let { "⚠ ${formatClock(it)}" } ?: "⚠ mai"
+                    },
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+        }
         IconButton(onClick = onFlip) {
             Text(if (flipMode) "🗂" else "🚉", fontSize = 17.sp)
         }

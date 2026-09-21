@@ -75,6 +75,10 @@ fun formatShortDateTime(epochMs: Long): String =
 private val clockFmt = DateTimeFormatter.ofPattern("HH:mm", Locale.ITALIAN)
 private val shortDateFmt = DateTimeFormatter.ofPattern("dd/MM", Locale.ITALIAN)
 
+/** Solo l'ora, per l'indicatore di allineamento: "12:04". */
+fun formatClock(epochMs: Long): String =
+    clockFmt.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
+
 /** Orario di un evento futuro in forma parlante: "alle 18:30", "domani alle 08:15", "il 20/07 alle 08:15". */
 fun formatRingTime(epochMs: Long): String {
     val zone = ZoneId.systemDefault()

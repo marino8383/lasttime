@@ -11,6 +11,7 @@ import it.marino8383.lasttime.data.MIGRATION_5_6
 import it.marino8383.lasttime.data.MIGRATION_6_7
 import it.marino8383.lasttime.notif.Notifications
 import it.marino8383.lasttime.sync.Cloud
+import it.marino8383.lasttime.sync.SyncStatus
 
 class LastTimeApp : Application() {
 
@@ -24,5 +25,6 @@ class LastTimeApp : Application() {
         super.onCreate()
         Notifications.createChannels(this)
         Cloud.connect()
+        SyncStatus.init(this)
     }
 }
