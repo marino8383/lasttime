@@ -28,6 +28,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.sync.CloudState
+import it.marino8383.lasttime.sync.GruppoReport
+import it.marino8383.lasttime.sync.SyncReport
+import it.marino8383.lasttime.formatClock
+import it.marino8383.lasttime.LastTimeApp
 
 private class CheckInfo(
     val title: String,
@@ -76,6 +81,13 @@ fun DiagnosticsSheet(onDismiss: () -> Unit) {
     val checks = remember(refresh) { buildChecks(context) }
     val cloud by Cloud.state.collectAsStateWithLifecycle()
     LaunchedEffect(refresh) { Cloud.connect() }
+
+    var gruppi by remember { mutableStateOf<List<GruppoReport>?>(null) }
+    LaunchedEffect(refresh, cloud) {
+        if (cloud is CloudState.Ready) {
+            gruppi = SyncReport.raccogli(context.applicationContext as LastTimeApp)
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -161,6 +173,61 @@ fun DiagnosticsSheet(onDismiss: () -> Unit) {
                     }
                 }
             }
+            gruppi?.takeIf { it.isNotEmpty() }?.let { report ->
+                Spacer(Modifier.height(18.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "GRUPPI CONDIVISI",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Se non risulti membro, il server rifiuta tutto quello che scrivi e " +
+                        "l'app non se ne accorge: sembra solo che non si allinei.",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                report.forEach { g ->
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "gruppo ${g.groupId.take(8)}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        (if (g.sonoMembro) "✅ sei membro" else "⚠️ NON sei membro") + " · " +
+                            (if (g.puoScrivere) "scrittura ok" else "⚠️ scrittura rifiutata"),
+                        fontSize = 11.5.sp,
+                        color = if (g.sonoMembro && g.puoScrivere) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.error,
+                    )
+                    g.errore?.let {
+                        Text("⚠️ $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
+                    }
+                    g.contatori.forEach { c ->
+                        val remoto = c.remotoMs
+                        val stato = when {
+                            remoto == null -> "⚠️ non c'è sul server"
+                            remoto > c.localeMs -> "il server è avanti"
+                            remoto < c.localeMs -> "⚠️ noi siamo avanti: il nostro non è salito"
+                            else -> "✅ allineati"
+                        }
+                        Text(
+                            "• ${c.nome}: locale ${formatClock(c.localeMs)} · " +
+                                "server ${remoto?.let { formatClock(it) } ?: "—"} · $stato",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
             Spacer(Modifier.height(24.dp))
         }
     }
