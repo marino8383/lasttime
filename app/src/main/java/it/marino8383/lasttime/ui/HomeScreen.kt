@@ -402,6 +402,7 @@ fun HomeScreen(
             onGroups = { onDone -> vm.myGroups(onDone) },
             onNewInvite = { groupId, onDone -> vm.newInvite(groupId, onDone) },
             onUnshare = { vm.unshare(counter) },
+            onNotifyOnRemote = { vm.setNotifyOnRemote(counter, it) },
             onMembers = { groupId, onDone -> vm.membersOf(groupId, onDone) },
         )
     }

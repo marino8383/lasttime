@@ -10,6 +10,7 @@ import it.marino8383.lasttime.data.MIGRATION_4_5
 import it.marino8383.lasttime.data.MIGRATION_5_6
 import it.marino8383.lasttime.data.MIGRATION_6_7
 import it.marino8383.lasttime.data.MIGRATION_7_8
+import it.marino8383.lasttime.data.MIGRATION_8_9
 import it.marino8383.lasttime.notif.Notifications
 import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.sync.SyncStatus
@@ -18,7 +19,7 @@ class LastTimeApp : Application() {
 
     val db: AppDatabase by lazy {
         Room.databaseBuilder(this, AppDatabase::class.java, "lasttime.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
             .build()
     }
 

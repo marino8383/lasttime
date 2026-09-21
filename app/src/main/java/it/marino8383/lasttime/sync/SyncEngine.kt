@@ -9,6 +9,7 @@ import it.marino8383.lasttime.LastTimeApp
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.notif.AlarmScheduler
+import it.marino8383.lasttime.notif.Notifications
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +29,9 @@ import kotlinx.coroutines.tasks.await
 object SyncEngine {
 
     private const val TAG = "LastTimeSync"
+
+    /** Oltre questo scarto un evento non e' "appena accaduto" e non merita una notifica. */
+    private const val NOTIFICA_FRESCA_MS = 10 * 60 * 1000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val listeners = mutableMapOf<String, ListenerRegistration>()
@@ -239,6 +243,7 @@ object SyncEngine {
         val counter = app.db.counterDao().byUuid(counterUuid) ?: return
         val startMs = (data["startMs"] as? Number)?.toLong() ?: return
         val endMs = (data["endMs"] as? Number)?.toLong() ?: return
+        val byName = data["byName"] as? String
         app.db.roundDao().insert(
             Round(
                 uuid = uuid,
@@ -246,9 +251,19 @@ object SyncEngine {
                 startMs = startMs,
                 endMs = endMs,
                 noTime = data["noTime"] as? Boolean ?: false,
-                byName = data["byName"] as? String,
+                byName = byName,
             )
         )
+
+        // Avviso "l'ha fatto ripartire un altro". La finestra di freschezza serve a non
+        // sparare 200 notifiche quando arriva lo storico di un timer appena condiviso:
+        // quelli sono eventi vecchi, non e' appena successo niente.
+        val appenaFatto = System.currentTimeMillis() - endMs <= NOTIFICA_FRESCA_MS
+        if (counter.notifyOnRemote && appenaFatto && !byName.isNullOrBlank() &&
+            byName != Cloud.myName
+        ) {
+            Notifications.notifySharedRestart(app, counter, byName, endMs)
+        }
     }
 
     /** Manda su un evento appena registrato, se il contatore e' condiviso. */

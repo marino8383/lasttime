@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -28,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -57,6 +59,7 @@ fun ShareSheet(
     onGroups: ((List<CountersViewModel.GroupInfo>) -> Unit) -> Unit,
     onNewInvite: (groupId: String, onDone: (String?, String?) -> Unit) -> Unit,
     onUnshare: () -> Unit,
+    onNotifyOnRemote: (Boolean) -> Unit,
     onMembers: (groupId: String, onDone: (Map<String, String>) -> Unit) -> Unit,
 ) {
     val context = LocalContext.current
@@ -235,6 +238,27 @@ fun ShareSheet(
                         }
                     },
                 ) { Text("Invita un'altra persona") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Avvisami quando lo riavvia un altro",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            "Scelta tua: non riguarda gli altri del gruppo",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = counter.notifyOnRemote,
+                        onCheckedChange = { onNotifyOnRemote(it) },
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+
                 Text(
                     "Smettendo di condividere il timer esce dal gruppo per tutti, e ogni " +
                         "telefono se lo tiene com'è, con il suo storico, per conto proprio.",

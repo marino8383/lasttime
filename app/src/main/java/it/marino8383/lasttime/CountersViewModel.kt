@@ -365,6 +365,12 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun setNotifyOnRemote(counter: Counter, value: Boolean) {
+        viewModelScope.launch {
+            db.counterDao().save(counter.copy(notifyOnRemote = value))
+        }
+    }
+
     fun membersOf(groupId: String, onDone: (Map<String, String>) -> Unit) {
         viewModelScope.launch { onDone(Groups.members(groupId)) }
     }

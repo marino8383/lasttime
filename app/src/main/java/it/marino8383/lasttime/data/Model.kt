@@ -58,6 +58,11 @@ data class Counter(
      * È un campo locale, non si sincronizza: è il telefono che decide cosa condivide.
      */
     val sharedGroupId: String? = null,
+    /**
+     * Avvisami quando un altro fa ripartire questo timer condiviso. Locale come tutte le
+     * scelte sulle notifiche: se a te interessa e all'altro no, ognuno fa come vuole.
+     */
+    val notifyOnRemote: Boolean = true,
 )
 
 @Entity(
@@ -210,7 +215,7 @@ data class RoundSummary(
     val lastDurationMs: Long?,
 )
 
-@Database(entities = [Counter::class, Round::class], version = 8, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 9, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -272,6 +277,12 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE counters ADD COLUMN sharedGroupId TEXT")
+    }
+}
+
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN notifyOnRemote INTEGER NOT NULL DEFAULT 1")
     }
 }
 

@@ -19,6 +19,7 @@ object Notifications {
     // impostazioni di un canale esistente sono immutabili -> canali nuovi
     const val CHANNEL_BELL = "bell_v2"
     const val CHANNEL_SECRET = "bell_secret_v2"
+    const val CHANNEL_SHARED = "shared_v1"
 
     const val ACTION_DONE = "it.marino8383.lasttime.action.DONE"
     const val ACTION_DISMISS = "it.marino8383.lasttime.action.DISMISS"
@@ -41,6 +42,12 @@ object Notifications {
                 )
             }
         )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_SHARED, "Timer condivisi", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "Quando un'altra persona fa ripartire un timer condiviso"
+                enableVibration(true)
+            }
+        )
         // Canale per i timer lucchettati (v26): mai contenuti sul lockscreen, nessun badge
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_SECRET, "Timer lucchettati", NotificationManager.IMPORTANCE_HIGH).apply {
@@ -55,6 +62,42 @@ object Notifications {
                 )
             }
         )
+    }
+
+    /**
+     * "Vale ha fatto ripartire Tachipirina." Canale a parte e importanza normale: non e'
+     * una sveglia da svegliare la casa, e' un'informazione — e va potuta silenziare dalle
+     * impostazioni di sistema senza perdere le campanelle.
+     */
+    fun notifySharedRestart(context: Context, counter: Counter, byName: String, atMs: Long) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val secret = counter.secret
+        val notification = Notification.Builder(context, if (secret) CHANNEL_SECRET else CHANNEL_SHARED)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(
+                if (secret) "👥 Un timer lucchettato è ripartito"
+                else "👥 $byName: ${counter.name}"
+            )
+            .setContentText(
+                if (secret) "Riavviato da un'altra persona."
+                else "Fatto ripartire ${it.marino8383.lasttime.formatRingTime(atMs)}."
+            )
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    context, 0,
+                    Intent(context, MainActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            )
+            .setAutoCancel(true)
+            .build()
+
+        // id separato da campanella (id) e reset programmato (1M+id)
+        context.getSystemService(NotificationManager::class.java)
+            .notify(2_000_000 + counter.id.toInt(), notification)
     }
 
     fun notifyBell(context: Context, counter: Counter) {
