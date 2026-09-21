@@ -389,15 +389,19 @@ fun HomeScreen(
             title = { Text("⚠️ Era già stato fatto ripartire") },
             text = {
                 Column {
+                    // Il "quanto fa" in testa: è la cosa che serve per decidere, molto
+                    // più dell'orario esatto. Non c'è nessuna soglia sotto — si avvisa
+                    // ogni volta che il valore è cambiato rispetto a quello che vedevi.
+                    val da = formatDurationTwoParts(System.currentTimeMillis() - counter.startMs)
                     Text(
                         (esito.movedBy?.let { "$it l'ha" } ?: "Qualcun altro l'ha") +
-                            " fatto ripartire ${formatRingTime(counter.startMs)}, " +
+                            " fatto ripartire $da fa, alle ${formatClock(counter.startMs)}, " +
                             "e sul tuo telefono non era ancora arrivato."
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "Adesso “${counter.name}” conta da ${formatDurationTwoParts(System.currentTimeMillis() - counter.startMs)}. " +
-                            "Farlo ripartire di nuovo aggiungerebbe un secondo evento allo storico.",
+                        "Farlo ripartire di nuovo aggiungerebbe un secondo evento allo storico, " +
+                            "a $da di distanza dal primo.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
