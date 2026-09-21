@@ -310,7 +310,8 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshGroupLabels() {
         viewModelScope.launch {
-            val ids = db.counterDao().shared().mapNotNull { it.sharedGroupId }.distinct()
+            val ids = (AppSettings.groups(getApplication()) +
+                db.counterDao().shared().mapNotNull { it.sharedGroupId }).toList()
             val io = Cloud.uid
             _groupLabels.value = ids.associateWith { id ->
                 Groups.members(id).filterKeys { it != io }.values
@@ -322,7 +323,8 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     /** I gruppi di cui faccio gia' parte, per far scegliere dove mandare un timer. */
     fun myGroups(onDone: (List<GroupInfo>) -> Unit) {
         viewModelScope.launch {
-            val ids = db.counterDao().shared().mapNotNull { it.sharedGroupId }.distinct()
+            val ids = (AppSettings.groups(getApplication()) +
+                db.counterDao().shared().mapNotNull { it.sharedGroupId }).toList()
             val io = Cloud.uid
             onDone(
                 ids.map { id ->
@@ -351,6 +353,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val gruppo = groupId ?: Groups.create(myName)
                 val codice = if (groupId == null) Groups.invite(gruppo) else null
+                AppSettings.addGroup(getApplication(), gruppo)
 
                 val condiviso = counter.copy(sharedGroupId = gruppo)
                 db.counterDao().save(condiviso)
@@ -381,6 +384,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val esito = Groups.join(code, myName)
             if (esito is Groups.JoinResult.Ok) {
+                AppSettings.addGroup(getApplication(), esito.groupId)
                 SyncEngine.listen(getApplication(), esito.groupId)
                 SyncWorker.refresh(getApplication())
                 refreshGroupLabels()

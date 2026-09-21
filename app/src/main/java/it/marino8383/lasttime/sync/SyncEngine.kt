@@ -5,6 +5,7 @@ import android.util.Log
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.LastTimeApp
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
@@ -60,15 +61,21 @@ object SyncEngine {
 
     private val db get() = FirebaseFirestore.getInstance()
 
-    /** Attacca i listener ai gruppi di cui fa parte almeno un contatore locale. */
+    /**
+     * Attacca i listener a tutti i gruppi di cui faccio parte — non solo a quelli da cui
+     * ho gia' un contatore in casa. Un telefono appena entrato, o rimasto senza condivisi,
+     * deve comunque ricevere quello che gli viene condiviso.
+     */
     fun start(context: Context) {
         if (Cloud.uid == null) return
         val app = context.applicationContext as LastTimeApp
         scope.launch {
-            val groups = app.db.counterDao().shared().mapNotNull { it.sharedGroupId }.toSet()
-            groups.forEach { listen(app, it) }
+            gruppiNoti(app).forEach { listen(app, it) }
         }
     }
+
+    private suspend fun gruppiNoti(app: LastTimeApp): Set<String> =
+        AppSettings.groups(app) + app.db.counterDao().shared().mapNotNull { it.sharedGroupId }
 
     fun stop() {
         listeners.values.forEach { it.remove() }
@@ -243,14 +250,15 @@ object SyncEngine {
             SyncStatus.fallito()
             return false
         }
-        val locali = app.db.counterDao().shared()
-        if (locali.isEmpty()) {
+        val gruppi = gruppiNoti(app)
+        if (gruppi.isEmpty()) {
             SyncStatus.fallito()
             return true
         }
+        val locali = app.db.counterDao().shared()
 
-        locali.groupBy { it.sharedGroupId }.forEach { (groupId, contatori) ->
-            groupId ?: return@forEach
+        gruppi.forEach { groupId ->
+            val contatori = locali.filter { it.sharedGroupId == groupId }
             try {
                 val remoti = db.collection("groups").document(groupId)
                     .collection("counters").get().await()

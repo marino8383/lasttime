@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.LastTimeApp
 import java.util.concurrent.TimeUnit
 
@@ -39,7 +40,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
          */
         suspend fun refresh(context: Context) {
             val app = context.applicationContext as LastTimeApp
-            val serve = app.db.counterDao().shared().isNotEmpty()
+            val serve = AppSettings.groups(app).isNotEmpty() ||
+                app.db.counterDao().shared().isNotEmpty()
             val wm = WorkManager.getInstance(app)
             if (!serve) {
                 wm.cancelUniqueWork(NAME)

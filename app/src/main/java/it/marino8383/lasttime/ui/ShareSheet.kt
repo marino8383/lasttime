@@ -142,9 +142,19 @@ fun ShareSheet(
                 ) {
                     Text(
                         if (attesa) "Attendi..."
-                        else if (gruppi.isEmpty()) "Condividi"
+                        else if (gruppi.isEmpty()) "Condividi con qualcuno di nuovo"
                         else "Con qualcun altro...",
                         fontWeight = FontWeight.Bold,
+                    )
+                }
+                if (gruppi.isEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Crea un gruppo nuovo e un codice da mandare. Se invece volevi " +
+                            "aggiungerlo a un gruppo che hai già, qui sopra non ne compare " +
+                            "nessuno: vuol dire che questo telefono non ne fa ancora parte.",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

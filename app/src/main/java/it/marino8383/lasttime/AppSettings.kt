@@ -29,6 +29,23 @@ object AppSettings {
         it.marino8383.lasttime.sync.Cloud.myName = value.trim()
     }
 
+    /**
+     * I gruppi di cui faccio parte. Salvati qui e non dedotti dai contatori condivisi:
+     * senza, un telefono che al momento non ha niente di condiviso "dimentica" il gruppo,
+     * non scarica quello che gli viene condiviso e alla prossima condivisione ne crea uno
+     * nuovo invece di usare quello dove sta l'altra persona.
+     */
+    fun groups(context: Context): Set<String> =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getStringSet("groups", emptySet())?.toSet() ?: emptySet()
+
+    fun addGroup(context: Context, groupId: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        // getStringSet restituisce un insieme da non modificare: se ne fa una copia
+        val nuovi = prefs.getStringSet("groups", emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (nuovi.add(groupId)) prefs.edit().putStringSet("groups", nuovi).apply()
+    }
+
     // ---- vista tabellone Solari ----
 
     fun flipUnit(context: Context): String =
