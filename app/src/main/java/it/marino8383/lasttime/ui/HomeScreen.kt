@@ -376,10 +376,22 @@ fun HomeScreen(
             onDismissRequest = { archiveTarget = null },
             title = { Text("📦 Archiviare il timer?") },
             text = {
-                Text(
-                    "“${counter.name}” finisce in archivio: il round in corso viene salvato " +
-                        "nello storico e il timer si ferma. Puoi riprenderlo quando vuoi."
-                )
+                Column {
+                    Text(
+                        "“${counter.name}” finisce in archivio: il round in corso viene " +
+                            "salvato nello storico e il timer si ferma. Puoi riprenderlo quando vuoi.",
+                    )
+                    // Un timer fermo dentro una condivisione sarebbe un ibrido: direbbe
+                    // "in archivio da 3 giorni" mentre continua a spostarsi sotto.
+                    if (counter.sharedGroupId != null) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Essendo condiviso, esce anche dal gruppo: gli altri tengono " +
+                                "la loro copia, attiva e per conto proprio.",
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = {

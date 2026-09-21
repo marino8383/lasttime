@@ -112,20 +112,30 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      * Archivia (v23): il round in corso viene chiuso e loggato, poi il timer si congela.
      * Le query di campanella e reset programmato filtrano già archived = 0, ma il reset
      * pendente va cancellato o al ripristino scatterebbe subito perché ormai nel passato.
+     *
+     * Se era condiviso **esce dal gruppo**: un timer fermo dentro una condivisione sarebbe
+     * un ibrido senza senso — direbbe "in archivio da 3 giorni" mentre continua a ricevere
+     * aggiornamenti e a spostarsi sotto. Gli altri tengono la loro copia, attiva e autonoma.
      */
     fun archiveCounter(counter: Counter) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
+            counter.sharedGroupId?.let { gruppo ->
+                runCatching { Groups.remove(gruppo, counter.uuid) }
+            }
             db.counterDao().save(
                 counter.copy(
                     archived = true,
                     archivedMs = now,
                     snoozeUntilMs = null,
                     scheduledResetMs = null,
+                    sharedGroupId = null,
                 )
             )
             Notifications.cancel(getApplication(), counter.id)
+            SyncWorker.refresh(getApplication())
+            refreshGroupLabels()
             AlarmScheduler.scheduleNext(getApplication())
         }
     }
