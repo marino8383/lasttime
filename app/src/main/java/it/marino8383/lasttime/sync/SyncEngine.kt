@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.ListenerRegistration
 import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.LastTimeApp
@@ -115,7 +116,7 @@ object SyncEngine {
                     // sempre "adesso" e non sapresti mai se il worker sta lavorando.
                     snap.documentChanges.forEach { change ->
                         if (change.type == DocumentChange.Type.REMOVED) {
-                            detach(app, change.document.id)
+                            detach(app, groupId, change.document.id)
                         } else {
                             applyRemote(app, groupId, change.document.data)
                         }
@@ -179,6 +180,17 @@ object SyncEngine {
             aligned[uuid] = remoteUpdated
             AlarmScheduler.scheduleNext(app)
             return
+        }
+
+        // Ricucitura: il contatore c'e', ma qui non risulta piu' condiviso mentre nel
+        // gruppo il suo documento esiste ancora. Vuol dire che si e' sganciato per errore.
+        // Si riattacca subito, senza aspettare che arrivi una modifica piu' recente —
+        // altrimenti due copie allineate resterebbero separate per sempre, ognuna
+        // convinta di essere a posto.
+        if (local.sharedGroupId == null) {
+            Log.i(TAG, "contatore $uuid riagganciato al gruppo $groupId")
+            dao.updateRaw(local.copy(sharedGroupId = groupId))
+            SyncWorker.refresh(app)
         }
 
         // Last-write-wins: se la nostra copia e' piu' recente, la remota non ci interessa
@@ -353,9 +365,29 @@ object SyncEngine {
      * updateRaw e non save: non c'e' piu' nessun posto dove mandare questa modifica, e
      * ritimbrare updatedMs falserebbe i confronti se un domani si ricondividesse.
      */
-    private suspend fun detach(app: LastTimeApp, uuid: String) {
+    private suspend fun detach(app: LastTimeApp, groupId: String, uuid: String) {
         val locale = app.db.counterDao().byUuid(uuid) ?: return
         if (locale.sharedGroupId == null) return
+
+        // Firestore segnala una rimozione anche quando la sua cache si riallinea col
+        // server, non solo quando qualcuno ha davvero smesso di condividere. Prendere
+        // per buono quel segnale significa sganciare un timer per una riconnessione
+        // sfortunata — in silenzio, e senza che l'utente capisca perché da quel momento
+        // non si sincronizza più. Prima di toccare qualcosa si chiede al server.
+        val esiste = try {
+            db.collection("groups").document(groupId)
+                .collection("counters").document(uuid)
+                .get(Source.SERVER).await().exists()
+        } catch (t: Throwable) {
+            // Senza risposta non si decide: meglio restare condivisi e riprovare dopo
+            Log.w(TAG, "verifica della rimozione di $uuid non riuscita", t)
+            return
+        }
+        if (esiste) {
+            Log.i(TAG, "rimozione di $uuid ignorata: sul server il documento c'e' ancora")
+            return
+        }
+
         app.db.counterDao().updateRaw(locale.copy(sharedGroupId = null))
         aligned.remove(uuid)
         SyncWorker.refresh(app)
