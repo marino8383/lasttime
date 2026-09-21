@@ -9,9 +9,11 @@ import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.add
 import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.data.save
+import it.marino8383.lasttime.sync.SyncEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Scatta all'orario della prima campanella in scadenza: notifica e ripianifica. */
 class BellReceiver : BroadcastReceiver() {
@@ -36,7 +38,22 @@ class BellReceiver : BroadcastReceiver() {
                     Notifications.notifyScheduledReset(context, counter)
                 }
 
-                val due = dao.dueBellCounters(now)
+                var due = dao.dueBellCounters(now)
+
+                // Se fra le scadenze c'è un timer condiviso, prima di disturbare qualcuno
+                // vale la pena chiedere: l'altro potrebbe averlo appena fatto ripartire e
+                // noi non saperlo ancora. È l'unico momento in cui una lettura di rete in
+                // più si ripaga — non un controllo periodico più fitto, ma una verifica
+                // proprio nell'istante in cui stiamo per suonare.
+                //
+                // Il timeout è corto di proposito: un receiver ha una finestra di pochi
+                // secondi, e senza rete deve suonare comunque come ha sempre fatto.
+                if (due.any { it.sharedGroupId != null }) {
+                    withTimeoutOrNull(4_000) { SyncEngine.syncOnce(app) }
+                    // rilette dopo l'allineamento: quelle rifasate non sono più in scadenza
+                    due = dao.dueBellCounters(System.currentTimeMillis())
+                }
+
                 due.forEach { counter ->
                     Notifications.notifyBell(context, counter)
                     // rinvio consumato; la scadenza suonata resta in nextBellAtMs
