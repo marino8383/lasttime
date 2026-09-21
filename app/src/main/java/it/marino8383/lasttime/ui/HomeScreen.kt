@@ -39,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -50,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -58,6 +60,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.BuildConfig
@@ -95,6 +99,17 @@ fun HomeScreen(
     val roundSummaries by vm.roundSummaries.collectAsStateWithLifecycle()
     val groupLabels by vm.groupLabels.collectAsStateWithLifecycle()
     val syncStato by SyncStatus.stato.collectAsStateWithLifecycle()
+
+    // Rientrando nell'app si riallinea, senza aspettare il giro dei 15 minuti. I listener
+    // da soli non bastano: se il processo è rimasto vivo in background non rileggono nulla.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) vm.syncNow()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -508,12 +523,15 @@ private fun CounterCard(
     // così i due conteggi scattano nello stesso istante (se scala uno scala l'altro)
     val elapsed = (now - counter.startMs).coerceAtLeast(0) / 1000 * 1000
     val snoozePending = counter.snoozeUntilMs?.takeIf { it > now }
-    // Sforato come da mockup: la campanella è suonata e non hai ancora fatto nulla
-    // (Fatto la azzera, Rimanda apre un rinvio, Scarta la spegne)
-    val over = counter.bellEnabled && counter.bellNotified && snoozePending == null
+    // Scaduta = la soglia è passata. Non dipende dalla campanella accesa: è un fatto
+    // dell'orologio, e va letto anche da chi ha scelto di non farsi notificare.
+    val scaduta = counter.nextBellAtMs?.let { it <= now } == true && snoozePending == null
+    // La colorazione d'allarme della card invece sì: chi ha spento la campanella non
+    // vuole che l'app gli urli addosso, vuole solo poter leggere i numeri.
+    val over = counter.bellEnabled && scaduta
     // Prossimo squillo effettivo: rinvio pendente, oppure squillo programmato futuro
     val nextRing = when {
-        counter.bellMinutes == null || !counter.bellEnabled -> null
+        counter.bellMinutes == null -> null
         snoozePending != null -> snoozePending
         counter.nextBellAtMs?.let { it > now } == true -> counter.nextBellAtMs
         else -> null
@@ -548,19 +566,19 @@ private fun CounterCard(
                     val muted = !counter.bellEnabled
                     val remaining = nextRing?.let { (it - counter.startMs - elapsed).coerceAtLeast(0) }
                     // da quanto è sforata, sulla stessa griglia dei secondi del timer
-                    val overdue = if (over) counter.nextBellAtMs
+                    val overdue = if (scaduta) counter.nextBellAtMs
                         ?.let { (counter.startMs + elapsed - it).coerceAtLeast(0) } else null
                     val label = bellLabel(bell) + if (counter.bellRepeat) " ↻" else ""
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = when {
+                            scaduta -> MaterialTheme.colorScheme.primary
                             muted -> MaterialTheme.colorScheme.surfaceContainerHigh
-                            over -> MaterialTheme.colorScheme.primary
                             else -> PrimaryContainer
                         },
                         contentColor = when {
+                            scaduta -> MaterialTheme.colorScheme.onPrimary
                             muted -> MaterialTheme.colorScheme.onSurfaceVariant
-                            over -> MaterialTheme.colorScheme.onPrimary
                             else -> OnPrimaryContainer
                         },
                         // Tap sul chip: valore impostato -> countdown -> orario di squillo
@@ -568,16 +586,15 @@ private fun CounterCard(
                     ) {
                         Text(
                             when {
-                                muted -> "🔕 $label"
                                 chipMode == 1 && remaining != null -> "⏰ ${formatDurationTwoParts(remaining)}"
                                 chipMode == 1 && overdue != null -> "⏰ +${formatDurationTwoParts(overdue)}"
                                 chipMode == 2 && nextRing != null -> "🕐 ${formatRingTime(nextRing)}"
-                                chipMode == 2 && over && counter.nextBellAtMs != null ->
+                                chipMode == 2 && counter.nextBellAtMs != null ->
                                     "🕐 ${formatRingTime(counter.nextBellAtMs)}"
                                 // rinvio attivo: countdown in evidenza senza dover toccare
                                 snoozePending != null && remaining != null ->
                                     "⏰ ${formatDurationTwoParts(remaining)}"
-                                else -> "🔔 $label"
+                                else -> "${if (muted) "🔕" else "🔔"} $label"
                             },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -636,15 +653,16 @@ private fun CounterCard(
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
-            // sforata da quanto: timer che avanza, sincronizzato ai secondi del contatore
-            if (over) {
+            // sforata da quanto: timer che avanza, sincronizzato ai secondi del contatore.
+            // Si vede anche a campanella spenta: è l'informazione che serve per decidere.
+            if (scaduta) {
                 counter.nextBellAtMs?.let { deadline ->
                     val overdueLine = (counter.startMs + elapsed - deadline).coerceAtLeast(0)
                     Text(
-                        "🔔 sforata da ${formatDurationTwoParts(overdueLine)}",
+                        "${if (counter.bellEnabled) "🔔" else "🔕"} sforata da ${formatDurationTwoParts(overdueLine)}",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = OnErrorContainer,
+                        color = if (over) OnErrorContainer else MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }

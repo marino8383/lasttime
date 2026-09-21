@@ -76,9 +76,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             val start = startMs.coerceAtMost(System.currentTimeMillis())
             val step = counter.bellMinutes?.times(60_000)
             var updated = counter.copy(name = name.trim(), startMs = start)
-            if (step != null && start != counter.startMs &&
-                counter.bellEnabled && counter.bellMode != "FIXED"
-            ) {
+            if (step != null && start != counter.startMs && counter.bellMode != "FIXED") {
                 updated = updated.copy(
                     nextBellAtMs = start + step,
                     bellNotified = false,
@@ -133,7 +131,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     bellNotified = false,
                     snoozeUntilMs = null,
                     // la campanella riparte da adesso, qualunque fosse il ritmo di prima
-                    nextBellAtMs = if (step != null && counter.bellEnabled) now + step else null,
+                    nextBellAtMs = if (step != null) now + step else null,
                 )
             )
             AlarmScheduler.scheduleNext(getApplication())
@@ -338,7 +336,11 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Allineamento su richiesta: e' il tap sull'indicatore in intestazione. */
     fun syncNow() {
-        viewModelScope.launch { SyncEngine.syncOnce(getApplication()) }
+        viewModelScope.launch {
+            // niente da allineare, niente giro: non ha senso disturbare la rete
+            if (db.counterDao().shared().isEmpty()) return@launch
+            SyncEngine.syncOnce(getApplication())
+        }
     }
 
     fun membersOf(groupId: String, onDone: (Map<String, String>) -> Unit) {

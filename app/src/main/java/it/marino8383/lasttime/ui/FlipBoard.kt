@@ -151,7 +151,10 @@ private fun FlipBoard(
     val elapsedMs = (now - counter.startMs).coerceAtLeast(0)
     val totalSec = elapsedMs / 1000
     val snoozePending = counter.snoozeUntilMs?.takeIf { it > now }
-    val over = counter.bellEnabled && counter.bellNotified && snoozePending == null
+    // come sulla card: scaduta è un fatto dell'orologio, la targhetta SFORATO invece
+    // resta legata alla campanella accesa (chi l'ha spenta non vuole l'allarme a video)
+    val scaduta = counter.nextBellAtMs?.let { it <= now } == true && snoozePending == null
+    val over = counter.bellEnabled && scaduta
 
     val groups: List<Pair<String, String>> = when (unit) {
         "ANNI" -> listOf("anni" to String.format(Locale.ITALIAN, "%.4f", totalSec / 31_536_000.0))

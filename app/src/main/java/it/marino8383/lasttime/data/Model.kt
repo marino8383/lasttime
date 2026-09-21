@@ -281,7 +281,9 @@ fun Counter.restarted(now: Long, latePercent: Int): Counter {
     val step = bellMinutes?.times(60_000)
     var nextBell = nextBellAtMs
     var enabled = bellEnabled
-    if (step != null && bellEnabled) {
+    // Nessun controllo su bellEnabled: spegnere la campanella toglie la notifica, non
+    // la cadenza. Chi l'ha spenta deve comunque poter leggere quando scade il giro.
+    if (step != null) {
         if (bellRepeat) {
             val lateness = bellLatenessMs(now)
             val slightlyLate = lateness != null && lateness <= bellLateThreshold(step, latePercent)
