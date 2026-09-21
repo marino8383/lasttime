@@ -355,9 +355,12 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                 val codice = if (groupId == null) Groups.invite(gruppo) else null
                 AppSettings.addGroup(getApplication(), gruppo)
 
+                // save() timbra updatedMs e manda su da solo. Un Groups.push esplicito
+                // qui rispedirebbe la copia col timestamp vecchio, sovrascrivendo quella
+                // appena scritta: il documento nascerebbe già arretrato e ogni confronto
+                // successivo fra le due copie partirebbe storto.
                 val condiviso = counter.copy(sharedGroupId = gruppo)
                 db.counterDao().save(condiviso)
-                Groups.push(gruppo, condiviso)
                 SyncEngine.listen(getApplication(), gruppo)
                 SyncEngine.pushHistory(getApplication(), condiviso)
                 SyncWorker.refresh(getApplication())
