@@ -144,6 +144,9 @@ object SyncEngine {
                     createdMs = System.currentTimeMillis(),
                     updatedMs = remoteUpdated,
                     sharedGroupId = groupId,
+                    archived = data["archived"] as? Boolean ?: false,
+                    archivedMs = (data["archivedMs"] as? Number)?.toLong(),
+                    historyFromMs = (data["historyFromMs"] as? Number)?.toLong(),
                 )
             )
             aligned[uuid] = remoteUpdated
@@ -156,6 +159,7 @@ object SyncEngine {
 
         val movedStart = startMs != local.startMs
         val step = bellMinutes?.times(60_000)
+        val archived = data["archived"] as? Boolean ?: false
         var updated = local.copy(
             name = name,
             startMs = startMs,
@@ -164,6 +168,10 @@ object SyncEngine {
             bellRepeat = bellRepeat,
             updatedMs = remoteUpdated,
             sharedGroupId = groupId,
+            // Archivio condiviso: se l'altro ha chiuso il ciclo, si chiude anche qui
+            archived = archived,
+            archivedMs = (data["archivedMs"] as? Number)?.toLong(),
+            historyFromMs = (data["historyFromMs"] as? Number)?.toLong(),
         )
         // L'altro ha fatto ripartire il timer: qui lo "sforato" si spegne da solo e la
         // sveglia si rifa'. Una FIXED tiene il suo ritmo, come ovunque nell'app.
@@ -176,6 +184,8 @@ object SyncEngine {
         }
         dao.updateRaw(updated) // updateRaw: updatedMs e' quello remoto, non va ritimbrato
         aligned[uuid] = remoteUpdated
+        // Appena archiviato da un altro: via anche l'eventuale notifica ancora a video
+        if (archived && !local.archived) Notifications.cancel(app, local.id)
         AlarmScheduler.scheduleNext(app)
     }
 

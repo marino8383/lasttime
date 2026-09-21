@@ -49,6 +49,13 @@ data class Counter(
     val archived: Boolean = false,
     /** Quando è stato archiviato; il timer resta congelato a quell'istante. */
     val archivedMs: Long? = null,
+    /**
+     * Confine dello storico: i round finiti prima di questo istante restano nel database
+     * ma non compaiono più in storico e statistiche. Serve a "riparti pulito" senza
+     * cancellare niente — i round sono append-only di proposito, così una persona non
+     * può riscrivere la storia dell'altra. Null = tieni tutto.
+     */
+    val historyFromMs: Long? = null,
     val scheduledResetMs: Long? = null,
     val createdMs: Long,
     /** Ultima scrittura: è il timestamp su cui si risolveranno i conflitti fra dispositivi. */
@@ -172,8 +179,11 @@ interface RoundDao {
     @Insert
     suspend fun insert(round: Round)
 
-    @Query("SELECT * FROM rounds WHERE counterId = :counterId ORDER BY endMs DESC")
-    fun roundsFor(counterId: Long): Flow<List<Round>>
+    @Query(
+        "SELECT * FROM rounds WHERE counterId = :counterId AND endMs >= :fromMs " +
+            "ORDER BY endMs DESC"
+    )
+    fun roundsFor(counterId: Long, fromMs: Long): Flow<List<Round>>
 
     @Query("SELECT * FROM rounds WHERE uuid = :uuid")
     suspend fun byUuid(uuid: String): Round?
@@ -187,8 +197,11 @@ interface RoundDao {
         "SELECT r.counterId AS counterId, COUNT(*) AS rounds, " +
             "(SELECT r2.endMs - r2.startMs FROM rounds r2 " +
             "WHERE r2.counterId = r.counterId AND r2.noTime = 0 " +
+            "AND r2.endMs >= IFNULL(c.historyFromMs, 0) " +
             "ORDER BY r2.endMs DESC LIMIT 1) AS lastDurationMs " +
-            "FROM rounds r GROUP BY r.counterId"
+            "FROM rounds r JOIN counters c ON c.id = r.counterId " +
+            "WHERE r.endMs >= IFNULL(c.historyFromMs, 0) " +
+            "GROUP BY r.counterId"
     )
     fun summaries(): Flow<List<RoundSummary>>
 }
@@ -215,7 +228,7 @@ data class RoundSummary(
     val lastDurationMs: Long?,
 )
 
-@Database(entities = [Counter::class, Round::class], version = 9, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 10, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -277,6 +290,12 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE counters ADD COLUMN sharedGroupId TEXT")
+    }
+}
+
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN historyFromMs INTEGER")
     }
 }
 

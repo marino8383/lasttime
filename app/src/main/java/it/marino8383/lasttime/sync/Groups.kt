@@ -114,6 +114,10 @@ object Groups {
         "bellMode" to counter.bellMode,
         "bellRepeat" to counter.bellRepeat,
         "updatedMs" to counter.updatedMs,
+        // L'archivio è condiviso: un ciclo finisce per tutti e riprende per tutti.
+        "archived" to counter.archived,
+        "archivedMs" to counter.archivedMs,
+        "historyFromMs" to counter.historyFromMs,
     )
 
     /**

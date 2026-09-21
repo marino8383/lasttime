@@ -37,7 +37,9 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     val roundSummaries = db.roundDao().summaries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun roundsFor(counterId: Long) = db.roundDao().roundsFor(counterId)
+    /** I round del ciclo in corso: quelli prima del confine non si contano più. */
+    fun roundsFor(counter: Counter) =
+        db.roundDao().roundsFor(counter.id, counter.historyFromMs ?: 0)
 
     fun addCounter(name: String, startMs: Long, bellMinutes: Long?) {
         viewModelScope.launch {
@@ -113,35 +115,36 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      * Le query di campanella e reset programmato filtrano già archived = 0, ma il reset
      * pendente va cancellato o al ripristino scatterebbe subito perché ormai nel passato.
      *
-     * Se era condiviso **esce dal gruppo**: un timer fermo dentro una condivisione sarebbe
-     * un ibrido senza senso — direbbe "in archivio da 3 giorni" mentre continua a ricevere
-     * aggiornamenti e a spostarsi sotto. Gli altri tengono la loro copia, attiva e autonoma.
+     * Su un timer condiviso l'archiviazione vale **per tutti**: un ciclo — la tachipirina
+     * di questa influenza — finisce insieme e si riprende insieme. Il gruppo resta in
+     * piedi, così alla prossima volta basta riesumarlo senza rifare inviti.
      */
     fun archiveCounter(counter: Counter) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
-            counter.sharedGroupId?.let { gruppo ->
-                runCatching { Groups.remove(gruppo, counter.uuid) }
-            }
             db.counterDao().save(
                 counter.copy(
                     archived = true,
                     archivedMs = now,
                     snoozeUntilMs = null,
                     scheduledResetMs = null,
-                    sharedGroupId = null,
                 )
             )
             Notifications.cancel(getApplication(), counter.id)
-            SyncWorker.refresh(getApplication())
-            refreshGroupLabels()
             AlarmScheduler.scheduleNext(getApplication())
         }
     }
 
-    /** Riprendi dall'archivio (v23): torna fra gli attivi con un round nuovo da adesso. */
-    fun resumeCounter(counter: Counter) {
+    /**
+     * Riprendi dall'archivio: torna fra gli attivi con un round nuovo da adesso, e su un
+     * timer condiviso torna in linea **per tutti**.
+     *
+     * Con [keepHistory] a false si comincia un ciclo pulito: i round del giro precedente
+     * non vengono cancellati — sono append-only e non si riscrive la storia di nessuno —
+     * ma escono da storico e statistiche, che ripartono da qui.
+     */
+    fun resumeCounter(counter: Counter, keepHistory: Boolean = true) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val step = counter.bellMinutes?.times(60_000)
@@ -154,6 +157,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     snoozeUntilMs = null,
                     // la campanella riparte da adesso, qualunque fosse il ritmo di prima
                     nextBellAtMs = if (step != null) now + step else null,
+                    historyFromMs = if (keepHistory) counter.historyFromMs else now,
                 )
             )
             AlarmScheduler.scheduleNext(getApplication())

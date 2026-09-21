@@ -131,6 +131,7 @@ fun HomeScreen(
     var lateBellTarget by remember { mutableStateOf<Counter?>(null) }
     var bellTarget by remember { mutableStateOf<Counter?>(null) }
     var shareTarget by remember { mutableStateOf<Counter?>(null) }
+    var resumeTarget by remember { mutableStateOf<Counter?>(null) }
 
     BackHandler(enabled = showArchive) { showArchive = false }
 
@@ -169,7 +170,7 @@ fun HomeScreen(
                     now = now,
                     onBack = { showArchive = false },
                     onHistory = { historyTarget = it },
-                    onResume = { vm.resumeCounter(it) },
+                    onResume = { resumeTarget = it },
                     onDelete = { deleteTarget = it },
                 )
                 return@Column
@@ -265,7 +266,7 @@ fun HomeScreen(
     historyTarget?.let { target ->
         // Prende la versione aggiornata del contatore (es. dopo un restart a sheet aperto)
         val counter = counters.firstOrNull { it.id == target.id } ?: target
-        val roundsFlow = remember(target.id) { vm.roundsFor(target.id) }
+        val roundsFlow = remember(target.id, counter.historyFromMs) { vm.roundsFor(counter) }
         val rounds by roundsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
         HistorySheet(
             counter = counter,
@@ -371,6 +372,40 @@ fun HomeScreen(
         )
     }
 
+    resumeTarget?.let { counter ->
+        AlertDialog(
+            onDismissRequest = { resumeTarget = null },
+            title = { Text("▶️ Riprendere il timer?") },
+            text = {
+                Column {
+                    Text(
+                        "“${counter.name}” torna fra gli attivi e parte un round nuovo da adesso." +
+                            if (counter.sharedGroupId != null)
+                                " Essendo condiviso, torna in linea per tutti."
+                            else ""
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Vuoi tenere lo storico del giro precedente?",
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.resumeCounter(counter, keepHistory = true)
+                    resumeTarget = null
+                }) { Text("Sì, tieni tutto") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    vm.resumeCounter(counter, keepHistory = false)
+                    resumeTarget = null
+                }) { Text("Ricomincia pulito") }
+            },
+        )
+    }
+
     archiveTarget?.let { counter ->
         AlertDialog(
             onDismissRequest = { archiveTarget = null },
@@ -381,13 +416,13 @@ fun HomeScreen(
                         "“${counter.name}” finisce in archivio: il round in corso viene " +
                             "salvato nello storico e il timer si ferma. Puoi riprenderlo quando vuoi.",
                     )
-                    // Un timer fermo dentro una condivisione sarebbe un ibrido: direbbe
-                    // "in archivio da 3 giorni" mentre continua a spostarsi sotto.
+                    // Un ciclo finisce insieme: il gruppo resta, così alla prossima volta
+                    // basta riesumarlo senza rifare inviti.
                     if (counter.sharedGroupId != null) {
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            "Essendo condiviso, esce anche dal gruppo: gli altri tengono " +
-                                "la loro copia, attiva e per conto proprio.",
+                            "Essendo condiviso si ferma per tutti, e resta pronto da " +
+                                "riprendere insieme quando servirà.",
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
