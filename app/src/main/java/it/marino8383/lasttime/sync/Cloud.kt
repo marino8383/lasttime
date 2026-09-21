@@ -3,6 +3,7 @@ package it.marino8383.lasttime.sync
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.flow.StateFlow
 
 /** Stato del collegamento al cloud, mostrato in 🩺 Diagnostica. */
@@ -59,6 +60,26 @@ object Cloud {
         } catch (t: Throwable) {
             Log.w(TAG, "Firebase non inizializzato", t)
             _state.value = CloudState.Failed(t.message ?: "Firebase non inizializzato")
+        }
+    }
+
+    /**
+     * Come [connect] ma aspettabile: serve dentro il worker di allineamento, che gira
+     * senza interfaccia e non puo' mettersi ad aspettare una callback.
+     */
+    suspend fun ensureSignedIn(): String? {
+        (_state.value as? CloudState.Ready)?.let { return it.uid }
+        return try {
+            val auth = FirebaseAuth.getInstance()
+            val user = auth.currentUser ?: auth.signInAnonymously().await().user
+            val id = user?.uid
+            _state.value = if (id != null) CloudState.Ready(id)
+            else CloudState.Failed("login riuscito ma senza identita'")
+            id
+        } catch (t: Throwable) {
+            Log.w(TAG, "login anonimo fallito", t)
+            _state.value = CloudState.Failed(t.message ?: "login anonimo fallito")
+            null
         }
     }
 

@@ -15,6 +15,7 @@ import it.marino8383.lasttime.notif.Notifications
 import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.sync.Groups
 import it.marino8383.lasttime.sync.SyncEngine
+import it.marino8383.lasttime.sync.SyncWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -290,6 +291,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                 db.counterDao().save(condiviso)
                 Groups.push(gruppo, condiviso)
                 SyncEngine.listen(getApplication(), gruppo)
+                SyncWorker.refresh(getApplication())
                 refreshGroupLabels()
                 onDone(codice, null)
             } catch (t: Throwable) {
@@ -314,6 +316,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             val esito = Groups.join(code, myName)
             if (esito is Groups.JoinResult.Ok) {
                 SyncEngine.listen(getApplication(), esito.groupId)
+                SyncWorker.refresh(getApplication())
                 refreshGroupLabels()
             }
             onDone(esito)
@@ -327,6 +330,9 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun unshare(counter: Counter) {
         viewModelScope.launch {
             db.counterDao().save(counter.copy(sharedGroupId = null))
+            // Se non resta piu' niente di condiviso, il giro periodico si spegne da solo
+            SyncWorker.refresh(getApplication())
+            refreshGroupLabels()
         }
     }
 

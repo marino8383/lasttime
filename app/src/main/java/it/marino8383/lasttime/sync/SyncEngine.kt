@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 /**
  * Tiene allineati i contatori condivisi finche' l'app e' aperta.
@@ -69,7 +70,7 @@ object SyncEngine {
             }
     }
 
-    private suspend fun applyRemote(app: LastTimeApp, groupId: String, data: Map<String, Any?>?) {
+    suspend fun applyRemote(app: LastTimeApp, groupId: String, data: Map<String, Any?>?) {
         data ?: return
         val uuid = data["uuid"] as? String ?: return
         val remoteUpdated = (data["updatedMs"] as? Number)?.toLong() ?: return
@@ -131,6 +132,47 @@ object SyncEngine {
         dao.updateRaw(updated) // updateRaw: updatedMs e' quello remoto, non va ritimbrato
         aligned[uuid] = remoteUpdated
         AlarmScheduler.scheduleNext(app)
+    }
+
+    /**
+     * Un giro completo di allineamento, senza listener: serve al worker periodico, che
+     * gira ad app chiusa e non puo' tenere un collegamento aperto.
+     *
+     * Prima tira giu', poi manda su. L'ordine conta: spedire per primi significherebbe
+     * poter sovrascrivere con una copia vecchia una modifica piu' recente dell'altro.
+     */
+    suspend fun syncOnce(app: LastTimeApp): Boolean {
+        Cloud.ensureSignedIn() ?: return false
+        val locali = app.db.counterDao().shared()
+        if (locali.isEmpty()) return true
+
+        locali.groupBy { it.sharedGroupId }.forEach { (groupId, contatori) ->
+            groupId ?: return@forEach
+            try {
+                val remoti = db.collection("groups").document(groupId)
+                    .collection("counters").get().await()
+                    .documents.associate { doc -> doc.id to doc.data }
+
+                // remoto -> locale
+                remoti.values.forEach { applyRemote(app, groupId, it) }
+
+                // locale -> remoto, solo dove siamo davvero piu' avanti
+                contatori.forEach { locale ->
+                    val remotoUpdated =
+                        (remoti[locale.uuid]?.get("updatedMs") as? Number)?.toLong() ?: -1
+                    val aggiornato = app.db.counterDao().byUuid(locale.uuid) ?: locale
+                    if (aggiornato.updatedMs > remotoUpdated) {
+                        Groups.push(groupId, aggiornato)
+                        aligned[aggiornato.uuid] = aggiornato.updatedMs
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "allineamento del gruppo $groupId fallito", t)
+                return false
+            }
+        }
+        AlarmScheduler.scheduleNext(app)
+        return true
     }
 
     /** Manda su la nostra versione, se questo contatore e' condiviso. */

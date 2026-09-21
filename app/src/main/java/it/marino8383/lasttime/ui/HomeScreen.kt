@@ -74,6 +74,7 @@ import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.sync.CloudState
 import it.marino8383.lasttime.sync.Groups
 import it.marino8383.lasttime.sync.SyncEngine
+import it.marino8383.lasttime.sync.SyncWorker
 import it.marino8383.lasttime.timeParts
 import it.marino8383.lasttime.ui.theme.OnErrorContainer
 import it.marino8383.lasttime.ui.theme.OnPrimaryContainer
@@ -104,6 +105,7 @@ fun HomeScreen(
     LaunchedEffect(cloud) {
         if (cloud is CloudState.Ready) {
             SyncEngine.start(context)
+            SyncWorker.refresh(context)
             vm.refreshGroupLabels()
         }
     }
