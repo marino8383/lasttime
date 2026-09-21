@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class CountersViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -161,6 +162,44 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                 )
             )
             AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    /** Esito della verifica prima di un'azione su un timer condiviso. */
+    data class FreshCheck(
+        val counter: Counter,
+        /** true se nel frattempo qualcun altro l'ha fatto ripartire. */
+        val moved: Boolean,
+        val movedBy: String?,
+    )
+
+    /**
+     * Prima di far ripartire un timer condiviso conviene chiedere al gruppo com'è messo.
+     *
+     * Il caso da evitare: l'app dormiva, l'altro ha già dato la dose, tu vedi una
+     * schermata vecchia e premi ↺ convinto che non l'abbia fatto nessuno. Nello storico
+     * finirebbero due eventi e il conteggio direbbe una dose in più — su una medicina è
+     * un errore vero, non un fastidio estetico.
+     *
+     * La regola per avvisare non è una soglia di tempo ma un fatto: se ciò che vedevi
+     * quando hai deciso non è più vero, la decisione va riproposta.
+     */
+    fun checkBeforeRestart(counter: Counter, onDone: (FreshCheck) -> Unit) {
+        viewModelScope.launch {
+            if (counter.sharedGroupId == null) {
+                onDone(FreshCheck(counter, moved = false, movedBy = null))
+                return@launch
+            }
+            withTimeoutOrNull(4_000) { SyncEngine.syncOnce(getApplication()) }
+            val fresco = db.counterDao().byId(counter.id) ?: counter
+            val spostato = fresco.startMs != counter.startMs
+            onDone(
+                FreshCheck(
+                    counter = fresco,
+                    moved = spostato,
+                    movedBy = if (spostato) db.roundDao().lastAuthor(counter.id) else null,
+                )
+            )
         }
     }
 

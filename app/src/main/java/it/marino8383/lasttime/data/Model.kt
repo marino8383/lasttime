@@ -188,6 +188,10 @@ interface RoundDao {
     @Query("SELECT * FROM rounds WHERE uuid = :uuid")
     suspend fun byUuid(uuid: String): Round?
 
+    /** Chi ha registrato l'ultimo evento, per intestare gli avvisi. */
+    @Query("SELECT byName FROM rounds WHERE counterId = :counterId ORDER BY endMs DESC LIMIT 1")
+    suspend fun lastAuthor(counterId: Long): String?
+
     /** Ultimi round di un contatore, per mandarli su quando lo si condivide. */
     @Query("SELECT * FROM rounds WHERE counterId = :counterId ORDER BY endMs DESC LIMIT :max")
     suspend fun recentFor(counterId: Long, max: Int): List<Round>

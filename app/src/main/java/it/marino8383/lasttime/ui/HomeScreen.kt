@@ -133,6 +133,7 @@ fun HomeScreen(
     var bellTarget by remember { mutableStateOf<Counter?>(null) }
     var shareTarget by remember { mutableStateOf<Counter?>(null) }
     var resumeTarget by remember { mutableStateOf<Counter?>(null) }
+    var staleTarget by remember { mutableStateOf<CountersViewModel.FreshCheck?>(null) }
 
     BackHandler(enabled = showArchive) { showArchive = false }
 
@@ -306,16 +307,24 @@ fun HomeScreen(
             text = { Text("Vuoi far ripartire il timer “${counter.name}”? Il round corrente verrà salvato nello storico.") },
             confirmButton = {
                 TextButton(onClick = {
-                    // Ricorrente suonata da molto: prima di ripartire si chiede della campanella
-                    val lateness = counter.bellLatenessMs(now)
-                    val threshold = counter.bellMinutes
-                        ?.let { bellLateThreshold(it * 60_000, AppSettings.latePercent(context)) }
-                    if (lateness != null && threshold != null && lateness > threshold) {
-                        lateBellTarget = counter
-                    } else {
-                        vm.restart(counter)
-                    }
                     restartTarget = null
+                    // Su un condiviso prima si verifica: potrebbe averlo già fatto l'altro
+                    vm.checkBeforeRestart(counter) { esito ->
+                        if (esito.moved) {
+                            staleTarget = esito
+                            return@checkBeforeRestart
+                        }
+                        val fresco = esito.counter
+                        // Ricorrente suonata da molto: prima di ripartire si chiede della campanella
+                        val lateness = fresco.bellLatenessMs(System.currentTimeMillis())
+                        val threshold = fresco.bellMinutes
+                            ?.let { bellLateThreshold(it * 60_000, AppSettings.latePercent(context)) }
+                        if (lateness != null && threshold != null && lateness > threshold) {
+                            lateBellTarget = fresco
+                        } else {
+                            vm.restart(fresco)
+                        }
+                    }
                 }) { Text("Sì") }
             },
             dismissButton = {
@@ -369,6 +378,40 @@ fun HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deleteTarget = null }) { Text("No") }
+            },
+        )
+    }
+
+    staleTarget?.let { esito ->
+        val counter = esito.counter
+        AlertDialog(
+            onDismissRequest = { staleTarget = null },
+            title = { Text("⚠️ Era già stato fatto ripartire") },
+            text = {
+                Column {
+                    Text(
+                        (esito.movedBy?.let { "$it l'ha" } ?: "Qualcun altro l'ha") +
+                            " fatto ripartire ${formatRingTime(counter.startMs)}, " +
+                            "e sul tuo telefono non era ancora arrivato."
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Adesso “${counter.name}” conta da ${formatDurationTwoParts(System.currentTimeMillis() - counter.startMs)}. " +
+                            "Farlo ripartire di nuovo aggiungerebbe un secondo evento allo storico.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { staleTarget = null }) {
+                    Text("Va bene, era già fatto", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    vm.restart(counter)
+                    staleTarget = null
+                }) { Text("Riparti comunque", color = MaterialTheme.colorScheme.error) }
             },
         )
     }
