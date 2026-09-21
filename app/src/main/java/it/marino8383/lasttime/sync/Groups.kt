@@ -118,6 +118,9 @@ object Groups {
         "archived" to counter.archived,
         "archivedMs" to counter.archivedMs,
         "historyFromMs" to counter.historyFromMs,
+        // Chi ha scritto per ultimo. Non si salva in locale: serve solo a intestare gli
+        // avvisi ("Vale ha ripreso Tachipirina"), dove non c'è un round che porti la firma.
+        "lastByName" to Cloud.myName.takeIf { it.isNotBlank() },
     )
 
     /**

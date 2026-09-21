@@ -69,6 +69,34 @@ object Notifications {
      * una sveglia da svegliare la casa, e' un'informazione — e va potuta silenziare dalle
      * impostazioni di sistema senza perdere le campanelle.
      */
+    /** Come [notifySharedRestart] ma con un testo qualsiasi: archivio, ripresa, ecc. */
+    fun notifySharedEvent(context: Context, counter: Counter, byName: String, testo: String) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val secret = counter.secret
+        val notification = Notification.Builder(context, if (secret) CHANNEL_SECRET else CHANNEL_SHARED)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(
+                if (secret) "👥 Un timer lucchettato"
+                else "👥 $byName: ${counter.name}"
+            )
+            .setContentText(testo)
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    context, 0,
+                    Intent(context, MainActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            )
+            .setAutoCancel(true)
+            .build()
+
+        context.getSystemService(NotificationManager::class.java)
+            .notify(2_000_000 + counter.id.toInt(), notification)
+    }
+
     fun notifySharedRestart(context: Context, counter: Counter, byName: String, atMs: Long) {
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED

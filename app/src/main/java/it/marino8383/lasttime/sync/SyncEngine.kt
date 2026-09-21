@@ -186,6 +186,14 @@ object SyncEngine {
         aligned[uuid] = remoteUpdated
         // Appena archiviato da un altro: via anche l'eventuale notifica ancora a video
         if (archived && !local.archived) Notifications.cancel(app, local.id)
+        // Tornato in linea: l'altro deve saperlo, perché da adesso il timer conta di nuovo
+        // e la campanella ricomincia a suonare anche a lui.
+        if (local.archived && !archived && local.notifyOnRemote) {
+            val chi = (data["lastByName"] as? String)?.takeIf { it.isNotBlank() && it != Cloud.myName }
+            if (chi != null) {
+                Notifications.notifySharedEvent(app, updated, chi, "Ripreso dall'archivio: il timer conta di nuovo.")
+            }
+        }
         AlarmScheduler.scheduleNext(app)
     }
 

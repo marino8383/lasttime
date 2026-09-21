@@ -36,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -373,6 +374,9 @@ fun HomeScreen(
     }
 
     resumeTarget?.let { counter ->
+        // Di default il giro precedente si chiude: riprendere un timer archiviato è
+        // ricominciare un ciclo. Chi vuole la continuità la chiede esplicitamente.
+        var tieniStorico by remember(counter.id) { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { resumeTarget = null },
             title = { Text("▶️ Riprendere il timer?") },
@@ -384,24 +388,34 @@ fun HomeScreen(
                                 " Essendo condiviso, torna in linea per tutti."
                             else ""
                     )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "Vuoi tenere lo storico del giro precedente?",
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Tieni lo storico del giro precedente",
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                "Spento, storico e statistiche ripartono da adesso",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = tieniStorico,
+                            onCheckedChange = { tieniStorico = it },
+                        )
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.resumeCounter(counter, keepHistory = true)
+                    vm.resumeCounter(counter, keepHistory = tieniStorico)
                     resumeTarget = null
-                }) { Text("Sì, tieni tutto") }
+                }) { Text("Riprendi") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    vm.resumeCounter(counter, keepHistory = false)
-                    resumeTarget = null
-                }) { Text("Ricomincia pulito") }
+                TextButton(onClick = { resumeTarget = null }) { Text("No") }
             },
         )
     }
