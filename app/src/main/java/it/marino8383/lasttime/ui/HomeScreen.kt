@@ -45,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -300,7 +301,8 @@ fun HomeScreen(
         )
     }
 
-    restartTarget?.let { counter ->
+    restartTarget?.let { target ->
+        val counter = counters.firstOrNull { it.id == target.id } ?: target
         AlertDialog(
             onDismissRequest = { restartTarget = null },
             title = { Text("Riparti") },
@@ -633,6 +635,13 @@ private fun CounterCard(
     // 0 = valore impostato, 1 = countdown, 2 = orario di squillo (tap sul chip per ciclare)
     var chipMode by remember(counter.id) { mutableStateOf(0) }
 
+    // pointerInput riavvia il suo blocco solo quando cambia la chiave, e qui la chiave è
+    // l'id, che non cambia mai. Senza questi, i gestori continuerebbero a chiamare le
+    // lambda catturate alla prima composizione — cioè a consegnare il contatore com'era
+    // allora. rememberUpdatedState fa sì che puntino sempre all'ultima versione.
+    val restartOra by rememberUpdatedState(onRestart)
+    val advancedOra by rememberUpdatedState(onAdvancedRestart)
+
     Card(
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
@@ -643,7 +652,7 @@ private fun CounterCard(
             .fillMaxWidth()
             // Doppio tap ovunque sulla card = restart con conferma (v20)
             .pointerInput(counter.id) {
-                detectTapGestures(onDoubleTap = { onRestart() })
+                detectTapGestures(onDoubleTap = { restartOra() })
             },
     ) {
         Column(Modifier.padding(18.dp, 18.dp, 18.dp, 4.dp)) {
@@ -813,8 +822,8 @@ private fun CounterCard(
                         .clip(CircleShape)
                         .pointerInput(counter.id) {
                             detectTapGestures(
-                                onTap = { onRestart() },
-                                onDoubleTap = { onAdvancedRestart() },
+                                onTap = { restartOra() },
+                                onDoubleTap = { advancedOra() },
                             )
                         },
                 ) {

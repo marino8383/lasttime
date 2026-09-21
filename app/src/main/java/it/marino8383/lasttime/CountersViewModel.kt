@@ -187,6 +187,12 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun checkBeforeRestart(counter: Counter, onDone: (FreshCheck) -> Unit) {
         viewModelScope.launch {
+            // Si rilegge sempre dal database. La copia che arriva dalla UI può essere
+            // vecchia — un gestore di gesti in Compose sopravvive alle ricomposizioni e
+            // continua a consegnare il contatore com'era quando è stato creato — e
+            // riscriverla tale e quale significherebbe riportare indietro campi che nel
+            // frattempo sono cambiati, sharedGroupId per primo.
+            val counter = db.counterDao().byId(counter.id) ?: counter
             if (counter.sharedGroupId == null) {
                 onDone(FreshCheck(counter, moved = false, movedBy = null))
                 return@launch
@@ -207,6 +213,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     /** Chiude il round corrente (loggandolo) e riparte da adesso. */
     fun restart(counter: Counter) {
         viewModelScope.launch {
+            val counter = db.counterDao().byId(counter.id) ?: counter
             val now = System.currentTimeMillis()
             db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
             db.counterDao().save(counter.restarted(now, AppSettings.latePercent(getApplication())))
@@ -221,6 +228,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun restartAt(counter: Counter, atMs: Long) {
         viewModelScope.launch {
+            val counter = db.counterDao().byId(counter.id) ?: counter
             val at = atMs.coerceAtMost(System.currentTimeMillis())
             if (at < counter.startMs) return@launch // la UI valida già; qui è solo difesa
             db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = at), counter)
@@ -262,6 +270,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     /** Come [restart], ma con la decisione esplicita sulla campanella in ritardo. */
     fun restartWithBellChoice(counter: Counter, choice: LateBellChoice) {
         viewModelScope.launch {
+            val counter = db.counterDao().byId(counter.id) ?: counter
             val now = System.currentTimeMillis()
             val step = (counter.bellMinutes ?: 0) * 60_000
             db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
