@@ -6,6 +6,7 @@ import android.content.Intent
 import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.LastTimeApp
 import it.marino8383.lasttime.data.Round
+import it.marino8383.lasttime.data.add
 import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.data.save
 import kotlinx.coroutines.CoroutineScope
@@ -35,8 +36,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
                         // Fatto: round loggato, riparte; la prossima campanella segue il bellMode
                         Notifications.ACTION_DONE -> {
-                            app.db.roundDao().insert(
-                                Round(counterId = counter.id, startMs = counter.startMs, endMs = now)
+                            app.db.roundDao().add(
+                                Round(counterId = counter.id, startMs = counter.startMs, endMs = now),
+                                counter,
                             )
                             dao.save(counter.restarted(now, AppSettings.latePercent(context)))
                         }

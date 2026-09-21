@@ -2,6 +2,7 @@ package it.marino8383.lasttime.sync
 
 import com.google.firebase.firestore.FirebaseFirestore
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.Round
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -123,6 +124,30 @@ object Groups {
         db.collection("groups").document(groupId)
             .collection("counters").document(uuid).delete().await()
     }
+
+    fun roundPayload(round: Round, counterUuid: String): Map<String, Any?> = mapOf(
+        "uuid" to round.uuid,
+        "counterUuid" to counterUuid,
+        "startMs" to round.startMs,
+        "endMs" to round.endMs,
+        "noTime" to round.noTime,
+        "byName" to round.byName,
+    )
+
+    /** Un evento nello storico del gruppo. Append-only: si scrive e non si tocca piu'. */
+    suspend fun pushRound(groupId: String, round: Round, counterUuid: String) {
+        db.collection("groups").document(groupId)
+            .collection("rounds").document(round.uuid)
+            .set(roundPayload(round, counterUuid)).await()
+    }
+
+    /** Gli ultimi eventi del gruppo, per l'allineamento periodico. */
+    suspend fun recentRounds(groupId: String, max: Long = 200): List<Map<String, Any?>> =
+        db.collection("groups").document(groupId).collection("rounds")
+            .orderBy("endMs", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(max)
+            .get().await()
+            .documents.mapNotNull { it.data }
 
     /** Scrive (o aggiorna) un contatore dentro il gruppo. */
     suspend fun push(groupId: String, counter: Counter) {

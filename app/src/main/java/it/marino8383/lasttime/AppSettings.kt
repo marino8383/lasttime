@@ -26,6 +26,7 @@ object AppSettings {
     fun setMyName(context: Context, value: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString("my_name", value.trim()).apply()
+        it.marino8383.lasttime.sync.Cloud.myName = value.trim()
     }
 
     // ---- vista tabellone Solari ----

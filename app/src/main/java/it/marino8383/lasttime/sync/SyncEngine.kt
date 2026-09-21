@@ -7,6 +7,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import it.marino8383.lasttime.LastTimeApp
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.notif.AlarmScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +56,36 @@ object SyncEngine {
         listeners.clear()
     }
 
+    /** Manda su lo storico che questo contatore aveva gia', al momento della condivisione. */
+    suspend fun pushHistory(app: LastTimeApp, counter: Counter) {
+        val groupId = counter.sharedGroupId ?: return
+        app.db.roundDao().recentFor(counter.id, 200).forEach { round ->
+            try {
+                Groups.pushRound(groupId, round, counter.uuid)
+            } catch (t: Throwable) {
+                Log.w(TAG, "push storico fallito", t)
+            }
+        }
+    }
+
     fun listen(app: LastTimeApp, groupId: String) {
+        if (listeners.containsKey("rounds:" + groupId)) return
+        listeners["rounds:" + groupId] = db.collection("groups").document(groupId)
+            .collection("rounds")
+            .addSnapshotListener { snap, error ->
+                if (error != null) {
+                    Log.w(TAG, "listener eventi del gruppo $groupId in errore", error)
+                    return@addSnapshotListener
+                }
+                snap ?: return@addSnapshotListener
+                scope.launch {
+                    // Solo aggiunte: gli eventi sono append-only, una rimozione non esiste
+                    snap.documentChanges
+                        .filter { it.type != DocumentChange.Type.REMOVED }
+                        .forEach { applyRemoteRound(app, it.document.data) }
+                }
+            }
+
         if (listeners.containsKey(groupId)) return
         listeners[groupId] = db.collection("groups").document(groupId)
             .collection("counters")
@@ -175,6 +205,8 @@ object SyncEngine {
                 remoti.values.forEach { applyRemote(app, groupId, it) }
 
                 // locale -> remoto, solo dove siamo davvero piu' avanti
+                Groups.recentRounds(groupId).forEach { applyRemoteRound(app, it) }
+
                 contatori.forEach { locale ->
                     val remotoUpdated =
                         (remoti[locale.uuid]?.get("updatedMs") as? Number)?.toLong() ?: -1
@@ -193,6 +225,42 @@ object SyncEngine {
         AlarmScheduler.scheduleNext(app)
         SyncStatus.ok(app)
         return true
+    }
+
+    /**
+     * Un evento arrivato dal gruppo. La deduplica e' l'uuid: lo stesso evento inviato da
+     * due telefoni e' lo stesso documento, quindi non si sdoppia mai.
+     */
+    private suspend fun applyRemoteRound(app: LastTimeApp, data: Map<String, Any?>?) {
+        data ?: return
+        val uuid = data["uuid"] as? String ?: return
+        if (app.db.roundDao().byUuid(uuid) != null) return
+        val counterUuid = data["counterUuid"] as? String ?: return
+        val counter = app.db.counterDao().byUuid(counterUuid) ?: return
+        val startMs = (data["startMs"] as? Number)?.toLong() ?: return
+        val endMs = (data["endMs"] as? Number)?.toLong() ?: return
+        app.db.roundDao().insert(
+            Round(
+                uuid = uuid,
+                counterId = counter.id,
+                startMs = startMs,
+                endMs = endMs,
+                noTime = data["noTime"] as? Boolean ?: false,
+                byName = data["byName"] as? String,
+            )
+        )
+    }
+
+    /** Manda su un evento appena registrato, se il contatore e' condiviso. */
+    fun pushRoundIfShared(counter: Counter, round: Round) {
+        val groupId = counter.sharedGroupId ?: return
+        scope.launch {
+            try {
+                Groups.pushRound(groupId, round, counter.uuid)
+            } catch (t: Throwable) {
+                Log.w(TAG, "push dell'evento ${round.uuid} fallito", t)
+            }
+        }
     }
 
     /**

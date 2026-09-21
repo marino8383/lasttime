@@ -36,6 +36,13 @@ object Cloud {
 
     val uid: String? get() = (_state.value as? CloudState.Ready)?.uid
 
+    /**
+     * Il mio nome nei gruppi, tenuto qui perche' serve anche dove un Context non c'e':
+     * la firma dei round avviene nello strato dati.
+     */
+    @Volatile
+    var myName: String = ""
+
     /** Idempotente: se l'identita' c'e' gia' non fa nulla. */
     fun connect() {
         if (_state.value is CloudState.Ready || _state.value is CloudState.Connecting) return

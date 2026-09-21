@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.formatDateTime
+import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.formatDurationTwoParts
 import it.marino8383.lasttime.formatShortDateTime
 import it.marino8383.lasttime.ui.theme.OnPrimaryContainer
@@ -205,13 +206,22 @@ fun HistorySheet(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             if (round.noTime) {
-                                Text(
-                                    "🔢 SOLO CONTEGGIO — il ${formatShortDateTime(round.endMs)}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f),
-                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "🔢 SOLO CONTEGGIO — il ${formatShortDateTime(round.endMs)}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    round.byName?.takeIf { it != Cloud.myName }?.let { chi ->
+                                        Text(
+                                            "👤 $chi",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
                                 Text(
                                     "—",
                                     fontSize = 13.sp,
@@ -220,13 +230,25 @@ fun HistorySheet(
                                     textAlign = TextAlign.End,
                                 )
                             } else {
-                                Text(
-                                    "${formatShortDateTime(round.startMs)} → ${formatShortDateTime(round.endMs)}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f),
-                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "${formatShortDateTime(round.startMs)} → ${formatShortDateTime(round.endMs)}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    // La firma viaggia sempre — dall'altra parte serve a sapere
+                                    // chi e' stato — ma a video si mostra solo se non sei tu,
+                                    // altrimenti sarebbe una riga in piu' su ogni round.
+                                    round.byName?.takeIf { it != Cloud.myName }?.let { chi ->
+                                        Text(
+                                            "👤 $chi",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
                                 Text(
                                     formatDurationTwoParts(round.endMs - round.startMs),
                                     fontSize = 13.sp,

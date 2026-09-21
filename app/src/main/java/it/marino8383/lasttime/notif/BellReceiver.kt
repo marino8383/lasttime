@@ -6,6 +6,7 @@ import android.content.Intent
 import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.LastTimeApp
 import it.marino8383.lasttime.data.Round
+import it.marino8383.lasttime.data.add
 import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.data.save
 import kotlinx.coroutines.CoroutineScope
@@ -27,8 +28,9 @@ class BellReceiver : BroadcastReceiver() {
                 // timer ripartito da lì, campanella riarmata secondo le sue regole
                 dao.dueScheduledResets(now).forEach { counter ->
                     val at = counter.scheduledResetMs ?: return@forEach
-                    app.db.roundDao().insert(
-                        Round(counterId = counter.id, startMs = counter.startMs, endMs = at)
+                    app.db.roundDao().add(
+                        Round(counterId = counter.id, startMs = counter.startMs, endMs = at),
+                        counter,
                     )
                     dao.save(counter.restarted(at, AppSettings.latePercent(context)))
                     Notifications.notifyScheduledReset(context, counter)

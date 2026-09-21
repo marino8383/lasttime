@@ -13,6 +13,7 @@ import androidx.room.RoomDatabase
 import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.sync.SyncEngine
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
@@ -83,6 +84,12 @@ data class Round(
     val endMs: Long,
     /** Giro perso "solo conteggio": vale per le statistiche di frequenza ma non per le durate. */
     val noTime: Boolean = false,
+    /**
+     * Chi ha registrato l'evento, sui timer condivisi. È il nome **copiato** al momento,
+     * non un riferimento al membro: così lo storico resta leggibile anche se quella
+     * persona cambia telefono o esce dal gruppo. Null = l'ho fatto io, o non è condiviso.
+     */
+    val byName: String? = null,
 )
 
 @Dao
@@ -163,6 +170,13 @@ interface RoundDao {
     @Query("SELECT * FROM rounds WHERE counterId = :counterId ORDER BY endMs DESC")
     fun roundsFor(counterId: Long): Flow<List<Round>>
 
+    @Query("SELECT * FROM rounds WHERE uuid = :uuid")
+    suspend fun byUuid(uuid: String): Round?
+
+    /** Ultimi round di un contatore, per mandarli su quando lo si condivide. */
+    @Query("SELECT * FROM rounds WHERE counterId = :counterId ORDER BY endMs DESC LIMIT :max")
+    suspend fun recentFor(counterId: Long, max: Int): List<Round>
+
     /** Una riga per contatore, per la card d'archivio: quanti round e quanto è durato l'ultimo. */
     @Query(
         "SELECT r.counterId AS counterId, COUNT(*) AS rounds, " +
@@ -174,6 +188,20 @@ interface RoundDao {
     fun summaries(): Flow<List<RoundSummary>>
 }
 
+/**
+ * Come [CounterDao.save] per i contatori: unico imbuto per gli eventi, così l'autore
+ * viene timbrato e la copia va su senza che nessun caso d'uso se ne debba ricordare.
+ */
+suspend fun RoundDao.add(round: Round, counter: Counter) {
+    val firmato = if (counter.sharedGroupId != null && round.byName == null) {
+        round.copy(byName = Cloud.myName.takeIf { it.isNotBlank() })
+    } else {
+        round
+    }
+    insert(firmato)
+    SyncEngine.pushRoundIfShared(counter, firmato)
+}
+
 /** Riepilogo dei round di un contatore (vedi [RoundDao.summaries]). */
 data class RoundSummary(
     val counterId: Long,
@@ -182,7 +210,7 @@ data class RoundSummary(
     val lastDurationMs: Long?,
 )
 
-@Database(entities = [Counter::class, Round::class], version = 7, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 8, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -244,6 +272,12 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE counters ADD COLUMN sharedGroupId TEXT")
+    }
+}
+
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE rounds ADD COLUMN byName TEXT")
     }
 }
 
