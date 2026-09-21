@@ -10,6 +10,7 @@ import it.marino8383.lasttime.data.advanceToFuture
 import it.marino8383.lasttime.data.add
 import it.marino8383.lasttime.data.create
 import it.marino8383.lasttime.data.save
+import it.marino8383.lasttime.data.saveLocal
 import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
@@ -282,7 +283,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     /** Rimanda la campanella: ri-notifica tra [snoozeMinutes] minuti, il contatore continua. */
     fun snooze(counter: Counter, snoozeMinutes: Long) {
         viewModelScope.launch {
-            db.counterDao().save(
+            db.counterDao().saveLocal(
                 counter.copy(
                     bellNotified = true,
                     bellEnabled = true, // il rinvio deve poter suonare anche se la singola si era spenta
@@ -420,7 +421,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setNotifyOnRemote(counter: Counter, value: Boolean) {
         viewModelScope.launch {
-            db.counterDao().save(counter.copy(notifyOnRemote = value))
+            db.counterDao().saveLocal(counter.copy(notifyOnRemote = value))
         }
     }
 
@@ -431,7 +432,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun cycleViewMode(counter: Counter) {
         viewModelScope.launch {
             val next = ViewMode.from(counter.viewMode).next()
-            db.counterDao().save(counter.copy(viewMode = next.name))
+            db.counterDao().saveLocal(counter.copy(viewMode = next.name))
         }
     }
 }

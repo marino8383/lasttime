@@ -9,6 +9,7 @@ import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.add
 import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.data.save
+import it.marino8383.lasttime.data.saveLocal
 import it.marino8383.lasttime.sync.SyncEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,7 +60,7 @@ class BellReceiver : BroadcastReceiver() {
                     // rinvio consumato; la scadenza suonata resta in nextBellAtMs
                     // (serve per "mantieni il ritmo" e per mostrare "sforata da X")
                     val snooze = counter.snoozeUntilMs?.takeIf { it > now }
-                    dao.save(counter.copy(bellNotified = true, snoozeUntilMs = snooze))
+                    dao.saveLocal(counter.copy(bellNotified = true, snoozeUntilMs = snooze))
                 }
                 AlarmScheduler.scheduleNext(context)
             } finally {

@@ -171,6 +171,20 @@ suspend fun CounterDao.save(counter: Counter) {
     SyncEngine.pushIfShared(stamped)
 }
 
+/**
+ * Scrittura di soli campi **locali**: campanella accesa/spenta, rinvii, "ho gia' notificato",
+ * vista delle cifre, avvisi sui condivisi.
+ *
+ * Non timbra updatedMs e non manda niente al gruppo, di proposito. Passando da [save] una
+ * faccenda interna di questo telefono — per esempio "la campanella ha suonato" — si
+ * timbrerebbe piu' recente di una modifica vera fatta dall'altra persona, e vincerebbe il
+ * confronto: il riavvio dell'altro verrebbe scartato e questo telefono resterebbe indietro
+ * per sempre, pur risultando sincronizzato.
+ */
+suspend fun CounterDao.saveLocal(counter: Counter) {
+    updateRaw(counter)
+}
+
 suspend fun CounterDao.create(counter: Counter): Long =
     insertRaw(counter.copy(updatedMs = System.currentTimeMillis()))
 
