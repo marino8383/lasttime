@@ -95,8 +95,6 @@ fun HomeScreen(
     val roundSummaries by vm.roundSummaries.collectAsStateWithLifecycle()
     val groupLabels by vm.groupLabels.collectAsStateWithLifecycle()
     val syncStato by SyncStatus.stato.collectAsStateWithLifecycle()
-    // il solo passare del tempo puo' rendere vecchio l'allineamento: va riletto
-    LaunchedEffect(now / 30_000) { SyncStatus.ricalcola() }
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -105,6 +103,9 @@ fun HomeScreen(
             delay(250)
         }
     }
+    // Il solo passare del tempo puo' rendere vecchio l'allineamento, anche senza che
+    // succeda niente: ogni mezzo minuto lo stato va riconsiderato.
+    LaunchedEffect(now / 30_000) { SyncStatus.ricalcola() }
 
     val context = LocalContext.current
     val cloud by Cloud.state.collectAsStateWithLifecycle()
