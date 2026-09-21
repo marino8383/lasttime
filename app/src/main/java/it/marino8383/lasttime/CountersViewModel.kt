@@ -12,6 +12,7 @@ import it.marino8383.lasttime.data.save
 import it.marino8383.lasttime.data.restarted
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
+import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.sync.Groups
 import it.marino8383.lasttime.sync.SyncEngine
 import kotlinx.coroutines.flow.SharingStarted
@@ -228,23 +229,46 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- condivisione
 
+    /** Un gruppo di condivisione, etichettato con chi c'e' dentro oltre a me. */
+    data class GroupInfo(val id: String, val label: String)
+
+    /** I gruppi di cui faccio gia' parte, per far scegliere dove mandare un timer. */
+    fun myGroups(onDone: (List<GroupInfo>) -> Unit) {
+        viewModelScope.launch {
+            val ids = db.counterDao().shared().mapNotNull { it.sharedGroupId }.distinct()
+            val io = Cloud.uid
+            onDone(
+                ids.map { id ->
+                    val nomi = Groups.members(id).filterKeys { it != io }.values
+                    GroupInfo(id, nomi.joinToString(", ").ifBlank { "gruppo senza nomi" })
+                }
+            )
+        }
+    }
+
     /**
-     * Condivide un contatore. Se esiste gia' un gruppo (la coppia di sempre) ci entra
-     * dentro senza chiedere niente a nessuno e ritorna null: l'invito serve solo per
-     * far entrare una persona nuova, non per ogni timer.
-     * Se invece il gruppo va creato, ritorna il codice da dettare all'altro.
+     * Condivide un contatore. Con [groupId] valorizzato lo manda in un gruppo che esiste
+     * gia' e non serve nessun invito: ritorna null. Con [groupId] a null crea un gruppo
+     * nuovo e ritorna il codice da passare alla persona da invitare.
+     *
+     * La scelta e' esplicita di proposito: prendere sempre "il primo gruppo che c'e'"
+     * renderebbe impossibile avere un timer con una persona e un altro con un'altra.
      */
-    fun shareCounter(counter: Counter, myName: String, onDone: (String?, String?) -> Unit) {
+    fun shareCounter(
+        counter: Counter,
+        myName: String,
+        groupId: String?,
+        onDone: (String?, String?) -> Unit,
+    ) {
         viewModelScope.launch {
             try {
-                val esistente = db.counterDao().shared().firstNotNullOfOrNull { it.sharedGroupId }
-                val groupId = esistente ?: Groups.create(myName)
-                val codice = if (esistente == null) Groups.invite(groupId) else null
+                val gruppo = groupId ?: Groups.create(myName)
+                val codice = if (groupId == null) Groups.invite(gruppo) else null
 
-                val condiviso = counter.copy(sharedGroupId = groupId)
+                val condiviso = counter.copy(sharedGroupId = gruppo)
                 db.counterDao().save(condiviso)
-                Groups.push(groupId, condiviso)
-                SyncEngine.listen(getApplication(), groupId)
+                Groups.push(gruppo, condiviso)
+                SyncEngine.listen(getApplication(), gruppo)
                 onDone(codice, null)
             } catch (t: Throwable) {
                 onDone(null, t.message ?: "condivisione fallita")

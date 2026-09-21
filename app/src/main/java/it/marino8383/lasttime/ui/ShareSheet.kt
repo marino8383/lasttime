@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.marino8383.lasttime.AppSettings
+import it.marino8383.lasttime.CountersViewModel
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.ui.theme.OnPrimaryContainer
 import it.marino8383.lasttime.ui.theme.PrimaryContainer
@@ -52,7 +53,8 @@ import it.marino8383.lasttime.ui.theme.PrimaryContainer
 fun ShareSheet(
     counter: Counter,
     onDismiss: () -> Unit,
-    onShare: (myName: String, onDone: (String?, String?) -> Unit) -> Unit,
+    onShare: (myName: String, groupId: String?, onDone: (String?, String?) -> Unit) -> Unit,
+    onGroups: ((List<CountersViewModel.GroupInfo>) -> Unit) -> Unit,
     onNewInvite: (groupId: String, onDone: (String?, String?) -> Unit) -> Unit,
     onUnshare: () -> Unit,
     onMembers: (groupId: String, onDone: (Map<String, String>) -> Unit) -> Unit,
@@ -63,11 +65,14 @@ fun ShareSheet(
     var errore by remember { mutableStateOf<String?>(null) }
     var attesa by remember { mutableStateOf(false) }
     var membri by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var gruppi by remember { mutableStateOf<List<CountersViewModel.GroupInfo>>(emptyList()) }
+    var condivisoIn by remember { mutableStateOf<String?>(null) }
 
     val groupId = counter.sharedGroupId
 
     LaunchedEffect(groupId) {
         if (groupId != null) onMembers(groupId) { membri = it }
+        else onGroups { gruppi = it }
     }
 
     ModalBottomSheet(
@@ -104,20 +109,58 @@ fun ShareSheet(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(14.dp))
+
+                fun condividi(destinazione: String?, etichetta: String?) {
+                    attesa = true
+                    errore = null
+                    AppSettings.setMyName(context, myName)
+                    onShare(myName.trim(), destinazione) { code, err ->
+                        attesa = false
+                        codice = code
+                        errore = err
+                        if (err == null && code == null) condivisoIn = etichetta
+                    }
+                }
+
+                // Gruppi che esistono gia': ci si condivide dentro senza nessun invito
+                gruppi.forEach { gruppo ->
+                    Button(
+                        enabled = myName.isNotBlank() && !attesa,
+                        onClick = { condividi(gruppo.id, gruppo.label) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Condividi con ${gruppo.label}", fontWeight = FontWeight.Bold) }
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 Button(
                     enabled = myName.isNotBlank() && !attesa,
-                    onClick = {
-                        attesa = true
-                        errore = null
-                        AppSettings.setMyName(context, myName)
-                        onShare(myName.trim()) { code, err ->
-                            attesa = false
-                            codice = code
-                            errore = err
-                        }
-                    },
+                    onClick = { condividi(null, null) },
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (attesa) "Attendi..." else "Condividi", fontWeight = FontWeight.Bold) }
+                ) {
+                    Text(
+                        if (attesa) "Attendi..."
+                        else if (gruppi.isEmpty()) "Condividi"
+                        else "Con qualcun altro...",
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+
+            condivisoIn?.let { dove ->
+                Spacer(Modifier.height(16.dp))
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = PrimaryContainer,
+                    contentColor = OnPrimaryContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "✅ Condiviso nel gruppo con $dove. Nessun codice da mandare: " +
+                            "ci sono già dentro.",
+                        fontSize = 12.5.sp,
+                        modifier = Modifier.padding(14.dp),
+                    )
+                }
             }
 
             codice?.let { code ->

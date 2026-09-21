@@ -381,7 +381,8 @@ fun HomeScreen(
         ShareSheet(
             counter = counter,
             onDismiss = { shareTarget = null },
-            onShare = { myName, onDone -> vm.shareCounter(counter, myName, onDone) },
+            onShare = { myName, groupId, onDone -> vm.shareCounter(counter, myName, groupId, onDone) },
+            onGroups = { onDone -> vm.myGroups(onDone) },
             onNewInvite = { groupId, onDone -> vm.newInvite(groupId, onDone) },
             onUnshare = { vm.unshare(counter) },
             onMembers = { groupId, onDone -> vm.membersOf(groupId, onDone) },
