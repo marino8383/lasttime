@@ -43,6 +43,21 @@ object SyncEngine {
      */
     private val aligned = mutableMapOf<String, Long>()
 
+    /** Eventi arrivati prima del loro contatore, in attesa di poter essere inseriti. */
+    private val pendingRounds = java.util.concurrent.ConcurrentLinkedQueue<Map<String, Any?>>()
+    private const val MAX_PENDING = 500
+
+    private suspend fun drainPendingRounds(app: LastTimeApp) {
+        if (pendingRounds.isEmpty()) return
+        val da = ArrayList<Map<String, Any?>>(pendingRounds.size)
+        while (true) {
+            val e = pendingRounds.poll() ?: break
+            da.add(e)
+        }
+        // chi ancora non trova il suo contatore si ri-accoda da sé
+        da.forEach { applyRemoteRound(app, it) }
+    }
+
     private val db get() = FirebaseFirestore.getInstance()
 
     /** Attacca i listener ai gruppi di cui fa parte almeno un contatore locale. */
@@ -73,24 +88,11 @@ object SyncEngine {
     }
 
     fun listen(app: LastTimeApp, groupId: String) {
-        if (listeners.containsKey("rounds:" + groupId)) return
-        listeners["rounds:" + groupId] = db.collection("groups").document(groupId)
-            .collection("rounds")
-            .addSnapshotListener { snap, error ->
-                if (error != null) {
-                    Log.w(TAG, "listener eventi del gruppo $groupId in errore", error)
-                    return@addSnapshotListener
-                }
-                snap ?: return@addSnapshotListener
-                scope.launch {
-                    // Solo aggiunte: gli eventi sono append-only, una rimozione non esiste
-                    snap.documentChanges
-                        .filter { it.type != DocumentChange.Type.REMOVED }
-                        .forEach { applyRemoteRound(app, it.document.data) }
-                }
-            }
-
         if (listeners.containsKey(groupId)) return
+
+        // I contatori si agganciano per primi, di proposito: un evento che arriva prima
+        // del suo contatore non avrebbe a cosa attaccarsi. La coda sotto copre comunque
+        // il caso, ma l'ordine giusto fa sì che di solito non serva.
         listeners[groupId] = db.collection("groups").document(groupId)
             .collection("counters")
             .addSnapshotListener { snap, error ->
@@ -111,6 +113,24 @@ object SyncEngine {
                             applyRemote(app, groupId, change.document.data)
                         }
                     }
+                    // ora che i contatori ci sono, gli eventi orfani hanno dove andare
+                    drainPendingRounds(app)
+                }
+            }
+
+        listeners["rounds:" + groupId] = db.collection("groups").document(groupId)
+            .collection("rounds")
+            .addSnapshotListener { snap, error ->
+                if (error != null) {
+                    Log.w(TAG, "listener eventi del gruppo $groupId in errore", error)
+                    return@addSnapshotListener
+                }
+                snap ?: return@addSnapshotListener
+                scope.launch {
+                    // Solo aggiunte: gli eventi sono append-only, una rimozione non esiste
+                    snap.documentChanges
+                        .filter { it.type != DocumentChange.Type.REMOVED }
+                        .forEach { applyRemoteRound(app, it.document.data) }
                 }
             }
     }
@@ -228,6 +248,7 @@ object SyncEngine {
 
                 // locale -> remoto, solo dove siamo davvero piu' avanti
                 Groups.recentRounds(groupId).forEach { applyRemoteRound(app, it) }
+                drainPendingRounds(app)
 
                 contatori.forEach { locale ->
                     val remotoUpdated =
@@ -258,7 +279,14 @@ object SyncEngine {
         val uuid = data["uuid"] as? String ?: return
         if (app.db.roundDao().byUuid(uuid) != null) return
         val counterUuid = data["counterUuid"] as? String ?: return
-        val counter = app.db.counterDao().byUuid(counterUuid) ?: return
+        val counter = app.db.counterDao().byUuid(counterUuid)
+        if (counter == null) {
+            // Il contatore non è ancora arrivato: l'evento aspetta invece di essere perso.
+            // Era il bug per cui chi entrava in un gruppo vedeva lo storico vuoto: i round
+            // arrivavano prima del contatore e venivano scartati, senza più tornare.
+            if (pendingRounds.size < MAX_PENDING) pendingRounds.add(data)
+            return
+        }
         val startMs = (data["startMs"] as? Number)?.toLong() ?: return
         val endMs = (data["endMs"] as? Number)?.toLong() ?: return
         val byName = data["byName"] as? String
