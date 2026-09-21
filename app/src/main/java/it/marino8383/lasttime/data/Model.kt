@@ -202,6 +202,10 @@ interface RoundDao {
     @Query("SELECT * FROM rounds WHERE uuid = :uuid")
     suspend fun byUuid(uuid: String): Round?
 
+    /** Fine dell'ultimo round con tempi: nessun round nuovo può cominciare prima. */
+    @Query("SELECT MAX(endMs) FROM rounds WHERE counterId = :counterId AND noTime = 0")
+    suspend fun lastEnd(counterId: Long): Long?
+
     /** Chi ha registrato l'ultimo evento, per intestare gli avvisi. */
     @Query("SELECT byName FROM rounds WHERE counterId = :counterId ORDER BY endMs DESC LIMIT 1")
     suspend fun lastAuthor(counterId: Long): String?
@@ -229,10 +233,22 @@ interface RoundDao {
  * viene timbrato e la copia va su senza che nessun caso d'uso se ne debba ricordare.
  */
 suspend fun RoundDao.add(round: Round, counter: Counter) {
-    val firmato = if (counter.sharedGroupId != null && round.byName == null) {
-        round.copy(byName = Cloud.myName.takeIf { it.isNotBlank() })
+    // Un round non può cominciare prima della fine di quello precedente. Su un timer
+    // condiviso il caso si presenta davvero: se questo telefono aveva una copia vecchia
+    // di startMs, scriverebbe un evento accavallato a uno già registrato dall'altro —
+    // nello storico si vedono due round che partono dallo stesso istante e i conteggi
+    // si gonfiano. Qui l'inizio viene portato avanti alla fine dell'ultimo round noto.
+    val ultimaFine = lastEnd(counter.id) ?: 0
+    val senzaSovrapposizione =
+        if (!round.noTime && round.startMs < ultimaFine && ultimaFine <= round.endMs) {
+            round.copy(startMs = ultimaFine)
+        } else {
+            round
+        }
+    val firmato = if (counter.sharedGroupId != null && senzaSovrapposizione.byName == null) {
+        senzaSovrapposizione.copy(byName = Cloud.myName.takeIf { it.isNotBlank() })
     } else {
-        round
+        senzaSovrapposizione
     }
     insert(firmato)
     SyncEngine.pushRoundIfShared(counter, firmato)

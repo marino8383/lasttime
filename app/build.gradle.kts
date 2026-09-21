@@ -18,8 +18,8 @@ android {
         applicationId = "it.marino8383.lasttime"
         minSdk = 26
         targetSdk = 34
-        versionCode = 49
-        versionName = "0.13.9"
+        versionCode = 50
+        versionName = "0.13.10"
 
         buildConfigField("String", "BUILD_TIME", "\"${buildTimestamp()}\"")
     }
