@@ -45,6 +45,17 @@ object SyncEngine {
      */
     private val aligned = mutableMapOf<String, Long>()
 
+    /**
+     * L'ultimo errore di scrittura verso il gruppo, per la diagnostica.
+     *
+     * I push falliscono in silenzio di proposito — un problema di rete passeggero non deve
+     * disturbare nessuno — ma un rifiuto stabile resta invisibile e da fuori sembra solo
+     * che l'app "non si allinei". Qui almeno si puo' leggere cosa ha risposto il server.
+     */
+    @Volatile
+    var ultimoErrorePush: String? = null
+        private set
+
     /** Eventi arrivati prima del loro contatore, in attesa di poter essere inseriti. */
     private val pendingRounds = java.util.concurrent.ConcurrentLinkedQueue<Map<String, Any?>>()
     private const val MAX_PENDING = 500
@@ -351,8 +362,10 @@ object SyncEngine {
         scope.launch {
             try {
                 Groups.pushRound(groupId, round, counter.uuid)
+                ultimoErrorePush = null
             } catch (t: Throwable) {
                 Log.w(TAG, "push dell'evento ${round.uuid} fallito", t)
+                ultimoErrorePush = "evento di ${counter.name}: ${t.message}"
             }
         }
     }
@@ -401,8 +414,10 @@ object SyncEngine {
             try {
                 Groups.push(groupId, counter)
                 aligned[counter.uuid] = counter.updatedMs
+                ultimoErrorePush = null
             } catch (t: Throwable) {
                 Log.w(TAG, "push del contatore ${counter.uuid} fallito", t)
+                ultimoErrorePush = "contatore ${counter.name}: ${t.message}"
             }
         }
     }

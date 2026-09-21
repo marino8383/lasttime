@@ -21,6 +21,7 @@ data class ContatoreReport(
     val remotoMs: Long?,
 )
 
+/** Errore dell'ultima scrittura verso un gruppo, se ce n'e' stato uno. */
 data class GruppoReport(
     val groupId: String,
     /** Il mio documento di membro esiste? Se no, il server rifiuta tutto quello che scrivo. */

@@ -45,6 +45,7 @@ import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.sync.CloudState
 import it.marino8383.lasttime.sync.GruppoReport
+import it.marino8383.lasttime.sync.SyncEngine
 import it.marino8383.lasttime.sync.SyncReport
 import it.marino8383.lasttime.formatClock
 import it.marino8383.lasttime.LastTimeApp
@@ -191,6 +192,16 @@ fun DiagnosticsSheet(onDismiss: () -> Unit) {
                     fontSize = 11.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
+                SyncEngine.ultimoErrorePush?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "⚠️ ultima scrittura rifiutata — $it",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
 
                 report.forEach { g ->
                     Spacer(Modifier.height(12.dp))
