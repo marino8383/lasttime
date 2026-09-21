@@ -61,15 +61,15 @@ object SyncEngine {
             .addSnapshotListener { snap, error ->
                 if (error != null) {
                     Log.w(TAG, "listener del gruppo $groupId in errore", error)
-                    SyncStatus.fallito()
                     return@addSnapshotListener
                 }
                 snap ?: return@addSnapshotListener
                 scope.launch {
+                    // Di proposito non tocca SyncStatus: l'indicatore deve misurare i giri
+                    // completi di allineamento, non l'arrivo di un dato. Se il listener
+                    // marcasse "aggiornato" all'aggancio, all'apertura dell'app leggeresti
+                    // sempre "adesso" e non sapresti mai se il worker sta lavorando.
                     snap.documents.forEach { doc -> applyRemote(app, groupId, doc.data) }
-                    // isFromCache: se il dato arriva dalla cache non prova che siamo
-                    // allineati, prova solo che qualcosa e' cambiato in locale.
-                    if (!snap.metadata.isFromCache) SyncStatus.ok(app)
                 }
             }
     }

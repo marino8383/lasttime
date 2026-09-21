@@ -39,7 +39,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -51,7 +50,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -60,8 +58,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.BuildConfig
@@ -99,17 +95,6 @@ fun HomeScreen(
     val roundSummaries by vm.roundSummaries.collectAsStateWithLifecycle()
     val groupLabels by vm.groupLabels.collectAsStateWithLifecycle()
     val syncStato by SyncStatus.stato.collectAsStateWithLifecycle()
-
-    // Rientrando nell'app si riallinea, senza aspettare il giro dei 15 minuti. I listener
-    // da soli non bastano: se il processo è rimasto vivo in background non rileggono nulla.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) vm.syncNow()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -526,9 +511,9 @@ private fun CounterCard(
     // Scaduta = la soglia è passata. Non dipende dalla campanella accesa: è un fatto
     // dell'orologio, e va letto anche da chi ha scelto di non farsi notificare.
     val scaduta = counter.nextBellAtMs?.let { it <= now } == true && snoozePending == null
-    // La colorazione d'allarme della card invece sì: chi ha spento la campanella non
-    // vuole che l'app gli urli addosso, vuole solo poter leggere i numeri.
-    val over = counter.bellEnabled && scaduta
+    // L'allarme visivo vale anche a campanella spenta: spegnere la notifica significa
+    // "non svegliarmi", non "nascondimi che il giro è scaduto".
+    val over = scaduta
     // Prossimo squillo effettivo: rinvio pendente, oppure squillo programmato futuro
     val nextRing = when {
         counter.bellMinutes == null -> null
@@ -662,7 +647,7 @@ private fun CounterCard(
                         "${if (counter.bellEnabled) "🔔" else "🔕"} sforata da ${formatDurationTwoParts(overdueLine)}",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (over) OnErrorContainer else MaterialTheme.colorScheme.primary,
+                        color = OnErrorContainer,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
