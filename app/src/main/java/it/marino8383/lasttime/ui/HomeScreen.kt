@@ -89,6 +89,7 @@ fun HomeScreen(
     val counters by vm.counters.collectAsStateWithLifecycle()
     val archived by vm.archived.collectAsStateWithLifecycle()
     val roundSummaries by vm.roundSummaries.collectAsStateWithLifecycle()
+    val groupLabels by vm.groupLabels.collectAsStateWithLifecycle()
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -101,7 +102,10 @@ fun HomeScreen(
     val context = LocalContext.current
     val cloud by Cloud.state.collectAsStateWithLifecycle()
     LaunchedEffect(cloud) {
-        if (cloud is CloudState.Ready) SyncEngine.start(context)
+        if (cloud is CloudState.Ready) {
+            SyncEngine.start(context)
+            vm.refreshGroupLabels()
+        }
     }
 
     var flipMode by remember { mutableStateOf(false) }
@@ -192,6 +196,7 @@ fun HomeScreen(
                             CounterCard(
                                 counter = counter,
                                 now = now,
+                                sharedWith = counter.sharedGroupId?.let { groupLabels[it] },
                                 onCycleView = { vm.cycleViewMode(counter) },
                                 onHistory = { historyTarget = counter },
                                 onRestart = { restartTarget = counter },
@@ -453,6 +458,7 @@ private fun Header(
 private fun CounterCard(
     counter: Counter,
     now: Long,
+    sharedWith: String?,
     onCycleView: () -> Unit,
     onHistory: () -> Unit,
     onRestart: () -> Unit,
@@ -576,6 +582,15 @@ private fun CounterCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
+            counter.sharedGroupId?.let {
+                Text(
+                    "👥 condiviso con ${sharedWith ?: "…"}",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             counter.scheduledResetMs?.takeIf { it > now }?.let {
                 Text(
                     "⏲ reset programmato ${formatRingTime(it)}",

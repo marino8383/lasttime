@@ -15,7 +15,9 @@ import it.marino8383.lasttime.notif.Notifications
 import it.marino8383.lasttime.sync.Cloud
 import it.marino8383.lasttime.sync.Groups
 import it.marino8383.lasttime.sync.SyncEngine
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -232,6 +234,25 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     /** Un gruppo di condivisione, etichettato con chi c'e' dentro oltre a me. */
     data class GroupInfo(val id: String, val label: String)
 
+    /**
+     * Etichetta di ogni gruppo, per scriverlo sulla card ("condiviso con Vale").
+     * Sta qui e non nella card perche' i nomi vivono su Firestore: leggerli a ogni
+     * ridisegno vorrebbe dire una lettura di rete al secondo.
+     */
+    private val _groupLabels = MutableStateFlow<Map<String, String>>(emptyMap())
+    val groupLabels: StateFlow<Map<String, String>> = _groupLabels
+
+    fun refreshGroupLabels() {
+        viewModelScope.launch {
+            val ids = db.counterDao().shared().mapNotNull { it.sharedGroupId }.distinct()
+            val io = Cloud.uid
+            _groupLabels.value = ids.associateWith { id ->
+                Groups.members(id).filterKeys { it != io }.values
+                    .joinToString(", ").ifBlank { "nessun altro" }
+            }
+        }
+    }
+
     /** I gruppi di cui faccio gia' parte, per far scegliere dove mandare un timer. */
     fun myGroups(onDone: (List<GroupInfo>) -> Unit) {
         viewModelScope.launch {
@@ -269,6 +290,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                 db.counterDao().save(condiviso)
                 Groups.push(gruppo, condiviso)
                 SyncEngine.listen(getApplication(), gruppo)
+                refreshGroupLabels()
                 onDone(codice, null)
             } catch (t: Throwable) {
                 onDone(null, t.message ?: "condivisione fallita")
@@ -290,7 +312,10 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun joinGroup(code: String, myName: String, onDone: (Groups.JoinResult) -> Unit) {
         viewModelScope.launch {
             val esito = Groups.join(code, myName)
-            if (esito is Groups.JoinResult.Ok) SyncEngine.listen(getApplication(), esito.groupId)
+            if (esito is Groups.JoinResult.Ok) {
+                SyncEngine.listen(getApplication(), esito.groupId)
+                refreshGroupLabels()
+            }
             onDone(esito)
         }
     }
