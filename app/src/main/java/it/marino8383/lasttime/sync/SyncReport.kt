@@ -29,6 +29,8 @@ data class GruppoReport(
     val puoScrivere: Boolean,
     val errore: String?,
     val contatori: List<ContatoreReport>,
+    /** Documenti presenti nel gruppo che qui non risultano condivisi: sono gli orfani. */
+    val orfani: List<String>,
 )
 
 object SyncReport {
@@ -70,9 +72,18 @@ object SyncReport {
                     .filter { it.sharedGroupId == groupId }
                     .map { ContatoreReport(it.name, it.updatedMs, remoti[it.uuid]) }
 
-                GruppoReport(groupId, membro, puoScrivere, null, locali)
+                // Il caso che ci interessa davvero: il documento e' nel gruppo, il
+                // contatore esiste qui, ma qui non risulta condiviso. E' il timer che
+                // "si e' sganciato da solo" e smette di parlare senza dirlo a nessuno.
+                val orfani = remoti.keys.mapNotNull { uuid ->
+                    app.db.counterDao().byUuid(uuid)
+                        ?.takeIf { it.sharedGroupId == null }
+                        ?.name
+                }
+
+                GruppoReport(groupId, membro, puoScrivere, null, locali, orfani)
             } catch (t: Throwable) {
-                GruppoReport(groupId, false, false, t.message ?: "lettura fallita", emptyList())
+                GruppoReport(groupId, false, false, t.message ?: "lettura fallita", emptyList(), emptyList())
             }
         }
     }

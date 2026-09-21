@@ -56,6 +56,21 @@ object SyncEngine {
     var ultimoErrorePush: String? = null
         private set
 
+    /**
+     * Diario degli sganciamenti e delle ricuciture, per la diagnostica. Serve a rispondere
+     * a una domanda sola: quando un timer smette di risultare condiviso, e' stato questo
+     * codice a deciderlo oppure e' successo altrove? Senza, le due cose sono
+     * indistinguibili da fuori.
+     */
+    private val diario = ArrayDeque<String>()
+
+    fun diario(): List<String> = synchronized(diario) { diario.toList() }
+
+    private fun annota(riga: String) = synchronized(diario) {
+        diario.addLast(riga)
+        while (diario.size > 8) diario.removeFirst()
+    }
+
     /** Eventi arrivati prima del loro contatore, in attesa di poter essere inseriti. */
     private val pendingRounds = java.util.concurrent.ConcurrentLinkedQueue<Map<String, Any?>>()
     private const val MAX_PENDING = 500
@@ -72,6 +87,8 @@ object SyncEngine {
     }
 
     private val db get() = FirebaseFirestore.getInstance()
+
+    private fun nowClock() = it.marino8383.lasttime.formatClock(System.currentTimeMillis())
 
     /**
      * Attacca i listener a tutti i gruppi di cui faccio parte — non solo a quelli da cui
@@ -200,6 +217,7 @@ object SyncEngine {
         // convinta di essere a posto.
         if (local.sharedGroupId == null) {
             Log.i(TAG, "contatore $uuid riagganciato al gruppo $groupId")
+            annota("${nowClock()} riagganciato ${local.name}")
             dao.updateRaw(local.copy(sharedGroupId = groupId))
             SyncWorker.refresh(app)
         }
@@ -394,13 +412,16 @@ object SyncEngine {
         } catch (t: Throwable) {
             // Senza risposta non si decide: meglio restare condivisi e riprovare dopo
             Log.w(TAG, "verifica della rimozione di $uuid non riuscita", t)
+            annota("${nowClock()} rimozione di ${locale.name}: verifica fallita, ignorata")
             return
         }
         if (esiste) {
             Log.i(TAG, "rimozione di $uuid ignorata: sul server il documento c'e' ancora")
+            annota("${nowClock()} rimozione di ${locale.name} ignorata: c'e' ancora")
             return
         }
 
+        annota("${nowClock()} SGANCIATO ${locale.name}: sul server non c'e' piu'")
         app.db.counterDao().updateRaw(locale.copy(sharedGroupId = null))
         aligned.remove(uuid)
         SyncWorker.refresh(app)

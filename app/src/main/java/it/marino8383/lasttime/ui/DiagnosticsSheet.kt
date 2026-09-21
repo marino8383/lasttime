@@ -221,6 +221,14 @@ fun DiagnosticsSheet(onDismiss: () -> Unit) {
                     g.errore?.let {
                         Text("⚠️ $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
                     }
+                    g.orfani.forEach { nome ->
+                        Text(
+                            "• $nome: è nel gruppo sul server ma qui NON risulta condiviso",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                     g.contatori.forEach { c ->
                         val remoto = c.remotoMs
                         val stato = when {
@@ -236,6 +244,24 @@ fun DiagnosticsSheet(onDismiss: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                }
+            }
+
+            SyncEngine.diario().takeIf { it.isNotEmpty() }?.let { righe ->
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "DIARIO CONDIVISIONE",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                righe.reversed().forEach {
+                    Text(
+                        it,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
