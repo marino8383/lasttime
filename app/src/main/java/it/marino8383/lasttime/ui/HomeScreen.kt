@@ -80,6 +80,7 @@ import it.marino8383.lasttime.sync.Groups
 import it.marino8383.lasttime.sync.SyncEngine
 import it.marino8383.lasttime.sync.SyncStatus
 import it.marino8383.lasttime.sync.SyncWorker
+import it.marino8383.lasttime.sync.Updater
 import it.marino8383.lasttime.timeParts
 import it.marino8383.lasttime.ui.theme.OnErrorContainer
 import it.marino8383.lasttime.ui.theme.OnPrimaryContainer
@@ -135,6 +136,9 @@ fun HomeScreen(
     var shareTarget by remember { mutableStateOf<Counter?>(null) }
     var resumeTarget by remember { mutableStateOf<Counter?>(null) }
     var staleTarget by remember { mutableStateOf<CountersViewModel.FreshCheck?>(null) }
+    // Un controllo al giorno, all'apertura. Una versione nuova non esce quattro volte all'ora.
+    var novita by remember { mutableStateOf<Updater.Novita?>(null) }
+    LaunchedEffect(Unit) { novita = Updater.controlla(context) }
 
     BackHandler(enabled = showArchive) { showArchive = false }
 
@@ -380,6 +384,34 @@ fun HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deleteTarget = null }) { Text("No") }
+            },
+        )
+    }
+
+    novita?.let { nuova ->
+        AlertDialog(
+            onDismissRequest = { novita = null },
+            title = { Text("⬆️ Aggiornamento disponibile") },
+            text = {
+                Column {
+                    Text("C'è la versione ${nuova.versionName}. Tu hai la ${BuildConfig.VERSION_NAME}.")
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Si installa sopra questa, senza perdere timer né storico. " +
+                            "Android chiederà conferma prima di installare.",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    Updater.scaricaEInstalla(context, nuova)
+                    novita = null
+                }) { Text("Aggiorna", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { novita = null }) { Text("Più tardi") }
             },
         )
     }

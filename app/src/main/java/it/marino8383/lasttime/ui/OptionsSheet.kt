@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
@@ -27,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.marino8383.lasttime.AppSettings
+import it.marino8383.lasttime.sync.Updater
 
 /** Pannello Opzioni (⚙️): per ora la tolleranza "mantieni il ritmo". */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,6 +91,48 @@ fun OptionsSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(26.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            Spacer(Modifier.height(18.dp))
+
+            Text(
+                "INSTALLAZIONE",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Il link punta sempre all'ultima versione: chi lo apre trova l'APK più " +
+                    "recente, oggi e fra sei mesi.",
+                fontSize = 11.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = {
+                    val testo = """
+                        Last Time — l'app per sapere da quanto tempo non succede qualcosa.
+
+                        Si scarica da qui: ${Updater.PAGINA_RELEASE}
+
+                        È un APK: al primo avvio Android chiederà di autorizzare
+                        l'installazione da questa origine.
+                    """.trimIndent()
+                    val invito = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, testo)
+                    }
+                    context.startActivity(Intent.createChooser(invito, "Condividi"))
+                }) { Text("Condividi il link", fontWeight = FontWeight.Bold) }
+                TextButton(onClick = {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(Updater.PAGINA_RELEASE))
+                    )
+                }) { Text("Apri la pagina") }
+            }
+
+            Spacer(Modifier.height(22.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Spacer(Modifier.height(18.dp))
 

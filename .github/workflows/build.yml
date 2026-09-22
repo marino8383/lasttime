@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # serve a creare la release e ad allegarci i file
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -37,3 +40,33 @@ jobs:
         with:
           name: lasttime-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+
+      # Release pubblica: l APK con un nome fisso piu un manifesto con il numero di
+      # versione. L indirizzo releases/latest/download/<file> punta sempre all ultima,
+      # quindi l app puo chiedere "c e qualcosa di nuovo?" senza sapere in anticipo
+      # quale sia l ultima versione.
+      - name: Pubblica la release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION_NAME=$(grep "versionName = " app/build.gradle.kts | head -1 | cut -d'"' -f2)
+          VERSION_CODE=$(grep "versionCode = " app/build.gradle.kts | head -1 | tr -dc "0-9")
+          echo "versione $VERSION_NAME ($VERSION_CODE)"
+
+          cp app/build/outputs/apk/debug/app-debug.apk lasttime.apk
+          APK_URL="https://github.com/${{ github.repository }}/releases/latest/download/lasttime.apk"
+          cat > latest.json <<JSON
+          {"versionCode": $VERSION_CODE, "versionName": "$VERSION_NAME", "apk": "$APK_URL"}
+          JSON
+          cat latest.json
+
+          TAG="v$VERSION_NAME"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # stessa versione ricompilata: si sostituiscono i file invece di fallire
+            gh release upload "$TAG" lasttime.apk latest.json --clobber
+          else
+            gh release create "$TAG" lasttime.apk latest.json --title "Last Time $VERSION_NAME" --notes "APK di debug, firmato con la chiave condivisa del repo. Si installa sopra la versione precedente senza perdere i dati."
+          fi

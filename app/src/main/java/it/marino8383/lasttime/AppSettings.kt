@@ -46,6 +46,16 @@ object AppSettings {
         if (nuovi.add(groupId)) prefs.edit().putStringSet("groups", nuovi).apply()
     }
 
+    /** Ultimo controllo aggiornamenti, per non ripeterlo a ogni apertura. */
+    fun lastUpdateCheckMs(context: Context): Long =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong("last_update_check", 0L)
+
+    fun setLastUpdateCheckMs(context: Context, value: Long) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putLong("last_update_check", value).apply()
+    }
+
     // ---- vista tabellone Solari ----
 
     fun flipUnit(context: Context): String =

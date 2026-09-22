@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Cartella dove finisce l'APK scaricato per l'aggiornamento. Sta nello spazio
+         privato dell'app: il FileProvider serve appunto a passarlo all'installer di
+         sistema senza renderlo pubblico a tutti. -->
+    <external-files-path name="aggiornamenti" path="updates/" />
+</paths>
