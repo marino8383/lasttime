@@ -92,6 +92,8 @@ fun HomeScreen(
     vm: CountersViewModel,
     snoozeCounterId: Long? = null,
     onSnoozeHandled: () -> Unit = {},
+    joinCode: String? = null,
+    onJoinHandled: () -> Unit = {},
 ) {
     val counters by vm.counters.collectAsStateWithLifecycle()
     val archived by vm.archived.collectAsStateWithLifecycle()
@@ -254,6 +256,27 @@ fun HomeScreen(
 
     if (showDiagnostics) {
         DiagnosticsSheet(onDismiss = { showDiagnostics = false })
+    }
+
+    // Link d'invito toccato: conferma esplicita prima di entrare nel gruppo
+    joinCode?.let { code ->
+        JoinInviteDialog(
+            code = code,
+            onDismiss = onJoinHandled,
+            onJoin = { myName, onDone ->
+                vm.joinGroup(code, myName) { esito ->
+                    onDone(
+                        when (esito) {
+                            is Groups.JoinResult.Ok ->
+                                "✅ Sei nel gruppo. I timer condivisi compaiono fra qualche secondo."
+                            Groups.JoinResult.CodeNotFound -> "⚠️ Codice non trovato."
+                            Groups.JoinResult.Expired -> "⚠️ Codice scaduto: fattene mandare uno nuovo."
+                            is Groups.JoinResult.Failed -> "⚠️ " + esito.message
+                        }
+                    )
+                }
+            },
+        )
     }
 
     // "Rimanda" dalla notifica: maschera di snooze appena i contatori sono caricati

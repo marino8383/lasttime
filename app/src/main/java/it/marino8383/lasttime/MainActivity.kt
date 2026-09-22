@@ -26,10 +26,21 @@ class MainActivity : ComponentActivity() {
     /** Contatore per cui la notifica ha chiesto "Rimanda": apre la maschera di snooze. */
     private var snoozeRequest by mutableStateOf<Long?>(null)
 
+    /** Codice dal link d'invito toccato (https://.../lasttime/join?code=...). */
+    private var joinRequest by mutableStateOf<String?>(null)
+
     private fun readSnoozeExtra(intent: Intent?) {
         intent?.getLongExtra(Notifications.EXTRA_SNOOZE_COUNTER_ID, -1L)
             ?.takeIf { it > 0 }
             ?.let { snoozeRequest = it }
+    }
+
+    private fun readJoinExtra(intent: Intent?) {
+        intent?.data
+            ?.takeIf { it.host == "marino8383.github.io" && it.path?.startsWith("/lasttime/join") == true }
+            ?.getQueryParameter("code")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { joinRequest = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,6 +56,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { AlarmScheduler.scheduleNext(this@MainActivity) }
 
         readSnoozeExtra(intent)
+        readJoinExtra(intent)
 
         setContent {
             LastTimeTheme {
@@ -52,6 +64,8 @@ class MainActivity : ComponentActivity() {
                     vm = viewModel(),
                     snoozeCounterId = snoozeRequest,
                     onSnoozeHandled = { snoozeRequest = null },
+                    joinCode = joinRequest,
+                    onJoinHandled = { joinRequest = null },
                 )
             }
         }
@@ -60,5 +74,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         readSnoozeExtra(intent)
+        readJoinExtra(intent)
     }
 }

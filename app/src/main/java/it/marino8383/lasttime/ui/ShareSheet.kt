@@ -208,13 +208,17 @@ fun ShareSheet(
                             TextButton(onClick = {
                                 // Stringa multiriga: gli a capo stanno nel sorgente,
                                 // niente sequenze di escape da sbagliare.
+                                // Il link e' un App Link verificato (assetlinks.json su
+                                // marino8383.github.io): se Last Time e' gia' installata lo
+                                // apre lei, altrimenti il browser mostra una pagina col codice.
                                 val testo = """
                                     Ti ho condiviso il timer “${counter.name}” su Last Time.
 
-                                    Codice: $code
+                                    Tocca per aggiungerlo: https://marino8383.github.io/lasttime/join?code=$code
 
-                                    Apri Last Time, ⚙️ Opzioni, “Entra con un codice” e incolla.
-                                    Il codice vale 24 ore.
+                                    Se il link non si apre da solo: Last Time, ⚙️ Opzioni,
+                                    “Entra con un codice”, e scrivi $code.
+                                    Vale 24 ore.
                                 """.trimIndent()
                                 val invito = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
