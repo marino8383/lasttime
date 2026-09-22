@@ -288,6 +288,24 @@ object SyncEngine {
     }
 
     /**
+     * Verifica leggera di un solo contatore prima di farlo ripartire: serve solo a sapere
+     * se nel frattempo e' gia' stato riavviato altrove, non un giro di allineamento intero.
+     * A differenza di [syncOnce] non tocca gli altri gruppi ne' lo storico dei round, quindi
+     * resta rapida anche con piu' timer condivisi in casa.
+     */
+    suspend fun checkCounter(app: LastTimeApp, groupId: String, uuid: String) {
+        Cloud.ensureSignedIn() ?: return
+        try {
+            val doc = db.collection("groups").document(groupId)
+                .collection("counters").document(uuid)
+                .get().await()
+            doc.data?.let { applyRemote(app, groupId, it) }
+        } catch (t: Throwable) {
+            Log.w(TAG, "verifica del contatore $uuid prima del riavvio fallita", t)
+        }
+    }
+
+    /**
      * Un giro completo di allineamento, senza listener: serve al worker periodico, che
      * gira ad app chiusa e non puo' tenere un collegamento aperto.
      *

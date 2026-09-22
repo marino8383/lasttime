@@ -193,11 +193,15 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             // riscriverla tale e quale significherebbe riportare indietro campi che nel
             // frattempo sono cambiati, sharedGroupId per primo.
             val counter = db.counterDao().byId(counter.id) ?: counter
-            if (counter.sharedGroupId == null) {
+            val groupId = counter.sharedGroupId
+            if (groupId == null) {
                 onDone(FreshCheck(counter, moved = false, movedBy = null))
                 return@launch
             }
-            withTimeoutOrNull(4_000) { SyncEngine.syncOnce(getApplication()) }
+            // Solo questo contatore, non un giro di allineamento su tutti i gruppi: prima
+            // c'era syncOnce(), che tirava giu' anche gli altri gruppi e 200 round a testa
+            // — lento proprio nel momento in cui contava rispondere in fretta.
+            withTimeoutOrNull(4_000) { SyncEngine.checkCounter(getApplication(), groupId, counter.uuid) }
             val fresco = db.counterDao().byId(counter.id) ?: counter
             val spostato = fresco.startMs != counter.startMs
             onDone(
