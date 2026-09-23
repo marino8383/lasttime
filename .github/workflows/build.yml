@@ -65,8 +65,17 @@ jobs:
 
           TAG="v$VERSION_NAME"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            # stessa versione ricompilata: si sostituiscono i file invece di fallire
-            gh release upload "$TAG" lasttime.apk latest.json --clobber
+            # stessa versione ricompilata: si sostituiscono i file invece di fallire.
+            # --clobber si e' rivelato inaffidabile (risolve l'id dell'asset da
+            # cancellare su una lista che a volte GitHub serve non aggiornata): si
+            # cancella esplicitamente per nome, rileggendo la lista qui, poi si carica.
+            for NAME in lasttime.apk latest.json; do
+              ID=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG" --jq ".assets[] | select(.name==\"$NAME\") | .id")
+              if [ -n "$ID" ]; then
+                gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$ID"
+              fi
+            done
+            gh release upload "$TAG" lasttime.apk latest.json
           else
             gh release create "$TAG" lasttime.apk latest.json --title "Last Time $VERSION_NAME" --notes "APK di debug, firmato con la chiave condivisa del repo. Si installa sopra la versione precedente senza perdere i dati."
           fi
