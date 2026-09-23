@@ -387,7 +387,13 @@ object SyncEngine {
      * Un evento arrivato dal gruppo. La deduplica e' l'uuid: lo stesso evento inviato da
      * due telefoni e' lo stesso documento, quindi non si sdoppia mai — ma se esiste gia'
      * e l'endMs e' diverso, e' una correzione dell'ultimo riavvio arrivata da un altro
-     * telefono: e' l'unico cambiamento che un round puo' subire dopo essere stato scritto.
+     * telefono (o da questo stesso, per un altro canale): e' l'unico cambiamento che un
+     * round puo' subire dopo essere stato scritto.
+     *
+     * Il listener non garantisce l'ordine di consegna: una versione vecchia puo' arrivare
+     * dopo una piu' recente. endMsUpdatedAt e' il timbro che decide chi vince — stesso
+     * ruolo di updatedMs sui contatori — altrimenti una correzione appena fatta rischia
+     * di essere ririportata indietro da un evento in ritardo.
      */
     private suspend fun applyRemoteRound(app: LastTimeApp, data: Map<String, Any?>?) {
         data ?: return
@@ -395,7 +401,11 @@ object SyncEngine {
         val endMs = (data["endMs"] as? Number)?.toLong() ?: return
         val esistente = app.db.roundDao().byUuid(uuid)
         if (esistente != null) {
-            if (esistente.endMs != endMs) app.db.roundDao().correctEndMs(esistente.id, endMs)
+            val incomingStamp = (data["endMsUpdatedAt"] as? Number)?.toLong() ?: 0L
+            val localStamp = esistente.endMsUpdatedAt ?: 0L
+            if (esistente.endMs != endMs && incomingStamp >= localStamp) {
+                app.db.roundDao().correctEndMs(esistente.id, endMs, incomingStamp)
+            }
             return
         }
         val counterUuid = data["counterUuid"] as? String ?: return

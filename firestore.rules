@@ -72,12 +72,18 @@ service cloud.firestore {
         // di un riavvio), da chiunque sia nel gruppo, non solo da chi l'ha scritto. Tutto
         // il resto — quale round e' capitato, chi, quando e' cominciato, ogni round piu'
         // vecchio dell'ultimo — resta bloccato: nessuno puo' riscrivere la storia altrui.
+        // endMsUpdatedAt viaggia insieme a endMs: e' il timbro che decide, quando due
+        // correzioni arrivano fuori ordine, quale versione vince (vedi Round.endMsUpdatedAt
+        // nell'app). Non puo' retrocedere, altrimenti un client in ritardo potrebbe forzare
+        // indietro una correzione piu' recente.
         allow update: if isMember(groupId)
           && get(/databases/$(database)/documents/groups/$(groupId)/counters/$(resource.data.counterUuid))
                .data.get('lastRoundUuid', '') == roundUuid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['endMs'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['endMs', 'endMsUpdatedAt'])
           && request.resource.data.endMs >= resource.data.startMs
-          && request.resource.data.endMs <= request.time.toMillis();
+          && request.resource.data.endMs <= request.time.toMillis()
+          && (resource.data.endMsUpdatedAt == null || request.resource.data.endMsUpdatedAt >= resource.data.endMsUpdatedAt)
+          && request.resource.data.endMsUpdatedAt <= request.time.toMillis();
         allow delete: if false;
       }
     }

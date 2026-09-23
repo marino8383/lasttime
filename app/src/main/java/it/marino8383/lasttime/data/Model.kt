@@ -110,6 +110,14 @@ data class Round(
      * persona cambia telefono o esce dal gruppo. Null = l'ho fatto io, o non è condiviso.
      */
     val byName: String? = null,
+    /**
+     * Quando endMs è stato scritto l'ultima volta: null per un round mai corretto.
+     * Un round è quasi sempre immutabile, ma "Correggi l'ultimo riavvio" ne cambia
+     * l'endMs — e senza un timestamp non c'è modo di sapere, quando arrivano due
+     * versioni fuori ordine (il listener non garantisce l'ordine di consegna), quale
+     * sia la più recente. Stesso ruolo di [Counter.updatedMs], solo per questo campo.
+     */
+    val endMsUpdatedAt: Long? = null,
 )
 
 @Dao
@@ -225,9 +233,11 @@ interface RoundDao {
     /**
      * Corregge SOLO l'endMs di un round già scritto: non un nuovo evento, un aggiustamento
      * dell'ultimo riavvio appena fatto. Chi chiama ha già verificato che sia davvero l'ultimo.
+     * [stampMs] timbra quando: è quello che decide chi vince se due versioni arrivano
+     * fuori ordine da Firestore (vedi [Round.endMsUpdatedAt]).
      */
-    @Query("UPDATE rounds SET endMs = :endMs WHERE id = :id")
-    suspend fun correctEndMs(id: Long, endMs: Long)
+    @Query("UPDATE rounds SET endMs = :endMs, endMsUpdatedAt = :stampMs WHERE id = :id")
+    suspend fun correctEndMs(id: Long, endMs: Long, stampMs: Long)
 
     /** Una riga per contatore, per la card d'archivio: quanti round e quanto è durato l'ultimo. */
     @Query(
@@ -278,7 +288,7 @@ data class RoundSummary(
     val lastDurationMs: Long?,
 )
 
-@Database(entities = [Counter::class, Round::class], version = 11, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 12, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -354,6 +364,13 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE counters ADD COLUMN lastRoundUuid TEXT")
         db.execSQL("ALTER TABLE counters ADD COLUMN lastRoundStartMs INTEGER")
+    }
+}
+
+/** Timbro anti-rimbalzo sulla correzione di endMs, vedi [Round.endMsUpdatedAt]. */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE rounds ADD COLUMN endMsUpdatedAt INTEGER")
     }
 }
 

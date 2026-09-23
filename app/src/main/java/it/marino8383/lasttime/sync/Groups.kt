@@ -143,6 +143,7 @@ object Groups {
         "endMs" to round.endMs,
         "noTime" to round.noTime,
         "byName" to round.byName,
+        "endMsUpdatedAt" to round.endMsUpdatedAt,
     )
 
     /** Un evento nello storico del gruppo. Append-only: si scrive e non si tocca piu'. */
@@ -168,13 +169,13 @@ object Groups {
     }
 
     /**
-     * Corregge SOLO l'endMs di un round: l'unica scrittura che le regole del server
-     * concedono su un round già scritto, e solo se è ancora l'ultimo di quel contatore.
-     * Fallisce (rifiutata dal server) se nel frattempo non lo è più.
+     * Corregge SOLO l'endMs di un round (e il suo timbro): l'unica scrittura che le regole
+     * del server concedono su un round già scritto, e solo se è ancora l'ultimo di quel
+     * contatore. Fallisce (rifiutata dal server) se nel frattempo non lo è più.
      */
-    suspend fun correctRoundEnd(groupId: String, roundUuid: String, endMs: Long) {
+    suspend fun correctRoundEnd(groupId: String, roundUuid: String, endMs: Long, stampMs: Long) {
         db.collection("groups").document(groupId)
             .collection("rounds").document(roundUuid)
-            .update("endMs", endMs).await()
+            .update(mapOf("endMs" to endMs, "endMsUpdatedAt" to stampMs)).await()
     }
 }

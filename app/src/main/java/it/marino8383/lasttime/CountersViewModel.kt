@@ -287,9 +287,12 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                 onDone("⚠️ Deve restare fra l'inizio di quel round e adesso.")
                 return@launch
             }
+            // Timbro anti-rimbalzo (vedi Round.endMsUpdatedAt): non basta "at" per dire
+            // qual e' la versione piu' recente se due correzioni arrivano fuori ordine.
+            val stampMs = System.currentTimeMillis()
             if (groupId != null) {
                 try {
-                    Groups.correctRoundEnd(groupId, round.uuid, at)
+                    Groups.correctRoundEnd(groupId, round.uuid, at, stampMs)
                 } catch (t: Throwable) {
                     onDone("⚠️ Non sono riuscito a salvarlo sul gruppo: ${t.message}")
                     return@launch
@@ -298,7 +301,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             // La campanella scivola della stessa differenza: e' un aggiustamento
             // dell'orario, non un nuovo riavvio da adesso.
             val delta = at - round.endMs
-            db.roundDao().correctEndMs(round.id, at)
+            db.roundDao().correctEndMs(round.id, at, stampMs)
             db.counterDao().save(
                 counter.copy(
                     startMs = at,
