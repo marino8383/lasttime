@@ -46,6 +46,28 @@ object AppSettings {
         if (nuovi.add(groupId)) prefs.edit().putStringSet("groups", nuovi).apply()
     }
 
+    /**
+     * Uuid dei contatori condivisi tolti dal gruppo da questo telefono, ma non ancora
+     * confermati spariti dal server (rete assente al momento dell'eliminazione, di solito).
+     * Finche' restano qui, un contatore ripescato da un giro di sync non deve rientrare:
+     * va solo ritentata la rimozione. Sopravvive al riavvio dell'app apposta.
+     */
+    fun removedFromGroup(context: Context): Set<String> =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getStringSet("removed_from_group", emptySet())?.toSet() ?: emptySet()
+
+    fun addRemovedFromGroup(context: Context, uuid: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val nuovi = prefs.getStringSet("removed_from_group", emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (nuovi.add(uuid)) prefs.edit().putStringSet("removed_from_group", nuovi).apply()
+    }
+
+    fun clearRemovedFromGroup(context: Context, uuid: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val nuovi = prefs.getStringSet("removed_from_group", emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (nuovi.remove(uuid)) prefs.edit().putStringSet("removed_from_group", nuovi).apply()
+    }
+
     /** Ultimo controllo aggiornamenti, per non ripeterlo a ogni apertura. */
     fun lastUpdateCheckMs(context: Context): Long =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

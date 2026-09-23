@@ -67,9 +67,18 @@ service cloud.firestore {
 
       match /rounds/{roundUuid} {
         allow read, create: if isMember(groupId);
-        // I round sono append-only: un evento gia' scritto non si corregge e non si
-        // cancella, altrimenti due telefoni potrebbero riscrivere la storia a vicenda.
-        allow update, delete: if false;
+        // I round sono append-only, con un'unica eccezione stretta: l'endMs dell'ULTIMO
+        // round di un contatore si puo' correggere (un errore battuto a caldo sull'orario
+        // di un riavvio), da chiunque sia nel gruppo, non solo da chi l'ha scritto. Tutto
+        // il resto — quale round e' capitato, chi, quando e' cominciato, ogni round piu'
+        // vecchio dell'ultimo — resta bloccato: nessuno puo' riscrivere la storia altrui.
+        allow update: if isMember(groupId)
+          && get(/databases/$(database)/documents/groups/$(groupId)/counters/$(resource.data.counterUuid))
+               .data.get('lastRoundUuid', '') == roundUuid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['endMs'])
+          && request.resource.data.endMs >= resource.data.startMs
+          && request.resource.data.endMs <= request.time.toMillis();
+        allow delete: if false;
       }
     }
   }

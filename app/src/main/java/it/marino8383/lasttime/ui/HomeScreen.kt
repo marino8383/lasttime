@@ -1,5 +1,6 @@
 package it.marino8383.lasttime.ui
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -379,6 +380,12 @@ fun HomeScreen(
             onAddMissed = { at -> vm.addMissedEvent(counter, at) },
             // evento con orario: round chiuso lì e timer rifasato, la maschera resta aperta
             onAddTimedEvent = { at -> vm.restartAt(counter, at) },
+            onCorrectLast = { at ->
+                vm.correctLastRestart(counter, at) { esito ->
+                    Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()
+                }
+                advancedTarget = null
+            },
         )
     }
 

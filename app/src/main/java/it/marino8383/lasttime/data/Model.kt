@@ -70,6 +70,14 @@ data class Counter(
      * scelte sulle notifiche: se a te interessa e all'altro no, ognuno fa come vuole.
      */
     val notifyOnRemote: Boolean = true,
+    /**
+     * Uuid dell'ultimo round chiuso da un riavvio vero (non un giro perso "solo conteggio").
+     * Serve a "Correggi l'ultimo riavvio": è l'unico round che, sui condivisi, le regole del
+     * server lasciano ancora toccare — solo endMs, solo quello, mai la storia più vecchia.
+     */
+    val lastRoundUuid: String? = null,
+    /** Inizio di quel round, cache locale per non doverlo rileggere solo per validare la UI. */
+    val lastRoundStartMs: Long? = null,
 )
 
 @Entity(
@@ -214,6 +222,13 @@ interface RoundDao {
     @Query("SELECT * FROM rounds WHERE counterId = :counterId ORDER BY endMs DESC LIMIT :max")
     suspend fun recentFor(counterId: Long, max: Int): List<Round>
 
+    /**
+     * Corregge SOLO l'endMs di un round già scritto: non un nuovo evento, un aggiustamento
+     * dell'ultimo riavvio appena fatto. Chi chiama ha già verificato che sia davvero l'ultimo.
+     */
+    @Query("UPDATE rounds SET endMs = :endMs WHERE id = :id")
+    suspend fun correctEndMs(id: Long, endMs: Long)
+
     /** Una riga per contatore, per la card d'archivio: quanti round e quanto è durato l'ultimo. */
     @Query(
         "SELECT r.counterId AS counterId, COUNT(*) AS rounds, " +
@@ -232,7 +247,7 @@ interface RoundDao {
  * Come [CounterDao.save] per i contatori: unico imbuto per gli eventi, così l'autore
  * viene timbrato e la copia va su senza che nessun caso d'uso se ne debba ricordare.
  */
-suspend fun RoundDao.add(round: Round, counter: Counter) {
+suspend fun RoundDao.add(round: Round, counter: Counter): Round {
     // Un round non può cominciare prima della fine di quello precedente. Su un timer
     // condiviso il caso si presenta davvero: se questo telefono aveva una copia vecchia
     // di startMs, scriverebbe un evento accavallato a uno già registrato dall'altro —
@@ -252,6 +267,7 @@ suspend fun RoundDao.add(round: Round, counter: Counter) {
     }
     insert(firmato)
     SyncEngine.pushRoundIfShared(counter, firmato)
+    return firmato
 }
 
 /** Riepilogo dei round di un contatore (vedi [RoundDao.summaries]). */
@@ -262,7 +278,7 @@ data class RoundSummary(
     val lastDurationMs: Long?,
 )
 
-@Database(entities = [Counter::class, Round::class], version = 10, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 11, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -330,6 +346,14 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
 val MIGRATION_9_10 = object : Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE counters ADD COLUMN historyFromMs INTEGER")
+    }
+}
+
+/** Per "Correggi l'ultimo riavvio": quale round è, e da dove comincia (cache per la UI). */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN lastRoundUuid TEXT")
+        db.execSQL("ALTER TABLE counters ADD COLUMN lastRoundStartMs INTEGER")
     }
 }
 

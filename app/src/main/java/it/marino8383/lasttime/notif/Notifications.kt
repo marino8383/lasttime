@@ -194,8 +194,13 @@ object Notifications {
         ),
     ).build()
 
+    /** Toglie ogni notifica di questo contatore: campanella, reset programmato, evento condiviso. */
     fun cancel(context: Context, counterId: Long) {
-        context.getSystemService(NotificationManager::class.java).cancel(counterId.toInt())
+        val nm = context.getSystemService(NotificationManager::class.java)
+        val id = counterId.toInt()
+        nm.cancel(id)
+        nm.cancel(1_000_000 + id)
+        nm.cancel(2_000_000 + id)
     }
 
     /** Avviso informativo (senza azioni) dell'avvenuto reset programmato (v25/v26). */

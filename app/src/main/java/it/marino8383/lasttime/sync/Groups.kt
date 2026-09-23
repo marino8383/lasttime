@@ -121,6 +121,10 @@ object Groups {
         // Chi ha scritto per ultimo. Non si salva in locale: serve solo a intestare gli
         // avvisi ("Vale ha ripreso Tachipirina"), dove non c'è un round che porti la firma.
         "lastByName" to Cloud.myName.takeIf { it.isNotBlank() },
+        // Puntano all'ultimo round vero: è quello che le regole del server lasciano ancora
+        // correggere (solo endMs), per "Correggi l'ultimo riavvio".
+        "lastRoundUuid" to counter.lastRoundUuid,
+        "lastRoundStartMs" to counter.lastRoundStartMs,
     )
 
     /**
@@ -161,5 +165,16 @@ object Groups {
         db.collection("groups").document(groupId)
             .collection("counters").document(counter.uuid)
             .set(payload(counter)).await()
+    }
+
+    /**
+     * Corregge SOLO l'endMs di un round: l'unica scrittura che le regole del server
+     * concedono su un round già scritto, e solo se è ancora l'ultimo di quel contatore.
+     * Fallisce (rifiutata dal server) se nel frattempo non lo è più.
+     */
+    suspend fun correctRoundEnd(groupId: String, roundUuid: String, endMs: Long) {
+        db.collection("groups").document(groupId)
+            .collection("rounds").document(roundUuid)
+            .update("endMs", endMs).await()
     }
 }

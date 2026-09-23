@@ -174,6 +174,23 @@ object SyncEngine {
     suspend fun applyRemote(app: LastTimeApp, groupId: String, data: Map<String, Any?>?) {
         data ?: return
         val uuid = data["uuid"] as? String ?: return
+
+        // L'abbiamo tolto noi da questo telefono: se il server ce lo ripropone ancora,
+        // vuol dire che la rimozione non era andata a buon fine (rete assente al momento).
+        // Si ritenta la rimozione, non lo si fa rientrare con tanto di notifiche.
+        if (AppSettings.removedFromGroup(app).contains(uuid)) {
+            scope.launch {
+                try {
+                    Groups.remove(groupId, uuid)
+                    AppSettings.clearRemovedFromGroup(app, uuid)
+                    annota("${nowClock()} rimozione di $uuid ritentata con successo")
+                } catch (t: Throwable) {
+                    Log.w(TAG, "ritentativo di rimozione di $uuid fallito", t)
+                }
+            }
+            return
+        }
+
         val remoteUpdated = (data["updatedMs"] as? Number)?.toLong() ?: return
         val dao = app.db.counterDao()
         val local = dao.byUuid(uuid)
@@ -203,6 +220,8 @@ object SyncEngine {
                     archived = data["archived"] as? Boolean ?: false,
                     archivedMs = (data["archivedMs"] as? Number)?.toLong(),
                     historyFromMs = (data["historyFromMs"] as? Number)?.toLong(),
+                    lastRoundUuid = data["lastRoundUuid"] as? String,
+                    lastRoundStartMs = (data["lastRoundStartMs"] as? Number)?.toLong(),
                 )
             )
             aligned[uuid] = remoteUpdated
@@ -249,6 +268,8 @@ object SyncEngine {
             archived = archived,
             archivedMs = (data["archivedMs"] as? Number)?.toLong(),
             historyFromMs = (data["historyFromMs"] as? Number)?.toLong(),
+            lastRoundUuid = data["lastRoundUuid"] as? String,
+            lastRoundStartMs = (data["lastRoundStartMs"] as? Number)?.toLong(),
         )
         // Quando rifare la scadenza locale. Oltre al caso ovvio — l'altro ha fatto
         // ripartire il timer, e qui lo "sforato" si spegne da solo — ce ne sono due che
@@ -364,12 +385,19 @@ object SyncEngine {
 
     /**
      * Un evento arrivato dal gruppo. La deduplica e' l'uuid: lo stesso evento inviato da
-     * due telefoni e' lo stesso documento, quindi non si sdoppia mai.
+     * due telefoni e' lo stesso documento, quindi non si sdoppia mai — ma se esiste gia'
+     * e l'endMs e' diverso, e' una correzione dell'ultimo riavvio arrivata da un altro
+     * telefono: e' l'unico cambiamento che un round puo' subire dopo essere stato scritto.
      */
     private suspend fun applyRemoteRound(app: LastTimeApp, data: Map<String, Any?>?) {
         data ?: return
         val uuid = data["uuid"] as? String ?: return
-        if (app.db.roundDao().byUuid(uuid) != null) return
+        val endMs = (data["endMs"] as? Number)?.toLong() ?: return
+        val esistente = app.db.roundDao().byUuid(uuid)
+        if (esistente != null) {
+            if (esistente.endMs != endMs) app.db.roundDao().correctEndMs(esistente.id, endMs)
+            return
+        }
         val counterUuid = data["counterUuid"] as? String ?: return
         val counter = app.db.counterDao().byUuid(counterUuid)
         if (counter == null) {
@@ -380,7 +408,6 @@ object SyncEngine {
             return
         }
         val startMs = (data["startMs"] as? Number)?.toLong() ?: return
-        val endMs = (data["endMs"] as? Number)?.toLong() ?: return
         val byName = data["byName"] as? String
         app.db.roundDao().insert(
             Round(

@@ -75,6 +75,7 @@ fun AdvancedRestartSheet(
     onCancelSchedule: () -> Unit,
     onAddMissed: (Long) -> Unit,
     onAddTimedEvent: (Long) -> Unit,
+    onCorrectLast: (Long) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -86,7 +87,11 @@ fun AdvancedRestartSheet(
 
     val nowMs = System.currentTimeMillis()
     val target = if (quickSel >= 0) nowMs - quickSel * 60_000 else customMs
-    val beforeRound = target < counter.startMs
+    val lastRoundStart = counter.lastRoundStartMs
+    // Dentro l'ultimo round chiuso: non e' un riavvio nuovo, e' l'orario di quello gia'
+    // fatto che si sposta. Oltre quel confine si mangerebbe il round prima, e resta bloccato.
+    val correctable = lastRoundStart != null && target >= lastRoundStart && target < counter.startMs
+    val beforeRound = target < (lastRoundStart ?: counter.startMs)
     val isFuture = target > nowMs + 1_000
 
     ModalBottomSheet(
@@ -163,10 +168,19 @@ fun AdvancedRestartSheet(
             Spacer(Modifier.height(8.dp))
             when {
                 beforeRound -> Text(
-                    "⚠️ Prima dell'inizio del round attuale (dal ${formatDateTime(counter.startMs)})",
+                    if (lastRoundStart != null)
+                        "⚠️ Andrebbe oltre l'inizio dell'ultimo round (dal ${formatDateTime(lastRoundStart)}): si mangerebbe quello prima."
+                    else
+                        "⚠️ Prima dell'inizio del round attuale (dal ${formatDateTime(counter.startMs)})",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.Bold,
+                )
+                correctable -> Text(
+                    "✏️ Corregge l'ultimo riavvio già fatto (${formatRingTime(counter.startMs)}) portandolo a " +
+                        "${formatRingTime(target)}. Non aggiunge un round nuovo.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 isFuture -> Text(
                     "⏲ Il timer continua e si resetta da solo ${formatRingTime(target)}. Un nuovo comando sostituirà questa programmazione.",
@@ -183,11 +197,21 @@ fun AdvancedRestartSheet(
             Spacer(Modifier.height(12.dp))
             Button(
                 enabled = !beforeRound,
-                onClick = { if (isFuture) onSchedule(target) else onRestartAt(target) },
+                onClick = {
+                    when {
+                        isFuture -> onSchedule(target)
+                        correctable -> onCorrectLast(target)
+                        else -> onRestartAt(target)
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    if (isFuture) "⏲ Programma il reset" else "↺ Riparti",
+                    when {
+                        isFuture -> "⏲ Programma il reset"
+                        correctable -> "✏️ Correggi l'ultimo riavvio"
+                        else -> "↺ Riparti"
+                    },
                     fontWeight = FontWeight.Bold,
                 )
             }

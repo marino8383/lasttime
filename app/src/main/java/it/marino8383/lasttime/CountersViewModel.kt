@@ -103,9 +103,15 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteCounter(counter: Counter) {
         viewModelScope.launch {
             counter.sharedGroupId?.let { gruppo ->
+                // Segnato prima ancora di provare: se il tentativo fallisce (rete assente
+                // proprio ora) il prossimo giro di sync ritrova il contatore sul server e,
+                // vedendo questo segno, ritenta la rimozione invece di farlo rientrare.
+                AppSettings.addRemovedFromGroup(getApplication(), counter.uuid)
                 runCatching { Groups.remove(gruppo, counter.uuid) }
+                    .onSuccess { AppSettings.clearRemovedFromGroup(getApplication(), counter.uuid) }
             }
             db.counterDao().delete(counter) // i round seguono in cascata
+            Notifications.cancel(getApplication(), counter.id)
             SyncWorker.refresh(getApplication())
             refreshGroupLabels()
             AlarmScheduler.scheduleNext(getApplication())
@@ -124,13 +130,15 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun archiveCounter(counter: Counter) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
+            val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
             db.counterDao().save(
                 counter.copy(
                     archived = true,
                     archivedMs = now,
                     snoozeUntilMs = null,
                     scheduledResetMs = null,
+                    lastRoundUuid = round.uuid,
+                    lastRoundStartMs = round.startMs,
                 )
             )
             Notifications.cancel(getApplication(), counter.id)
@@ -219,8 +227,11 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val counter = db.counterDao().byId(counter.id) ?: counter
             val now = System.currentTimeMillis()
-            db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
-            db.counterDao().save(counter.restarted(now, AppSettings.latePercent(getApplication())))
+            val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
+            db.counterDao().save(
+                counter.restarted(now, AppSettings.latePercent(getApplication()))
+                    .copy(lastRoundUuid = round.uuid, lastRoundStartMs = round.startMs)
+            )
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }
@@ -235,10 +246,68 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             val counter = db.counterDao().byId(counter.id) ?: counter
             val at = atMs.coerceAtMost(System.currentTimeMillis())
             if (at < counter.startMs) return@launch // la UI valida già; qui è solo difesa
-            db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = at), counter)
-            db.counterDao().save(counter.restarted(at, AppSettings.latePercent(getApplication())))
+            val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = at), counter)
+            db.counterDao().save(
+                counter.restarted(at, AppSettings.latePercent(getApplication()))
+                    .copy(lastRoundUuid = round.uuid, lastRoundStartMs = round.startMs)
+            )
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    /**
+     * Corregge l'ORARIO dell'ultimo riavvio già fatto — non ne aggiunge uno nuovo, sposta
+     * il confine fra il round appena chiuso e quello in corso. Vincolato a non retrocedere
+     * oltre l'inizio di quel round (si mangerebbe il round prima) né a finire nel futuro.
+     *
+     * Su un condiviso lo può fare chiunque nel gruppo, non solo chi ha fatto il riavvio
+     * sbagliato: tocca solo endMs dell'ULTIMO round, mai la storia più vecchia né quella
+     * di un altro round — sono le regole del server a garantirlo, non questo codice.
+     */
+    fun correctLastRestart(counter: Counter, atMs: Long, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            var counter = db.counterDao().byId(counter.id) ?: counter
+            val groupId = counter.sharedGroupId
+            if (groupId != null) {
+                // Come checkBeforeRestart: si riverifica lo stato vero prima di agire,
+                // non si corregge alla cieca su una copia che potrebbe essere vecchia.
+                withTimeoutOrNull(4_000) { SyncEngine.checkCounter(getApplication(), groupId, counter.uuid) }
+                counter = db.counterDao().byId(counter.id) ?: counter
+            }
+            val roundUuid = counter.lastRoundUuid
+            val round = roundUuid?.let { db.roundDao().byUuid(it) }
+            if (round == null) {
+                onDone("⚠️ Nessun riavvio recente da correggere.")
+                return@launch
+            }
+            val now = System.currentTimeMillis()
+            val at = atMs.coerceIn(round.startMs, now)
+            if (at != atMs) {
+                onDone("⚠️ Deve restare fra l'inizio di quel round e adesso.")
+                return@launch
+            }
+            if (groupId != null) {
+                try {
+                    Groups.correctRoundEnd(groupId, round.uuid, at)
+                } catch (t: Throwable) {
+                    onDone("⚠️ Non sono riuscito a salvarlo sul gruppo: ${t.message}")
+                    return@launch
+                }
+            }
+            // La campanella scivola della stessa differenza: e' un aggiustamento
+            // dell'orario, non un nuovo riavvio da adesso.
+            val delta = at - round.endMs
+            db.roundDao().correctEndMs(round.id, at)
+            db.counterDao().save(
+                counter.copy(
+                    startMs = at,
+                    nextBellAtMs = counter.nextBellAtMs?.plus(delta),
+                )
+            )
+            Notifications.cancel(getApplication(), counter.id)
+            AlarmScheduler.scheduleNext(getApplication())
+            onDone("✅ Corretto.")
         }
     }
 
@@ -277,8 +346,15 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             val counter = db.counterDao().byId(counter.id) ?: counter
             val now = System.currentTimeMillis()
             val step = (counter.bellMinutes ?: 0) * 60_000
-            db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
-            val base = counter.copy(startMs = now, bellNotified = false, snoozeUntilMs = null, scheduledResetMs = null)
+            val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
+            val base = counter.copy(
+                startMs = now,
+                bellNotified = false,
+                snoozeUntilMs = null,
+                scheduledResetMs = null,
+                lastRoundUuid = round.uuid,
+                lastRoundStartMs = round.startMs,
+            )
             val updated = when (choice) {
                 LateBellChoice.KEEP_RHYTHM ->
                     base.copy(nextBellAtMs = advanceToFuture(counter.nextBellAtMs ?: now, step, now))
