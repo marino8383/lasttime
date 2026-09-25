@@ -71,6 +71,13 @@ data class Counter(
      */
     val notifyOnRemote: Boolean = true,
     /**
+     * Nascosto (locale, mai sincronizzato): sparisce da lista e tabellone e non manda più
+     * notifiche su QUESTO telefono, ma continua a contare e a sincronizzarsi come sempre —
+     * a differenza di [archived], che congela e vale per tutto il gruppo. Serve per i timer
+     * che non si vogliono monitorare ma nemmeno fermare.
+     */
+    val hidden: Boolean = false,
+    /**
      * Uuid dell'ultimo round chiuso da un riavvio vero (non un giro perso "solo conteggio").
      * Serve a "Correggi l'ultimo riavvio": è l'unico round che, sui condivisi, le regole del
      * server lasciano ancora toccare — solo endMs, solo quello, mai la storia più vecchia.
@@ -122,8 +129,12 @@ data class Round(
 
 @Dao
 interface CounterDao {
-    @Query("SELECT * FROM counters WHERE archived = 0 ORDER BY createdMs")
+    @Query("SELECT * FROM counters WHERE archived = 0 AND hidden = 0 ORDER BY createdMs")
     fun activeCounters(): Flow<List<Counter>>
+
+    /** Nascosti (v.28): attivi come tutti gli altri, solo fuori dalla vista di questo telefono. */
+    @Query("SELECT * FROM counters WHERE archived = 0 AND hidden = 1 ORDER BY createdMs")
+    fun hiddenCounters(): Flow<List<Counter>>
 
     @Query("SELECT * FROM counters WHERE archived = 1 ORDER BY createdMs")
     fun archivedCounters(): Flow<List<Counter>>
@@ -288,7 +299,7 @@ data class RoundSummary(
     val lastDurationMs: Long?,
 )
 
-@Database(entities = [Counter::class, Round::class], version = 12, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 13, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -371,6 +382,13 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
 val MIGRATION_11_12 = object : Migration(11, 12) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE rounds ADD COLUMN endMsUpdatedAt INTEGER")
+    }
+}
+
+/** Nascosto (locale): vedi [Counter.hidden]. */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
     }
 }
 

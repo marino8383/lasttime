@@ -35,6 +35,10 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     val archived = db.counterDao().archivedCounters()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Nascosti: fuori da lista e tabellone, ma attivi — vedi [Counter.hidden]. */
+    val hidden = db.counterDao().hiddenCounters()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Riepilogo round per contatore, per le card d'archivio. */
     val roundSummaries = db.roundDao().summaries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -521,6 +525,17 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun setNotifyOnRemote(counter: Counter, value: Boolean) {
         viewModelScope.launch {
             db.counterDao().saveLocal(counter.copy(notifyOnRemote = value))
+        }
+    }
+
+    /**
+     * Nascondi/mostra (locale, non tocca la sincronizzazione): il contatore continua a
+     * contare com'era, solo che sparisce da lista/tabellone e non notifica più su questo
+     * telefono. Diverso da archiviare, che congela e vale per tutto il gruppo.
+     */
+    fun setHidden(counter: Counter, value: Boolean) {
+        viewModelScope.launch {
+            db.counterDao().saveLocal(counter.copy(hidden = value))
         }
     }
 

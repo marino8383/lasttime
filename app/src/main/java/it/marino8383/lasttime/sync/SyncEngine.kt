@@ -299,7 +299,7 @@ object SyncEngine {
         if (archived && !local.archived) Notifications.cancel(app, local.id)
         // Tornato in linea: l'altro deve saperlo, perché da adesso il timer conta di nuovo
         // e la campanella ricomincia a suonare anche a lui.
-        if (local.archived && !archived && local.notifyOnRemote) {
+        if (local.archived && !archived && local.notifyOnRemote && !local.hidden) {
             val chi = (data["lastByName"] as? String)?.takeIf { it.isNotBlank() && it != Cloud.myName }
             if (chi != null) {
                 Notifications.notifySharedEvent(app, updated, chi, "Ripreso dall'archivio: il timer conta di nuovo.")
@@ -434,7 +434,7 @@ object SyncEngine {
         // sparare 200 notifiche quando arriva lo storico di un timer appena condiviso:
         // quelli sono eventi vecchi, non e' appena successo niente.
         val appenaFatto = System.currentTimeMillis() - endMs <= NOTIFICA_FRESCA_MS
-        if (counter.notifyOnRemote && appenaFatto && !byName.isNullOrBlank() &&
+        if (counter.notifyOnRemote && !counter.hidden && appenaFatto && !byName.isNullOrBlank() &&
             byName != Cloud.myName
         ) {
             Notifications.notifySharedRestart(app, counter, byName, endMs)

@@ -56,7 +56,10 @@ class BellReceiver : BroadcastReceiver() {
                 }
 
                 due.forEach { counter ->
-                    Notifications.notifyBell(context, counter)
+                    // Nascosto: continua a suonare "internamente" (bellNotified si alza
+                    // comunque, cosi' risulta sforato appena lo si torna a guardare), ma
+                    // niente notifica vera — e' proprio quello che "nascosto" vuol dire.
+                    if (!counter.hidden) Notifications.notifyBell(context, counter)
                     // rinvio consumato; la scadenza suonata resta in nextBellAtMs
                     // (serve per "mantieni il ritmo" e per mostrare "sforata da X")
                     val snooze = counter.snoozeUntilMs?.takeIf { it > now }

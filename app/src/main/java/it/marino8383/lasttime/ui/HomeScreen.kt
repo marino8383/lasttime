@@ -98,6 +98,7 @@ fun HomeScreen(
 ) {
     val counters by vm.counters.collectAsStateWithLifecycle()
     val archived by vm.archived.collectAsStateWithLifecycle()
+    val hiddenCounters by vm.hidden.collectAsStateWithLifecycle()
     val roundSummaries by vm.roundSummaries.collectAsStateWithLifecycle()
     val groupLabels by vm.groupLabels.collectAsStateWithLifecycle()
     val syncStato by SyncStatus.stato.collectAsStateWithLifecycle()
@@ -128,6 +129,7 @@ fun HomeScreen(
     var showOptions by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
     var showArchive by remember { mutableStateOf(false) }
+    var showHidden by remember { mutableStateOf(false) }
     var archiveTarget by remember { mutableStateOf<Counter?>(null) }
     var historyTarget by remember { mutableStateOf<Counter?>(null) }
     var editTarget by remember { mutableStateOf<Counter?>(null) }
@@ -144,6 +146,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) { novita = Updater.controlla(context) }
 
     BackHandler(enabled = showArchive) { showArchive = false }
+    BackHandler(enabled = showHidden) { showHidden = false }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -160,8 +163,8 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            // niente FAB in vista tabellone (v4) né in archivio (v24)
-            if (!flipMode && !showArchive) {
+            // niente FAB in vista tabellone (v4), archivio (v24) o nascosti (v28)
+            if (!flipMode && !showArchive && !showHidden) {
                 FloatingActionButton(
                     onClick = { showAdd = true },
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -185,12 +188,63 @@ fun HomeScreen(
                 )
                 return@Column
             }
+            if (showHidden) {
+                Row(
+                    Modifier.fillMaxWidth().padding(12.dp, 16.dp, 20.dp, 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { showHidden = false }) {
+                        Text("←", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Text(
+                        "🙈 Nascosti",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                if (hiddenCounters.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "Niente di nascosto.\nSull'occhio 🙈 di un contatore lo togli dai piedi\nsenza fermarlo.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                } else {
+                    LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp)) {
+                        items(hiddenCounters, key = { it.id }) { counter ->
+                            SwipeableCard(
+                                onSwipeDelete = { deleteTarget = counter },
+                                onSwipeArchive = { archiveTarget = counter },
+                            ) {
+                                CounterCard(
+                                    counter = counter,
+                                    now = now,
+                                    sharedWith = counter.sharedGroupId?.let { groupLabels[it] },
+                                    onCycleView = { vm.cycleViewMode(counter) },
+                                    onHistory = { historyTarget = counter },
+                                    onRestart = { restartTarget = counter },
+                                    onAdvancedRestart = { advancedTarget = counter },
+                                    onEdit = { editTarget = counter },
+                                    onBell = { bellTarget = counter },
+                                    onShare = { shareTarget = counter },
+                                    onDelete = { deleteTarget = counter },
+                                    onToggleHidden = { vm.setHidden(counter, !counter.hidden) },
+                                )
+                            }
+                        }
+                    }
+                }
+                return@Column
+            }
             Header(
                 flipMode = flipMode,
                 onFlip = { flipMode = !flipMode },
                 onOptions = { showOptions = true },
                 onDiagnostics = { showDiagnostics = true },
                 onArchive = { showArchive = true },
+                onHidden = { showHidden = true },
                 // l'indicatore esiste solo se c'e' davvero qualcosa di condiviso
                 syncStato = syncStato.takeIf { counters.any { c -> c.sharedGroupId != null } },
                 onSync = { vm.syncNow() },
@@ -228,6 +282,7 @@ fun HomeScreen(
                                 onBell = { bellTarget = counter },
                                 onShare = { shareTarget = counter },
                                 onDelete = { deleteTarget = counter },
+                                onToggleHidden = { vm.setHidden(counter, !counter.hidden) },
                             )
                         }
                     }
@@ -609,6 +664,7 @@ private fun Header(
     onOptions: () -> Unit,
     onDiagnostics: () -> Unit,
     onArchive: () -> Unit,
+    onHidden: () -> Unit,
     syncStato: SyncStatus.Stato?,
     onSync: () -> Unit,
 ) {
@@ -654,6 +710,9 @@ private fun Header(
         IconButton(onClick = onArchive) {
             Text("📦", fontSize = 17.sp)
         }
+        IconButton(onClick = onHidden) {
+            Text("🙈", fontSize = 17.sp)
+        }
         IconButton(onClick = onDiagnostics) {
             Text("🩺", fontSize = 17.sp)
         }
@@ -676,6 +735,7 @@ private fun CounterCard(
     onBell: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
+    onToggleHidden: () -> Unit,
 ) {
     // Allineato al secondo del timer: anche il countdown campanella deriva da qui,
     // così i due conteggi scattano nello stesso istante (se scala uno scala l'altro)
@@ -893,6 +953,11 @@ private fun CounterCard(
                         Icons.Filled.Refresh, contentDescription = "Riparti",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                // 🙈 nasconde (continua a contare, sparisce da lista/tabellone e
+                // notifiche); 👁️ lo mostra di nuovo — vedi Counter.hidden
+                IconButton(onClick = onToggleHidden) {
+                    Text(if (counter.hidden) "👁️" else "🙈", fontSize = 15.sp)
                 }
                 IconButton(onClick = onDelete) {
                     Icon(
