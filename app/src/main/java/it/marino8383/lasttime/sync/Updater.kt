@@ -41,7 +41,20 @@ object Updater {
     /** Un controllo al giorno basta: una versione nuova non esce quattro volte all'ora. */
     private const val INTERVALLO_MS = 24 * 60 * 60 * 1000L
 
-    data class Novita(val versionCode: Int, val versionName: String, val apk: String)
+    data class Novita(
+        val versionCode: Int,
+        val versionName: String,
+        val apk: String,
+        /** Changelog dai commit dall'ultima versione taggata; vuoto sui manifesti vecchi. */
+        val notes: String = "",
+    )
+
+    /** Esito di un controllo esplicito (bottone in Opzioni): utile anche dire "sei già aggiornato". */
+    sealed interface Esito {
+        data class Disponibile(val novita: Novita) : Esito
+        data object Aggiornato : Esito
+        data object Fallito : Esito
+    }
 
     /**
      * Ritorna la versione nuova se ce n'è una, altrimenti null. Con [forzato] a false
@@ -59,12 +72,33 @@ object Updater {
                 val j = JSONObject(testo)
                 val code = j.getInt("versionCode")
                 if (code <= BuildConfig.VERSION_CODE) return@withContext null
-                Novita(code, j.getString("versionName"), j.getString("apk"))
+                Novita(code, j.getString("versionName"), j.getString("apk"), j.optString("notes", ""))
             } catch (t: Throwable) {
                 Log.w(TAG, "controllo aggiornamenti fallito", t)
                 null
             }
         }
+
+    /**
+     * Come [controlla], ma per il bottone "Controlla aggiornamenti" in Opzioni: sempre
+     * forzato (bypassa il limite di una volta al giorno) e distingue "sei già aggiornato"
+     * da "il controllo è fallito", che [controlla] tratta allo stesso modo (null).
+     */
+    suspend fun controllaOra(context: Context): Esito = withContext(Dispatchers.IO) {
+        try {
+            val testo = scarica(MANIFEST) ?: return@withContext Esito.Fallito
+            AppSettings.setLastUpdateCheckMs(context, System.currentTimeMillis())
+            val j = JSONObject(testo)
+            val code = j.getInt("versionCode")
+            if (code <= BuildConfig.VERSION_CODE) return@withContext Esito.Aggiornato
+            Esito.Disponibile(
+                Novita(code, j.getString("versionName"), j.getString("apk"), j.optString("notes", ""))
+            )
+        } catch (t: Throwable) {
+            Log.w(TAG, "controllo aggiornamenti fallito", t)
+            Esito.Fallito
+        }
+    }
 
     private fun scarica(url: String): String? {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {

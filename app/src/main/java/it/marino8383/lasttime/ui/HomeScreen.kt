@@ -480,6 +480,14 @@ fun HomeScreen(
             text = {
                 Column {
                     Text("C'è la versione ${nuova.versionName}. Tu hai la ${BuildConfig.VERSION_NAME}.")
+                    if (nuova.notes.isNotBlank()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            nuova.notes,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                     Spacer(Modifier.height(10.dp))
                     Text(
                         "Si installa sopra questa, senza perdere timer né storico. " +
