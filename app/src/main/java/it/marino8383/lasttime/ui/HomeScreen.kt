@@ -3,7 +3,7 @@ package it.marino8383.lasttime.ui
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Group
@@ -310,56 +309,48 @@ fun HomeScreen(
             } else {
                 LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 120.dp)) {
                     items(localOrder, key = { it.id }) { counter ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
+                        // Riordino: tieni premuto sulla card (niente maniglie fisse). Il long
+                        // press non litiga con lo swipe orizzontale (elimina/archivia, sulla
+                        // card dentro) né con lo scroll verticale della lista: nessuno dei due
+                        // consuma un tocco fermo che poi si muove in verticale.
+                        Box(
+                            Modifier
                                 .onSizeChanged { itemHeights[counter.id] = it.height }
                                 .offset {
                                     IntOffset(0, if (counter.id == draggedId) dragOffsetPx.roundToInt() else 0)
+                                }
+                                .pointerInput(counter.id) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { dragOffsetPx = 0f; draggedId = counter.id },
+                                        onDragEnd = {
+                                            draggedId = null
+                                            dragOffsetPx = 0f
+                                            vm.reorder(localOrder)
+                                        },
+                                        onDragCancel = { draggedId = null; dragOffsetPx = 0f },
+                                    ) { change, drag ->
+                                        change.consume()
+                                        dragOffsetPx += drag.y
+                                        val h = itemHeights[counter.id]?.toFloat() ?: return@detectDragGesturesAfterLongPress
+                                        val idx = localOrder.indexOfFirst { it.id == counter.id }
+                                        if (dragOffsetPx > h / 2 && idx < localOrder.lastIndex) {
+                                            localOrder = localOrder.toMutableList().also {
+                                                val tmp = it[idx]; it[idx] = it[idx + 1]; it[idx + 1] = tmp
+                                            }
+                                            dragOffsetPx -= h
+                                        } else if (dragOffsetPx < -h / 2 && idx > 0) {
+                                            localOrder = localOrder.toMutableList().also {
+                                                val tmp = it[idx]; it[idx] = it[idx - 1]; it[idx - 1] = tmp
+                                            }
+                                            dragOffsetPx += h
+                                        }
+                                    }
                                 },
                         ) {
-                            // Maniglia di trascinamento: riordino manuale della lista. Solo
-                            // qui, non su tutta la card, per non litigare con lo swipe
-                            // orizzontale (elimina/archivia) che la card ha già.
-                            Icon(
-                                Icons.Filled.DragHandle,
-                                contentDescription = "Sposta",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .padding(end = 2.dp)
-                                    .pointerInput(counter.id) {
-                                        detectDragGestures(
-                                            onDragStart = { dragOffsetPx = 0f; draggedId = counter.id },
-                                            onDragEnd = {
-                                                draggedId = null
-                                                dragOffsetPx = 0f
-                                                vm.reorder(localOrder)
-                                            },
-                                            onDragCancel = { draggedId = null; dragOffsetPx = 0f },
-                                        ) { change, drag ->
-                                            change.consume()
-                                            dragOffsetPx += drag.y
-                                            val h = itemHeights[counter.id]?.toFloat() ?: return@detectDragGestures
-                                            val idx = localOrder.indexOfFirst { it.id == counter.id }
-                                            if (dragOffsetPx > h / 2 && idx < localOrder.lastIndex) {
-                                                localOrder = localOrder.toMutableList().also {
-                                                    val tmp = it[idx]; it[idx] = it[idx + 1]; it[idx + 1] = tmp
-                                                }
-                                                dragOffsetPx -= h
-                                            } else if (dragOffsetPx < -h / 2 && idx > 0) {
-                                                localOrder = localOrder.toMutableList().also {
-                                                    val tmp = it[idx]; it[idx] = it[idx - 1]; it[idx - 1] = tmp
-                                                }
-                                                dragOffsetPx += h
-                                            }
-                                        }
-                                    },
-                            )
                             // swipe destra = elimina, sinistra = archivia, entrambi con conferma (v23/v24)
                             SwipeableCard(
                                 onSwipeDelete = { deleteTarget = counter },
                                 onSwipeArchive = { archiveTarget = counter },
-                                modifier = Modifier.weight(1f),
                             ) {
                                 CounterCard(
                                     counter = counter,
