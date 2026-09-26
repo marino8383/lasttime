@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -62,6 +64,7 @@ fun OptionsSheet(
     var attesa by remember { mutableStateOf(false) }
     var controlloVersione by remember { mutableStateOf(false) }
     var esitoVersione by remember { mutableStateOf<Updater.Esito?>(null) }
+    var doNotDisturb by remember { mutableStateOf(AppSettings.doNotDisturb(context)) }
     val scope = rememberCoroutineScope()
 
     ModalBottomSheet(
@@ -108,6 +111,39 @@ fun OptionsSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(26.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            Spacer(Modifier.height(18.dp))
+
+            Text(
+                "NOTIFICHE",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("🔕 Non disturbare", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Silenzia ogni notifica su questo telefono: campanelle, timer condivisi, " +
+                            "reset programmati. I contatori continuano a contare normalmente.",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = doNotDisturb,
+                    onCheckedChange = {
+                        doNotDisturb = it
+                        AppSettings.setDoNotDisturb(context, it)
+                    },
+                )
+            }
+            Spacer(Modifier.height(18.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Spacer(Modifier.height(18.dp))
 

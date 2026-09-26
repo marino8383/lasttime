@@ -58,6 +58,21 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun roundsFor(counter: Counter) =
         db.roundDao().roundsFor(counter.id, counter.historyFromMs ?: 0)
 
+    /**
+     * Riordino manuale della lista (trascinamento dalla maniglia): riscrive sortOrder di
+     * tutti i contatori passati con piccoli interi consecutivi, nell'ordine dato.
+     * Scrittura solo locale — vedi [Counter.sortOrder] — quindi niente updatedMs né push.
+     */
+    fun reorder(newOrder: List<Counter>) {
+        viewModelScope.launch {
+            newOrder.forEachIndexed { i, counter ->
+                if (counter.sortOrder != i.toLong()) {
+                    db.counterDao().saveLocal(counter.copy(sortOrder = i.toLong()))
+                }
+            }
+        }
+    }
+
     fun addCounter(name: String, startMs: Long, bellMinutes: Long?, mode: String = CounterMode.PRECISO) {
         viewModelScope.launch {
             // Data nel futuro -> clamp ad adesso (v16)
@@ -70,6 +85,8 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     bellMinutes = bellMinutes,
                     createdMs = now,
                     mode = mode,
+                    // Va in fondo alla lista: vedi Counter.sortOrder.
+                    sortOrder = now,
                 )
             )
             AlarmScheduler.scheduleNext(getApplication())

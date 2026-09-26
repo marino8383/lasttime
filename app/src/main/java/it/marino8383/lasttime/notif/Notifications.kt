@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.MainActivity
 import it.marino8383.lasttime.R
 import it.marino8383.lasttime.bellLabel
@@ -72,6 +73,7 @@ object Notifications {
      */
     /** Come [notifySharedRestart] ma con un testo qualsiasi: archivio, ripresa, ecc. */
     fun notifySharedEvent(context: Context, counter: Counter, byName: String, testo: String) {
+        if (AppSettings.doNotDisturb(context)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
@@ -99,6 +101,7 @@ object Notifications {
     }
 
     fun notifySharedRestart(context: Context, counter: Counter, byName: String, atMs: Long) {
+        if (AppSettings.doNotDisturb(context)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
@@ -133,6 +136,7 @@ object Notifications {
     }
 
     fun notifyBell(context: Context, counter: Counter) {
+        if (AppSettings.doNotDisturb(context)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
@@ -209,6 +213,7 @@ object Notifications {
 
     /** Avviso informativo (senza azioni) dell'avvenuto reset programmato (v25/v26). */
     fun notifyScheduledReset(context: Context, counter: Counter) {
+        if (AppSettings.doNotDisturb(context)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return

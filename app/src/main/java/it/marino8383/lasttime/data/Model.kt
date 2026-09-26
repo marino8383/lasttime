@@ -105,6 +105,13 @@ data class Counter(
      * scadono gli N giorni (bellMinutes, riusato, vale N*1440). Es. 900 = 15:00.
      */
     val dailyBellMinuteOfDay: Int? = null,
+    /**
+     * Ordine manuale nella lista principale (locale, non sincronizzato: è una preferenza
+     * del singolo telefono, non del gruppo). Un contatore nuovo nasce con l'istante di
+     * creazione, così finisce in fondo; riordinare a mano riscrive questi valori con
+     * piccoli interi consecutivi (vedi CountersViewModel.reorder).
+     */
+    val sortOrder: Long = 0L,
 )
 
 @Entity(
@@ -149,7 +156,7 @@ data class Round(
 
 @Dao
 interface CounterDao {
-    @Query("SELECT * FROM counters WHERE archived = 0 AND hidden = 0 ORDER BY createdMs")
+    @Query("SELECT * FROM counters WHERE archived = 0 AND hidden = 0 ORDER BY sortOrder")
     fun activeCounters(): Flow<List<Counter>>
 
     /** Nascosti (v.28): attivi come tutti gli altri, solo fuori dalla vista di questo telefono. */
@@ -357,7 +364,7 @@ data class RoundSummary(
 /** Quante volte oggi per un contatore (vedi [RoundDao.todayCounts]). */
 data class CounterDayCount(val counterId: Long, val n: Int)
 
-@Database(entities = [Counter::class, Round::class], version = 15, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 16, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -462,6 +469,15 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
 val MIGRATION_14_15 = object : Migration(14, 15) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE counters ADD COLUMN creatorUid TEXT")
+    }
+}
+
+/** Ordine manuale della lista (locale): vedi [Counter.sortOrder]. Backfill = createdMs,
+ * così l'ordine visibile non cambia finché nessuno trascina niente. */
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE counters SET sortOrder = createdMs")
     }
 }
 

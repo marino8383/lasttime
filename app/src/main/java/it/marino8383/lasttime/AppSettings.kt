@@ -106,4 +106,18 @@ object AppSettings {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putBoolean("flip_show_seconds", value).apply()
     }
+
+    /**
+     * Non disturbare globale, solo questo telefono: silenzia ogni notifica (campanella,
+     * timer condivisi, reset programmato). I contatori continuano a scadere e il badge
+     * in app resta uguale — si spegne solo l'avviso di sistema, vedi Notifications.
+     */
+    fun doNotDisturb(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean("do_not_disturb", false)
+
+    fun setDoNotDisturb(context: Context, value: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean("do_not_disturb", value).apply()
+    }
 }
