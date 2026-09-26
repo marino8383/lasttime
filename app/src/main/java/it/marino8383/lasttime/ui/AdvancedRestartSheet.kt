@@ -69,6 +69,7 @@ private val quickChips = listOf(
 @Composable
 fun AdvancedRestartSheet(
     counter: Counter,
+    isOwner: Boolean = true,
     onDismiss: () -> Unit,
     onRestartAt: (Long) -> Unit,
     onSchedule: (Long) -> Unit,
@@ -76,6 +77,7 @@ fun AdvancedRestartSheet(
     onAddMissed: (Long) -> Unit,
     onAddTimedEvent: (Long) -> Unit,
     onCorrectLast: (Long) -> Unit,
+    onConvertToDaily: () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -84,6 +86,7 @@ fun AdvancedRestartSheet(
     var customMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var missedMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var missedAdded by remember { mutableIntStateOf(0) }
+    var showConvertConfirm by remember { mutableStateOf(false) }
 
     val nowMs = System.currentTimeMillis()
     val target = if (quickSel >= 0) nowMs - quickSel * 60_000 else customMs
@@ -277,8 +280,57 @@ fun AdvancedRestartSheet(
                     )
                 }
             }
+
+            // Poco usata di proposito: in fondo, dopo tutto il resto. Solo per chi ha
+            // condiviso questo timer (isOwner=true anche sui non condivisi, dove non c'è
+            // nessun altro da proteggere) — vedi Counter.creatorUid.
+            if (isOwner) {
+                Spacer(Modifier.height(18.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "🗓️ MODALITÀ",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Passa a “a giorni”: conta le date in cui è successo, non il tempo trascorso. Lo storico resta, la campanella si azzera e va rifatta. Non si torna indietro da qui.",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = { showConvertConfirm = true }) {
+                    Text("🗓️ Converti in Giornaliera")
+                }
+            }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showConvertConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConvertConfirm = false },
+            title = { Text("Convertire in Giornaliera?") },
+            text = {
+                Text(
+                    "“${counter.name}” passa a contare date invece che tempo trascorso. " +
+                        "Lo storico resta tutto, ma da qui la campanella va riconfigurata e " +
+                        "non c'è modo di tornare indietro da questa schermata."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConvertConfirm = false
+                    onConvertToDaily()
+                }) { Text("Converti") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConvertConfirm = false }) { Text("Annulla") }
+            },
+        )
     }
 }
 

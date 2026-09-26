@@ -239,6 +239,7 @@ object SyncEngine {
                     lastRoundStartMs = (data["lastRoundStartMs"] as? Number)?.toLong(),
                     mode = mode,
                     dailyBellMinuteOfDay = dailyBellMinuteOfDay,
+                    creatorUid = data["creatorUid"] as? String,
                 )
             )
             aligned[uuid] = remoteUpdated
@@ -288,6 +289,9 @@ object SyncEngine {
             lastRoundStartMs = (data["lastRoundStartMs"] as? Number)?.toLong(),
             mode = mode,
             dailyBellMinuteOfDay = dailyBellMinuteOfDay,
+            // Non deve mai tornare indietro a null solo perché una scrittura remota vecchia
+            // (di prima che questo campo esistesse) non lo portava con sé.
+            creatorUid = data["creatorUid"] as? String ?: local.creatorUid,
         )
         if (mode == CounterMode.GIORNALIERO) {
             // Sui Giornalieri si ricalcola sempre: siamo qui solo perché qualcosa di

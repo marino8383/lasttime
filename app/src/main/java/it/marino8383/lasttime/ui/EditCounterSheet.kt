@@ -91,35 +91,33 @@ fun EditCounterSheet(
             )
             Spacer(Modifier.height(16.dp))
 
-            Text(
-                "MODALITÀ",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = !giornaliero,
-                    onClick = { mode = CounterMode.PRECISO },
-                    label = { Text("Al secondo") },
-                )
-                FilterChip(
-                    selected = giornaliero,
-                    onClick = { mode = CounterMode.GIORNALIERO },
-                    label = { Text("A giorni") },
-                )
-            }
-            if (counter != null && mode != counter.mode) {
-                Spacer(Modifier.height(4.dp))
+            // La modalità si sceglie solo in creazione. Su un contatore che esiste già,
+            // soprattutto se ha storico vero, cambiarla al volo da qui — senza spiegare cosa
+            // succede e senza nessun controllo su chi lo fa — è esattamente quello che
+            // "Converti in Giornaliera" (Riparti avanzato) sostituisce apposta.
+            if (counter == null) {
                 Text(
-                    "Cambiando modalità la campanella si azzera: va riconfigurata.",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.error,
+                    "MODALITÀ",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !giornaliero,
+                        onClick = { mode = CounterMode.PRECISO },
+                        label = { Text("Al secondo") },
+                    )
+                    FilterChip(
+                        selected = giornaliero,
+                        onClick = { mode = CounterMode.GIORNALIERO },
+                        label = { Text("A giorni") },
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
             }
-            Spacer(Modifier.height(16.dp))
 
             Text(
                 if (giornaliero) "ULTIMO EVENTO" else "INIZIO",

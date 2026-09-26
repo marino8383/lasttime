@@ -66,6 +66,15 @@ data class Counter(
      */
     val sharedGroupId: String? = null,
     /**
+     * Uid di chi ha condiviso per primo questo contatore nel gruppo — sincronizzato, si
+     * scrive una volta sola (in [it.marino8383.lasttime.CountersViewModel.shareCounter])
+     * e non cambia più. Serve solo a "Converti in Giornaliera": un'azione rara che tocca
+     * lo storico, riservata a chi il timer l'ha messo in condivisione. Null sui contatori
+     * mai condivisi (nessuno da proteggere) e su quelli condivisi prima che questo campo
+     * esistesse — per quelli, nessun proprietario noto = nessuna restrizione.
+     */
+    val creatorUid: String? = null,
+    /**
      * Avvisami quando un altro fa ripartire questo timer condiviso. Locale come tutte le
      * scelte sulle notifiche: se a te interessa e all'altro no, ognuno fa come vuole.
      */
@@ -348,7 +357,7 @@ data class RoundSummary(
 /** Quante volte oggi per un contatore (vedi [RoundDao.todayCounts]). */
 data class CounterDayCount(val counterId: Long, val n: Int)
 
-@Database(entities = [Counter::class, Round::class], version = 14, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 15, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -446,6 +455,13 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE counters ADD COLUMN mode TEXT NOT NULL DEFAULT 'PRECISO'")
         db.execSQL("ALTER TABLE counters ADD COLUMN dailyBellMinuteOfDay INTEGER")
+    }
+}
+
+/** Proprietario di un contatore condiviso: vedi [Counter.creatorUid]. */
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN creatorUid TEXT")
     }
 }
 

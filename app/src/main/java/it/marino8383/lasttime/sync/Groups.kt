@@ -129,6 +129,8 @@ object Groups {
         // di questo contatore (niente più append-only, vedi firestore.rules).
         "mode" to counter.mode,
         "dailyBellMinuteOfDay" to counter.dailyBellMinuteOfDay,
+        // Chi l'ha condiviso per primo: vedi Counter.creatorUid.
+        "creatorUid" to counter.creatorUid,
     )
 
     /**

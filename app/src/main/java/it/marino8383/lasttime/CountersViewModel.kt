@@ -385,6 +385,37 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Converte un contatore PRECISO in GIORNALIERO, storico compreso: i round passati
+     * restano come sono e cominciano subito a contare come date di calendario — ogni
+     * statistica Giornaliera legge solo il loro endMs, mai la durata, quindi non c'è
+     * niente da riscrivere nello storico. La campanella si azzera, come per ogni cambio
+     * modalità: "ogni N minuti" non ha senso per "ogni N giorni alle HH:MM".
+     *
+     * Azione rara, riservata a chi ha condiviso il timer se è condiviso (Counter.creatorUid;
+     * il controllo vero è nell'interfaccia, vedi AdvancedRestartSheet). Non c'è un percorso
+     * per tornare indietro: chi la usa lo fa sapendo che è a senso unico.
+     */
+    fun convertToDaily(counter: Counter, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            val counter = db.counterDao().byId(counter.id) ?: counter
+            val reset = counter.copy(
+                mode = CounterMode.GIORNALIERO,
+                bellMinutes = null,
+                dailyBellMinuteOfDay = null,
+                nextBellAtMs = null,
+                bellNotified = false,
+                snoozeUntilMs = null,
+                lastRoundUuid = null,
+                lastRoundStartMs = null,
+            )
+            db.counterDao().save(recomputeDaily(reset))
+            Notifications.cancel(getApplication(), counter.id)
+            AlarmScheduler.scheduleNext(getApplication())
+            onDone()
+        }
+    }
+
+    /**
      * Storico GIORNALIERO, aggiunta: un giorno dimenticato ("però un giorno l'ha fatta e
      * me ne sono scordato"). Niente vincoli di catena — non è un ciclo, è un punto in più
      * nel calendario — e ricalcola sempre stato e campanella, anche se non è l'ultimo.
@@ -589,7 +620,9 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                 // qui rispedirebbe la copia col timestamp vecchio, sovrascrivendo quella
                 // appena scritta: il documento nascerebbe già arretrato e ogni confronto
                 // successivo fra le due copie partirebbe storto.
-                val condiviso = counter.copy(sharedGroupId = gruppo)
+                // Chi condivide per primo diventa il proprietario registrato: serve solo a
+                // "Converti in Giornaliera", vedi Counter.creatorUid.
+                val condiviso = counter.copy(sharedGroupId = gruppo, creatorUid = counter.creatorUid ?: Cloud.uid)
                 db.counterDao().save(condiviso)
                 SyncEngine.listen(getApplication(), gruppo)
                 SyncEngine.pushHistory(getApplication(), condiviso)

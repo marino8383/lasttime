@@ -477,8 +477,13 @@ fun HomeScreen(
 
     advancedTarget?.let { target ->
         val counter = counters.firstOrNull { it.id == target.id } ?: target
+        // Nessun gruppo -> nessuno da proteggere. Nessun proprietario registrato (timer
+        // condivisi da prima di questo campo) -> nessuna restrizione nota da applicare.
+        val isOwner = counter.sharedGroupId == null ||
+            counter.creatorUid == null || counter.creatorUid == Cloud.uid
         AdvancedRestartSheet(
             counter = counter,
+            isOwner = isOwner,
             onDismiss = { advancedTarget = null },
             onRestartAt = { at ->
                 vm.restartAt(counter, at)
@@ -495,6 +500,12 @@ fun HomeScreen(
             onCorrectLast = { at ->
                 vm.correctLastRestart(counter, at) { esito ->
                     Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()
+                }
+                advancedTarget = null
+            },
+            onConvertToDaily = {
+                vm.convertToDaily(counter) {
+                    Toast.makeText(context, "🗓️ Convertito in Giornaliera", Toast.LENGTH_SHORT).show()
                 }
                 advancedTarget = null
             },
