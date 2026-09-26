@@ -76,9 +76,12 @@ import it.marino8383.lasttime.CountersViewModel
 import it.marino8383.lasttime.ViewMode
 import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.CounterMode
+import it.marino8383.lasttime.data.calendarDaysBetween
 import it.marino8383.lasttime.data.bellLateThreshold
 import it.marino8383.lasttime.data.bellLatenessMs
 import it.marino8383.lasttime.formatDateTime
+import it.marino8383.lasttime.formatDateOnly
 import it.marino8383.lasttime.formatClock
 import it.marino8383.lasttime.formatDurationTwoParts
 import it.marino8383.lasttime.formatRingTime
@@ -108,6 +111,7 @@ fun HomeScreen(
     val archived by vm.archived.collectAsStateWithLifecycle()
     val hiddenCounters by vm.hidden.collectAsStateWithLifecycle()
     val roundSummaries by vm.roundSummaries.collectAsStateWithLifecycle()
+    val todayCounts by vm.todayCounts.collectAsStateWithLifecycle()
     val groupLabels by vm.groupLabels.collectAsStateWithLifecycle()
     val syncStato by SyncStatus.stato.collectAsStateWithLifecycle()
 
@@ -155,6 +159,24 @@ fun HomeScreen(
 
     BackHandler(enabled = showArchive) { showArchive = false }
     BackHandler(enabled = showHidden) { showHidden = false }
+
+    // Tap sul pulsante principale: sui Precisi apre la conferma di sempre, sui
+    // Giornalieri "+1" è diretto — niente conferma, niente "mantieni il ritmo" — ma la
+    // verifica di freschezza sui condivisi resta (vedi checkBeforeRestart).
+    val onCardRestart: (Counter) -> Unit = { counter ->
+        if (counter.mode == CounterMode.GIORNALIERO) {
+            vm.checkBeforeRestart(counter) { esito ->
+                if (esito.moved) staleTarget = esito else vm.logDaily(esito.counter)
+            }
+        } else {
+            restartTarget = counter
+        }
+    }
+    // Doppio tap: sui Precisi apre Riparti avanzato; sui Giornalieri non ha un "avanzato"
+    // a sé — aggiungere o togliere un giorno si fa dallo storico, quindi apre quello.
+    val onCardAdvanced: (Counter) -> Unit = { counter ->
+        if (counter.mode == CounterMode.GIORNALIERO) historyTarget = counter else advancedTarget = counter
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -230,10 +252,11 @@ fun HomeScreen(
                                     counter = counter,
                                     now = now,
                                     sharedWith = counter.sharedGroupId?.let { groupLabels[it] },
+                                    todayCount = todayCounts[counter.id] ?: 0,
                                     onCycleView = { vm.cycleViewMode(counter) },
                                     onHistory = { historyTarget = counter },
-                                    onRestart = { restartTarget = counter },
-                                    onAdvancedRestart = { advancedTarget = counter },
+                                    onRestart = { onCardRestart(counter) },
+                                    onAdvancedRestart = { onCardAdvanced(counter) },
                                     onEdit = { editTarget = counter },
                                     onBell = { bellTarget = counter },
                                     onShare = { shareTarget = counter },
@@ -280,10 +303,11 @@ fun HomeScreen(
                                 counter = counter,
                                 now = now,
                                 sharedWith = counter.sharedGroupId?.let { groupLabels[it] },
+                                todayCount = todayCounts[counter.id] ?: 0,
                                 onCycleView = { vm.cycleViewMode(counter) },
                                 onHistory = { historyTarget = counter },
-                                onRestart = { restartTarget = counter },
-                                onAdvancedRestart = { advancedTarget = counter },
+                                onRestart = { onCardRestart(counter) },
+                                onAdvancedRestart = { onCardAdvanced(counter) },
                                 onEdit = { editTarget = counter },
                                 onBell = { bellTarget = counter },
                                 onShare = { shareTarget = counter },
@@ -359,8 +383,12 @@ fun HomeScreen(
     }
 
     historyTarget?.let { target ->
-        // Prende la versione aggiornata del contatore (es. dopo un restart a sheet aperto)
-        val counter = counters.firstOrNull { it.id == target.id } ?: target
+        // Prende la versione aggiornata del contatore (es. dopo un restart a sheet aperto).
+        // Cerca in tutte le liste: può arrivare anche da Nascosti o dall'Archivio.
+        val counter = counters.firstOrNull { it.id == target.id }
+            ?: hiddenCounters.firstOrNull { it.id == target.id }
+            ?: archived.firstOrNull { it.id == target.id }
+            ?: target
         val roundsFlow = remember(target.id, counter.historyFromMs) { vm.roundsFor(counter) }
         val rounds by roundsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
         HistorySheet(
@@ -368,6 +396,12 @@ fun HomeScreen(
             now = now,
             rounds = rounds,
             onDismiss = { historyTarget = null },
+            onAddDay = { dateMs -> vm.addDailyEvent(counter, dateMs) },
+            onRemoveDay = { round ->
+                vm.removeDailyEvent(counter, round) { esito ->
+                    Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()
+                }
+            },
         )
     }
 
@@ -375,8 +409,8 @@ fun HomeScreen(
         EditCounterSheet(
             counter = null,
             onDismiss = { showAdd = false },
-            onSave = { name, startMs ->
-                vm.addCounter(name, startMs, bellMinutes = null)
+            onSave = { name, startMs, mode ->
+                vm.addCounter(name, startMs, bellMinutes = null, mode = mode)
                 showAdd = false
             },
         )
@@ -386,8 +420,8 @@ fun HomeScreen(
         EditCounterSheet(
             counter = counter,
             onDismiss = { editTarget = null },
-            onSave = { name, startMs ->
-                vm.editCounter(counter, name, startMs)
+            onSave = { name, startMs, mode ->
+                vm.editCounter(counter, name, startMs, mode)
                 editTarget = null
             },
         )
@@ -520,9 +554,10 @@ fun HomeScreen(
 
     staleTarget?.let { esito ->
         val counter = esito.counter
+        val giornaliero = counter.mode == CounterMode.GIORNALIERO
         AlertDialog(
             onDismissRequest = { staleTarget = null },
-            title = { Text("⚠️ Era già stato fatto ripartire") },
+            title = { Text(if (giornaliero) "⚠️ Segnato già da un altro" else "⚠️ Era già stato fatto ripartire") },
             text = {
                 Column {
                     // Il "quanto fa" in testa: è la cosa che serve per decidere, molto
@@ -531,27 +566,32 @@ fun HomeScreen(
                     val da = formatDurationTwoParts(System.currentTimeMillis() - counter.startMs)
                     Text(
                         (esito.movedBy?.let { "$it l'ha" } ?: "Qualcun altro l'ha") +
-                            " fatto ripartire $da fa, alle ${formatClock(counter.startMs)}, " +
+                            (if (giornaliero) " già segnato $da fa, alle ${formatClock(counter.startMs)}, "
+                            else " fatto ripartire $da fa, alle ${formatClock(counter.startMs)}, ") +
                             "e sul tuo telefono non era ancora arrivato."
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "Farlo ripartire di nuovo aggiungerebbe un secondo evento allo storico, " +
-                            "a $da di distanza dal primo.",
+                        if (giornaliero)
+                            "Se è successo di nuovo (non solo lo stesso evento) puoi comunque " +
+                                "aggiungerlo: conta come un'altra volta oggi."
+                        else
+                            "Farlo ripartire di nuovo aggiungerebbe un secondo evento allo storico, " +
+                                "a $da di distanza dal primo.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
             confirmButton = {
                 TextButton(onClick = { staleTarget = null }) {
-                    Text("Va bene, era già fatto", fontWeight = FontWeight.Bold)
+                    Text(if (giornaliero) "Va bene, basta così" else "Va bene, era già fatto", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = {
-                    vm.restart(counter)
+                    if (giornaliero) vm.logDaily(counter) else vm.restart(counter)
                     staleTarget = null
-                }) { Text("Riparti comunque", color = MaterialTheme.colorScheme.error) }
+                }) { Text(if (giornaliero) "Segna comunque" else "Riparti comunque", color = MaterialTheme.colorScheme.error) }
             },
         )
     }
@@ -652,25 +692,46 @@ fun HomeScreen(
     }
 
     bellTarget?.let { counter ->
-        BellDialog(
-            counter = counter,
-            onDismiss = { bellTarget = null },
-            onSave = { minutes, repeat, mode, enabled, nextBellAt ->
-                vm.updateCounter(
-                    counter.copy(
-                        bellMinutes = minutes,
-                        bellRepeat = repeat,
-                        bellMode = mode,
-                        bellEnabled = enabled,
-                        bellNotified = false,
-                        snoozeUntilMs = null,
-                        nextBellAtMs = nextBellAt,
+        if (counter.mode == CounterMode.GIORNALIERO) {
+            DailyBellDialog(
+                counter = counter,
+                onDismiss = { bellTarget = null },
+                onSave = { bellMinutes, dailyBellMinuteOfDay, enabled, nextBellAt ->
+                    vm.updateCounter(
+                        counter.copy(
+                            bellMinutes = bellMinutes,
+                            dailyBellMinuteOfDay = dailyBellMinuteOfDay,
+                            bellEnabled = enabled,
+                            bellNotified = false,
+                            snoozeUntilMs = null,
+                            nextBellAtMs = nextBellAt,
+                        )
                     )
-                )
-                if (minutes != null && enabled) AlarmScheduler.ensureExactAlarmPermission(context)
-                bellTarget = null
-            },
-        )
+                    if (bellMinutes != null && enabled) AlarmScheduler.ensureExactAlarmPermission(context)
+                    bellTarget = null
+                },
+            )
+        } else {
+            BellDialog(
+                counter = counter,
+                onDismiss = { bellTarget = null },
+                onSave = { minutes, repeat, mode, enabled, nextBellAt ->
+                    vm.updateCounter(
+                        counter.copy(
+                            bellMinutes = minutes,
+                            bellRepeat = repeat,
+                            bellMode = mode,
+                            bellEnabled = enabled,
+                            bellNotified = false,
+                            snoozeUntilMs = null,
+                            nextBellAtMs = nextBellAt,
+                        )
+                    )
+                    if (minutes != null && enabled) AlarmScheduler.ensureExactAlarmPermission(context)
+                    bellTarget = null
+                },
+            )
+        }
     }
 }
 
@@ -746,6 +807,7 @@ private fun CounterCard(
     counter: Counter,
     now: Long,
     sharedWith: String?,
+    todayCount: Int = 0,
     onCycleView: () -> Unit,
     onHistory: () -> Unit,
     onRestart: () -> Unit,
@@ -755,6 +817,7 @@ private fun CounterCard(
     onShare: () -> Unit,
     onToggleHidden: () -> Unit,
 ) {
+    val giornaliero = counter.mode == CounterMode.GIORNALIERO
     // Allineato al secondo del timer: anche il countdown campanella deriva da qui,
     // così i due conteggi scattano nello stesso istante (se scala uno scala l'altro)
     val elapsed = (now - counter.startMs).coerceAtLeast(0) / 1000 * 1000
@@ -860,37 +923,69 @@ private fun CounterCard(
                 }
             }
 
-            val parts = timeParts(elapsed, ViewMode.from(counter.viewMode))
-            Text(
-                buildAnnotatedString {
-                    parts.forEachIndexed { i, (value, label) ->
-                        append(value)
+            if (giornaliero) {
+                val giorni = calendarDaysBetween(counter.startMs, now)
+                Text(
+                    buildAnnotatedString {
+                        append(giorni.toString())
                         withStyle(
                             SpanStyle(
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                        ) { append(label) }
-                        if (i < parts.lastIndex) append(" ")
-                    }
-                },
-                fontSize = 32.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = if (over) OnErrorContainer else MaterialTheme.colorScheme.onSurface,
-                style = TextStyle(fontFeatureSettings = "tnum"),
-                modifier = Modifier
-                    .padding(top = 12.dp)
-                    // Solo le cifre cambiano vista al tap (v21)
-                    .clickable { onCycleView() },
-            )
+                        ) { append(if (giorni == 1L) " giorno" else " giorni") }
+                    },
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (over) OnErrorContainer else MaterialTheme.colorScheme.onSurface,
+                    style = TextStyle(fontFeatureSettings = "tnum"),
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            } else {
+                val parts = timeParts(elapsed, ViewMode.from(counter.viewMode))
+                Text(
+                    buildAnnotatedString {
+                        parts.forEachIndexed { i, (value, label) ->
+                            append(value)
+                            withStyle(
+                                SpanStyle(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            ) { append(label) }
+                            if (i < parts.lastIndex) append(" ")
+                        }
+                    },
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (over) OnErrorContainer else MaterialTheme.colorScheme.onSurface,
+                    style = TextStyle(fontFeatureSettings = "tnum"),
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        // Solo le cifre cambiano vista al tap (v21) — sui Giornalieri non c'è
+                        // nient'altro da ciclare, la data di calendario è l'unica vista.
+                        .clickable { onCycleView() },
+                )
+            }
             Text(
-                "dal ${formatDateTime(counter.startMs)}",
+                if (giornaliero) "ultima volta il ${formatDateOnly(counter.startMs)}"
+                else "dal ${formatDateTime(counter.startMs)}",
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
+            if (giornaliero && todayCount > 0) {
+                Text(
+                    if (todayCount == 1) "oggi 1 volta" else "oggi $todayCount volte",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             counter.sharedGroupId?.let {
                 Text(
                     "👥 condiviso con ${sharedWith ?: "…"}",
@@ -956,7 +1051,8 @@ private fun CounterCard(
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                // ↺: tap = riparti con conferma, doppio tap = riparti avanzato (v25)
+                // ↺: tap = riparti con conferma, doppio tap = riparti avanzato (v25).
+                // Sui Giornalieri il tap è diretto ("+1"), il doppio tap apre lo storico.
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -970,7 +1066,8 @@ private fun CounterCard(
                         },
                 ) {
                     Icon(
-                        Icons.Filled.Refresh, contentDescription = "Riparti",
+                        if (giornaliero) Icons.Filled.Add else Icons.Filled.Refresh,
+                        contentDescription = if (giornaliero) "+1" else "Riparti",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

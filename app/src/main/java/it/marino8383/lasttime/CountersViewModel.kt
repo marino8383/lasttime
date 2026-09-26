@@ -5,10 +5,15 @@ import androidx.lifecycle.AndroidViewModel
 import it.marino8383.lasttime.AppSettings
 import androidx.lifecycle.viewModelScope
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.advanceToFuture
 import it.marino8383.lasttime.data.add
+import it.marino8383.lasttime.data.addDailyPoint
 import it.marino8383.lasttime.data.create
+import it.marino8383.lasttime.data.loggedDaily
+import it.marino8383.lasttime.data.nextDailyBellAtMs
+import it.marino8383.lasttime.data.noonOf
 import it.marino8383.lasttime.data.save
 import it.marino8383.lasttime.data.saveLocal
 import it.marino8383.lasttime.data.restarted
@@ -21,6 +26,7 @@ import it.marino8383.lasttime.sync.SyncWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -43,20 +49,27 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     val roundSummaries = db.roundDao().summaries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** "Oggi N volte" per i Giornalieri, per contatore — vedi RoundDao.todayCounts. */
+    val todayCounts = db.roundDao().todayCounts()
+        .map { list -> list.associate { it.counterId to it.n } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     /** I round del ciclo in corso: quelli prima del confine non si contano più. */
     fun roundsFor(counter: Counter) =
         db.roundDao().roundsFor(counter.id, counter.historyFromMs ?: 0)
 
-    fun addCounter(name: String, startMs: Long, bellMinutes: Long?) {
+    fun addCounter(name: String, startMs: Long, bellMinutes: Long?, mode: String = CounterMode.PRECISO) {
         viewModelScope.launch {
             // Data nel futuro -> clamp ad adesso (v16)
-            val start = startMs.coerceAtMost(System.currentTimeMillis())
+            val now = System.currentTimeMillis()
+            val start = (if (mode == CounterMode.GIORNALIERO) noonOf(startMs) else startMs).coerceAtMost(now)
             db.counterDao().create(
                 Counter(
                     name = name.trim(),
                     startMs = start,
                     bellMinutes = bellMinutes,
-                    createdMs = System.currentTimeMillis(),
+                    createdMs = now,
+                    mode = mode,
                 )
             )
             AlarmScheduler.scheduleNext(getApplication())
@@ -80,22 +93,47 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      * a prescindere da quando confermi è esattamente il suo motivo di esistere — la
      * pillola delle 8 resta delle 8 anche se correggi l'ora in cui l'hai presa.
      */
-    fun editCounter(counter: Counter, name: String, startMs: Long) {
+    fun editCounter(counter: Counter, name: String, startMs: Long, mode: String = counter.mode) {
         viewModelScope.launch {
-            val start = startMs.coerceAtMost(System.currentTimeMillis())
-            val step = counter.bellMinutes?.times(60_000)
-            var updated = counter.copy(name = name.trim(), startMs = start)
-            if (step != null && start != counter.startMs && counter.bellMode != "FIXED") {
+            val now = System.currentTimeMillis()
+            val cambiaModalita = mode != counter.mode
+            val start = (if (mode == CounterMode.GIORNALIERO) noonOf(startMs) else startMs).coerceAtMost(now)
+            var updated = counter.copy(name = name.trim(), startMs = start, mode = mode)
+            if (cambiaModalita) {
+                // La vecchia campanella non ha senso nell'altra modalità (minuti/ore contro
+                // "ogni N giorni alle HH:MM"): si azzera, si riconfigura da capo.
                 updated = updated.copy(
-                    nextBellAtMs = start + step,
+                    bellMinutes = null,
+                    dailyBellMinuteOfDay = null,
+                    nextBellAtMs = null,
                     bellNotified = false,
                     snoozeUntilMs = null,
                 )
+            } else if (mode == CounterMode.GIORNALIERO) {
+                updated = updated.copy(nextBellAtMs = recomputeDailyBell(updated))
+            } else {
+                val step = counter.bellMinutes?.times(60_000)
+                if (step != null && start != counter.startMs && counter.bellMode != "FIXED") {
+                    updated = updated.copy(
+                        nextBellAtMs = start + step,
+                        bellNotified = false,
+                        snoozeUntilMs = null,
+                    )
+                }
             }
             db.counterDao().save(updated)
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }
+    }
+
+    /** Prossima scadenza GIORNALIERO dallo stato attuale del contatore, o null se non configurata. */
+    private fun recomputeDailyBell(counter: Counter): Long? {
+        val days = counter.bellMinutes?.div(1440)
+        val minuteOfDay = counter.dailyBellMinuteOfDay
+        return if (days != null && minuteOfDay != null) {
+            nextDailyBellAtMs(counter.startMs, days, minuteOfDay)
+        } else null
     }
 
     /**
@@ -315,6 +353,74 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
             onDone("✅ Corretto.")
+        }
+    }
+
+    // ---------------------------------------------------------------- modalità Giornaliera
+
+    /**
+     * "+1" di un contatore GIORNALIERO: registra un evento a adesso. A differenza di
+     * [restart] non chiede conferma né "mantieni il ritmo" — più volte lo stesso giorno
+     * sono normali, non un'eccezione da segnalare (vedi Counter.loggedDaily).
+     */
+    fun logDaily(counter: Counter) {
+        viewModelScope.launch {
+            val counter = db.counterDao().byId(counter.id) ?: counter
+            val now = System.currentTimeMillis()
+            db.roundDao().addDailyPoint(Round(counterId = counter.id, startMs = now, endMs = now), counter)
+            db.counterDao().save(counter.loggedDaily(now))
+            Notifications.cancel(getApplication(), counter.id)
+            AlarmScheduler.scheduleNext(getApplication())
+        }
+    }
+
+    /**
+     * Ricalcola lo stato di un contatore GIORNALIERO dopo che lo storico è cambiato
+     * (aggiunta o rimozione, non necessariamente l'ultimo evento): data dell'evento più
+     * recente rimasto — [createdMs] se nessuno — e prossima scadenza da lì.
+     */
+    private suspend fun recomputeDaily(counter: Counter): Counter {
+        val last = db.roundDao().recentFor(counter.id, 1).firstOrNull()
+        return counter.loggedDaily(last?.endMs ?: counter.createdMs)
+    }
+
+    /**
+     * Storico GIORNALIERO, aggiunta: un giorno dimenticato ("però un giorno l'ha fatta e
+     * me ne sono scordato"). Niente vincoli di catena — non è un ciclo, è un punto in più
+     * nel calendario — e ricalcola sempre stato e campanella, anche se non è l'ultimo.
+     */
+    fun addDailyEvent(counter: Counter, dateMs: Long, onDone: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            val counter = db.counterDao().byId(counter.id) ?: counter
+            val at = noonOf(dateMs.coerceAtMost(System.currentTimeMillis()))
+            db.roundDao().addDailyPoint(Round(counterId = counter.id, startMs = at, endMs = at), counter)
+            db.counterDao().save(recomputeDaily(db.counterDao().byId(counter.id) ?: counter))
+            AlarmScheduler.scheduleNext(getApplication())
+            onDone("✅ Aggiunto.")
+        }
+    }
+
+    /**
+     * Storico GIORNALIERO, rimozione: un evento sbagliato. A differenza dei Precisi (dove
+     * i round restano per sempre) qui si può cancellare qualunque riga, non solo l'ultima —
+     * è la scelta fatta apposta per questa modalità, vedi firestore.rules.
+     */
+    fun removeDailyEvent(counter: Counter, round: Round, onDone: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            val counter = db.counterDao().byId(counter.id) ?: counter
+            val groupId = counter.sharedGroupId
+            if (groupId != null) {
+                try {
+                    Groups.deleteRound(groupId, round.uuid)
+                } catch (t: Throwable) {
+                    onDone("⚠️ Non sono riuscito a toglierlo dal gruppo: ${t.message}")
+                    return@launch
+                }
+            }
+            db.roundDao().deleteByUuid(round.uuid)
+            db.counterDao().save(recomputeDaily(db.counterDao().byId(counter.id) ?: counter))
+            AlarmScheduler.scheduleNext(getApplication())
+            onDone("✅ Tolto.")
         }
     }
 

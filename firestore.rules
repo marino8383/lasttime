@@ -29,6 +29,15 @@ service cloud.firestore {
       return inv.groupId == groupId && inv.expiresMs > request.time.toMillis();
     }
 
+    // Un contatore Giornaliero conta date di calendario, non round di un ciclo: il suo
+    // storico non e' append-only, si puo' aggiungere o togliere un giorno a caso (vedi
+    // Counter.mode nell'app). 'PRECISO' di default per i contatori piu' vecchi di questo
+    // campo, che restano bloccati come sempre.
+    function isDailyCounter(groupId, counterUuid) {
+      return get(/databases/$(database)/documents/groups/$(groupId)/counters/$(counterUuid))
+        .data.get('mode', 'PRECISO') == 'GIORNALIERO';
+    }
+
     // Inviti. Si leggono solo conoscendo il codice esatto: "list" resta negato, cosi'
     // nessuno puo' scorrere gli inviti in giro per trovarne uno valido.
     match /invites/{code} {
@@ -84,7 +93,9 @@ service cloud.firestore {
           && request.resource.data.endMs <= request.time.toMillis()
           && (resource.data.endMsUpdatedAt == null || request.resource.data.endMsUpdatedAt >= resource.data.endMsUpdatedAt)
           && request.resource.data.endMsUpdatedAt <= request.time.toMillis();
-        allow delete: if false;
+        // Sui Giornalieri niente append-only: chiunque nel gruppo puo' cancellare
+        // qualunque evento passato, non solo l'ultimo (deciso il 26/09 insieme a Fabrizio).
+        allow delete: if isMember(groupId) && isDailyCounter(groupId, resource.data.counterUuid);
       }
     }
   }

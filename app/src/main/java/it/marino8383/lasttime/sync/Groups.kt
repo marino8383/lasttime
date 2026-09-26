@@ -125,6 +125,10 @@ object Groups {
         // correggere (solo endMs), per "Correggi l'ultimo riavvio".
         "lastRoundUuid" to counter.lastRoundUuid,
         "lastRoundStartMs" to counter.lastRoundStartMs,
+        // Modalità Giornaliera: cambia come si conta e le regole del server per i round
+        // di questo contatore (niente più append-only, vedi firestore.rules).
+        "mode" to counter.mode,
+        "dailyBellMinuteOfDay" to counter.dailyBellMinuteOfDay,
     )
 
     /**
@@ -177,5 +181,15 @@ object Groups {
         db.collection("groups").document(groupId)
             .collection("rounds").document(roundUuid)
             .update(mapOf("endMs" to endMs, "endMsUpdatedAt" to stampMs)).await()
+    }
+
+    /**
+     * Cancella un round dal gruppo: solo per la modalità GIORNALIERO, dove le regole del
+     * server lo concedono su qualunque round di quel contatore, non solo l'ultimo.
+     */
+    suspend fun deleteRound(groupId: String, roundUuid: String) {
+        db.collection("groups").document(groupId)
+            .collection("rounds").document(roundUuid)
+            .delete().await()
     }
 }

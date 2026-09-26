@@ -9,7 +9,9 @@ import com.google.firebase.firestore.ListenerRegistration
 import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.LastTimeApp
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.Round
+import it.marino8383.lasttime.data.nextDailyBellAtMs
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
 import kotlinx.coroutines.CoroutineScope
@@ -163,10 +165,16 @@ object SyncEngine {
                 }
                 snap ?: return@addSnapshotListener
                 scope.launch {
-                    // Solo aggiunte: gli eventi sono append-only, una rimozione non esiste
-                    snap.documentChanges
-                        .filter { it.type != DocumentChange.Type.REMOVED }
-                        .forEach { applyRemoteRound(app, it.document.data) }
+                    // Per i Precisi gli eventi sono append-only e una rimozione non esiste
+                    // mai davvero; per i Giornalieri invece cancellare un round è
+                    // un'azione vera (vedi applyRemoteRoundRemoved).
+                    snap.documentChanges.forEach { change ->
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            applyRemoteRoundRemoved(app, change.document.id)
+                        } else {
+                            applyRemoteRound(app, change.document.data)
+                        }
+                    }
                 }
             }
     }
@@ -200,11 +208,18 @@ object SyncEngine {
         val bellMinutes = (data["bellMinutes"] as? Number)?.toLong()
         val bellMode = data["bellMode"] as? String ?: "INTERVAL"
         val bellRepeat = data["bellRepeat"] as? Boolean ?: true
+        val mode = data["mode"] as? String ?: CounterMode.PRECISO
+        val dailyBellMinuteOfDay = (data["dailyBellMinuteOfDay"] as? Number)?.toInt()
 
         if (local == null) {
             // Prima volta che vediamo questo contatore: e' entrato nel gruppo da un altro
             // telefono. Nasce qui con la campanella calcolata in locale.
-            val step = bellMinutes?.times(60_000)
+            val nextBell = if (mode == CounterMode.GIORNALIERO) {
+                val days = bellMinutes?.div(1440)
+                if (days != null && dailyBellMinuteOfDay != null) nextDailyBellAtMs(startMs, days, dailyBellMinuteOfDay) else null
+            } else {
+                bellMinutes?.times(60_000)?.let { startMs + it }
+            }
             dao.insertRaw(
                 Counter(
                     uuid = uuid,
@@ -213,7 +228,7 @@ object SyncEngine {
                     bellMinutes = bellMinutes,
                     bellMode = bellMode,
                     bellRepeat = bellRepeat,
-                    nextBellAtMs = if (step != null) startMs + step else null,
+                    nextBellAtMs = nextBell,
                     createdMs = System.currentTimeMillis(),
                     updatedMs = remoteUpdated,
                     sharedGroupId = groupId,
@@ -222,6 +237,8 @@ object SyncEngine {
                     historyFromMs = (data["historyFromMs"] as? Number)?.toLong(),
                     lastRoundUuid = data["lastRoundUuid"] as? String,
                     lastRoundStartMs = (data["lastRoundStartMs"] as? Number)?.toLong(),
+                    mode = mode,
+                    dailyBellMinuteOfDay = dailyBellMinuteOfDay,
                 )
             )
             aligned[uuid] = remoteUpdated
@@ -254,7 +271,6 @@ object SyncEngine {
         if (remoteUpdated <= local.updatedMs) return
 
         val movedStart = startMs != local.startMs
-        val step = bellMinutes?.times(60_000)
         val archived = data["archived"] as? Boolean ?: false
         var updated = local.copy(
             name = name,
@@ -270,28 +286,42 @@ object SyncEngine {
             historyFromMs = (data["historyFromMs"] as? Number)?.toLong(),
             lastRoundUuid = data["lastRoundUuid"] as? String,
             lastRoundStartMs = (data["lastRoundStartMs"] as? Number)?.toLong(),
+            mode = mode,
+            dailyBellMinuteOfDay = dailyBellMinuteOfDay,
         )
-        // Quando rifare la scadenza locale. Oltre al caso ovvio — l'altro ha fatto
-        // ripartire il timer, e qui lo "sforato" si spegne da solo — ce ne sono due che
-        // erano scoperti:
-        //  - la campanella e' stata configurata o cambiata dall'altro dopo la condivisione
-        //  - non abbiamo nessuna scadenza, tipico di un contatore arrivato senza campanella
-        //    e configurato solo dopo: il badge compariva ma non c'era niente da suonare
-        // Una FIXED tiene il suo ritmo quando si sposta solo l'inizio, ma se il ritmo
-        // stesso cambia o manca del tutto va comunque ricalcolata.
-        val cambiataCampanella = bellMinutes != local.bellMinutes
-        val senzaScadenza = local.nextBellAtMs == null
-        val rifasa = step != null &&
-            (cambiataCampanella || senzaScadenza || (movedStart && bellMode != "FIXED"))
-        if (rifasa) {
-            updated = updated.copy(
-                nextBellAtMs = startMs + step!!,
-                bellNotified = false,
-                snoozeUntilMs = null,
-            )
-        } else if (step == null) {
-            // campanella tolta dall'altro: qui sparisce anche la scadenza
-            updated = updated.copy(nextBellAtMs = null, bellNotified = false, snoozeUntilMs = null)
+        if (mode == CounterMode.GIORNALIERO) {
+            // Sui Giornalieri si ricalcola sempre: siamo qui solo perché qualcosa di
+            // remoto e' cambiato, e la scadenza dipende sempre e solo da (data
+            // dell'ultimo evento, N giorni, orario) — niente FIXED, niente "da adesso".
+            val days = bellMinutes?.div(1440)
+            val nextBell = if (days != null && dailyBellMinuteOfDay != null) {
+                nextDailyBellAtMs(startMs, days, dailyBellMinuteOfDay)
+            } else null
+            updated = updated.copy(nextBellAtMs = nextBell, bellNotified = false, snoozeUntilMs = null)
+        } else {
+            // Quando rifare la scadenza locale. Oltre al caso ovvio — l'altro ha fatto
+            // ripartire il timer, e qui lo "sforato" si spegne da solo — ce ne sono due che
+            // erano scoperti:
+            //  - la campanella e' stata configurata o cambiata dall'altro dopo la condivisione
+            //  - non abbiamo nessuna scadenza, tipico di un contatore arrivato senza campanella
+            //    e configurato solo dopo: il badge compariva ma non c'era niente da suonare
+            // Una FIXED tiene il suo ritmo quando si sposta solo l'inizio, ma se il ritmo
+            // stesso cambia o manca del tutto va comunque ricalcolata.
+            val cambiataCampanella = bellMinutes != local.bellMinutes
+            val senzaScadenza = local.nextBellAtMs == null
+            val step = bellMinutes?.times(60_000)
+            val rifasa = step != null &&
+                (cambiataCampanella || senzaScadenza || (movedStart && bellMode != "FIXED"))
+            if (rifasa) {
+                updated = updated.copy(
+                    nextBellAtMs = startMs + step!!,
+                    bellNotified = false,
+                    snoozeUntilMs = null,
+                )
+            } else if (step == null) {
+                // campanella tolta dall'altro: qui sparisce anche la scadenza
+                updated = updated.copy(nextBellAtMs = null, bellNotified = false, snoozeUntilMs = null)
+            }
         }
         dao.updateRaw(updated) // updateRaw: updatedMs e' quello remoto, non va ritimbrato
         aligned[uuid] = remoteUpdated
@@ -439,6 +469,15 @@ object SyncEngine {
         ) {
             Notifications.notifySharedRestart(app, counter, byName, endMs)
         }
+    }
+
+    /**
+     * Un round e' stato cancellato altrove — succede solo sui Giornalieri (i Precisi sono
+     * append-only, una rimozione li' non arriva mai). Basta toglierlo in locale: la data
+     * dell'ultimo evento e la prossima scadenza arrivano a parte, dal canale del contatore.
+     */
+    private suspend fun applyRemoteRoundRemoved(app: LastTimeApp, roundUuid: String) {
+        app.db.roundDao().deleteByUuid(roundUuid)
     }
 
     /** Manda su un evento appena registrato, se il contatore e' condiviso. */

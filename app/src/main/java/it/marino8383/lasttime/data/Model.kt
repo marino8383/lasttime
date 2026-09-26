@@ -85,6 +85,17 @@ data class Counter(
     val lastRoundUuid: String? = null,
     /** Inizio di quel round, cache locale per non doverlo rileggere solo per validare la UI. */
     val lastRoundStartMs: Long? = null,
+    /**
+     * "PRECISO" (com'era finora, orario esatto) oppure "GIORNALIERO": conta date di
+     * calendario, non tempo trascorso — più eventi lo stesso giorno non fanno più giorni.
+     * Sincronizzato: sui condivisi vale per tutti, come il nome o la campanella.
+     */
+    val mode: String = "PRECISO",
+    /**
+     * Solo in modalità GIORNALIERO: minuti da mezzanotte per "suona alle HH:MM" quando
+     * scadono gli N giorni (bellMinutes, riusato, vale N*1440). Es. 900 = 15:00.
+     */
+    val dailyBellMinuteOfDay: Int? = null,
 )
 
 @Entity(
@@ -250,6 +261,25 @@ interface RoundDao {
     @Query("UPDATE rounds SET endMs = :endMs, endMsUpdatedAt = :stampMs WHERE id = :id")
     suspend fun correctEndMs(id: Long, endMs: Long, stampMs: Long)
 
+    /**
+     * Cancella un round per uuid: solo per la modalità GIORNALIERO, dove lo storico non è
+     * append-only (vedi firestore.rules). Per uuid e non per id: arriva anche dal listener
+     * quando la cancellazione l'ha fatta un altro telefono.
+     */
+    @Query("DELETE FROM rounds WHERE uuid = :uuid")
+    suspend fun deleteByUuid(uuid: String)
+
+    /**
+     * Quante volte oggi, per contatore — per la riga "oggi N volte" dei Giornalieri.
+     * 'localtime' perché "oggi" è il giorno di calendario di questo telefono, non UTC.
+     */
+    @Query(
+        "SELECT counterId, COUNT(*) AS n FROM rounds " +
+            "WHERE noTime = 0 AND date(endMs / 1000, 'unixepoch', 'localtime') = date('now', 'localtime') " +
+            "GROUP BY counterId"
+    )
+    fun todayCounts(): Flow<List<CounterDayCount>>
+
     /** Una riga per contatore, per la card d'archivio: quanti round e quanto è durato l'ultimo. */
     @Query(
         "SELECT r.counterId AS counterId, COUNT(*) AS rounds, " +
@@ -291,6 +321,22 @@ suspend fun RoundDao.add(round: Round, counter: Counter): Round {
     return firmato
 }
 
+/**
+ * Come [RoundDao.add], ma per un contatore GIORNALIERO: il round è un punto
+ * (startMs == endMs, mezzogiorno della data), non incatenato ai vicini — aggiungere o
+ * cancellare un giorno a caso nello storico non deve ristrutturare gli altri round.
+ */
+suspend fun RoundDao.addDailyPoint(round: Round, counter: Counter): Round {
+    val firmato = if (counter.sharedGroupId != null && round.byName == null) {
+        round.copy(byName = Cloud.myName.takeIf { it.isNotBlank() })
+    } else {
+        round
+    }
+    insert(firmato)
+    SyncEngine.pushRoundIfShared(counter, firmato)
+    return firmato
+}
+
 /** Riepilogo dei round di un contatore (vedi [RoundDao.summaries]). */
 data class RoundSummary(
     val counterId: Long,
@@ -299,7 +345,10 @@ data class RoundSummary(
     val lastDurationMs: Long?,
 )
 
-@Database(entities = [Counter::class, Round::class], version = 13, exportSchema = false)
+/** Quante volte oggi per un contatore (vedi [RoundDao.todayCounts]). */
+data class CounterDayCount(val counterId: Long, val n: Int)
+
+@Database(entities = [Counter::class, Round::class], version = 14, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -392,6 +441,14 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
     }
 }
 
+/** Modalità Giornaliera: vedi [Counter.mode] e [Counter.dailyBellMinuteOfDay]. */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN mode TEXT NOT NULL DEFAULT 'PRECISO'")
+        db.execSQL("ALTER TABLE counters ADD COLUMN dailyBellMinuteOfDay INTEGER")
+    }
+}
+
 val MIGRATION_8_9 = object : Migration(8, 9) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE counters ADD COLUMN notifyOnRemote INTEGER NOT NULL DEFAULT 1")
@@ -462,4 +519,55 @@ fun Counter.restarted(now: Long, latePercent: Int): Counter {
         bellEnabled = enabled,
         scheduledResetMs = null, // l'ultimo comando vince: un restart annulla il reset programmato
     )
+}
+
+/** Valori validi di [Counter.mode]. */
+object CounterMode {
+    const val PRECISO = "PRECISO"
+    const val GIORNALIERO = "GIORNALIERO"
+}
+
+/**
+ * Prossima scadenza di un contatore GIORNALIERO: [days] giorni dopo la **data** di
+ * [fromMs] (non l'istante esatto), alle ore [minuteOfDay] (minuti da mezzanotte). Data di
+ * calendario, non un offset in millisecondi: 3 giorni dal 10 gennaio sono il 13 gennaio,
+ * non "72 ore dopo le 23:50 del 10".
+ */
+fun nextDailyBellAtMs(fromMs: Long, days: Long, minuteOfDay: Int): Long {
+    val zone = java.time.ZoneId.systemDefault()
+    val fromDate = java.time.Instant.ofEpochMilli(fromMs).atZone(zone).toLocalDate()
+    return fromDate.plusDays(days).atStartOfDay(zone).plusMinutes(minuteOfDay.toLong())
+        .toInstant().toEpochMilli()
+}
+
+/** Mezzogiorno locale della data di [epochMs]: convenzione per gli eventi Giornalieri
+ * inseriti a posteriori (o dal "+1" del giorno), che non hanno un orario vero. */
+fun noonOf(epochMs: Long): Long {
+    val zone = java.time.ZoneId.systemDefault()
+    return java.time.Instant.ofEpochMilli(epochMs).atZone(zone).toLocalDate()
+        .atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+}
+
+/**
+ * Giorni di calendario fra due istanti, non ore trascorse/24: le 23 di ieri e le 7 di
+ * oggi sono 1 giorno (una mezzanotte di mezzo), anche se sono passate solo 8 ore.
+ */
+fun calendarDaysBetween(fromMs: Long, toMs: Long): Long {
+    val zone = java.time.ZoneId.systemDefault()
+    val fromDate = java.time.Instant.ofEpochMilli(fromMs).atZone(zone).toLocalDate()
+    val toDate = java.time.Instant.ofEpochMilli(toMs).atZone(zone).toLocalDate()
+    return java.time.temporal.ChronoUnit.DAYS.between(fromDate, toDate)
+}
+
+/**
+ * "+1" di un contatore GIORNALIERO: aggiorna la data dell'ultimo evento e la prossima
+ * scadenza. Il round va registrato a parte (vedi [RoundDao.addDailyPoint]) — qui c'è solo
+ * lo stato del contatore, come [restarted] per i Precisi.
+ */
+fun Counter.loggedDaily(now: Long): Counter {
+    val days = bellMinutes?.div(1440)
+    val nextBell = if (days != null && dailyBellMinuteOfDay != null && bellEnabled) {
+        nextDailyBellAtMs(now, days, dailyBellMinuteOfDay)
+    } else null
+    return copy(startMs = now, bellNotified = false, snoozeUntilMs = null, nextBellAtMs = nextBell)
 }

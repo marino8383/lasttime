@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.sp
 import it.marino8383.lasttime.AppSettings
 import it.marino8383.lasttime.breakdown
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.CounterMode
+import it.marino8383.lasttime.data.calendarDaysBetween
 import java.util.Locale
 
 // Palette Solari da stazione (mockup v14)
@@ -156,12 +158,16 @@ private fun FlipBoard(
     // non vedere che il giro è scaduto.
     val over = counter.nextBellAtMs?.let { it <= now } == true && snoozePending == null
 
-    val groups: List<Pair<String, String>> = when (unit) {
-        "ANNI" -> listOf("anni" to String.format(Locale.ITALIAN, "%.4f", totalSec / 31_536_000.0))
-        "MESI" -> listOf("mesi" to (totalSec / 2_592_000).toString())
-        "GIORNI" -> listOf("giorni" to (totalSec / 86_400).toString())
-        "MINUTI" -> listOf("min" to (totalSec / 60).toString())
-        "SECONDI" -> listOf("sec" to totalSec.toString())
+    // Un Giornaliero ignora l'unità globale scelta sul tabellone: mostra sempre e solo
+    // giorni di calendario, l'unica cosa che per lui ha senso (vedi Counter.mode).
+    val giorniCalendario = counter.mode == CounterMode.GIORNALIERO
+    val groups: List<Pair<String, String>> = when {
+        giorniCalendario -> listOf("giorni" to calendarDaysBetween(counter.startMs, now).toString())
+        unit == "ANNI" -> listOf("anni" to String.format(Locale.ITALIAN, "%.4f", totalSec / 31_536_000.0))
+        unit == "MESI" -> listOf("mesi" to (totalSec / 2_592_000).toString())
+        unit == "GIORNI" -> listOf("giorni" to (totalSec / 86_400).toString())
+        unit == "MINUTI" -> listOf("min" to (totalSec / 60).toString())
+        unit == "SECONDI" -> listOf("sec" to totalSec.toString())
         else -> {
             val b = breakdown(elapsedMs)
             buildList {

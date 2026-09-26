@@ -72,6 +72,12 @@ fun formatDateTime(epochMs: Long): String =
 fun formatShortDateTime(epochMs: Long): String =
     shortDateTimeFmt.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
 
+private val dateOnlyFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ITALIAN)
+
+/** Solo la data, per i contatori Giornalieri: l'orario lì non è mai reale. */
+fun formatDateOnly(epochMs: Long): String =
+    dateOnlyFmt.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
+
 private val clockFmt = DateTimeFormatter.ofPattern("HH:mm", Locale.ITALIAN)
 private val shortDateFmt = DateTimeFormatter.ofPattern("dd/MM", Locale.ITALIAN)
 

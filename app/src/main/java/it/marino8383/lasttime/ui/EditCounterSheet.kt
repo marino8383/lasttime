@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.CounterMode
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -55,16 +56,18 @@ private val timeFmt = DateTimeFormatter.ofPattern("HH:mm", Locale.ITALIAN)
 fun EditCounterSheet(
     counter: Counter?,
     onDismiss: () -> Unit,
-    onSave: (name: String, startMs: Long) -> Unit,
+    onSave: (name: String, startMs: Long, mode: String) -> Unit,
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var name by remember { mutableStateOf(counter?.name ?: "") }
+    var mode by remember { mutableStateOf(counter?.mode ?: CounterMode.PRECISO) }
     var startNow by remember { mutableStateOf(counter == null) }
     var startMs by remember { mutableLongStateOf(counter?.startMs ?: System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
+    val giornaliero = mode == CounterMode.GIORNALIERO
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -89,7 +92,37 @@ fun EditCounterSheet(
             Spacer(Modifier.height(16.dp))
 
             Text(
-                "INIZIO",
+                "MODALITÀ",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !giornaliero,
+                    onClick = { mode = CounterMode.PRECISO },
+                    label = { Text("Al secondo") },
+                )
+                FilterChip(
+                    selected = giornaliero,
+                    onClick = { mode = CounterMode.GIORNALIERO },
+                    label = { Text("A giorni") },
+                )
+            }
+            if (counter != null && mode != counter.mode) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Cambiando modalità la campanella si azzera: va riconfigurata.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                if (giornaliero) "ULTIMO EVENTO" else "INIZIO",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp,
@@ -100,12 +133,20 @@ fun EditCounterSheet(
                 FilterChip(
                     selected = startNow,
                     onClick = { startNow = true },
-                    label = { Text(if (counter == null) "Adesso" else "Riparti da adesso") },
+                    label = {
+                        Text(
+                            when {
+                                giornaliero -> "Oggi"
+                                counter == null -> "Adesso"
+                                else -> "Riparti da adesso"
+                            }
+                        )
+                    },
                 )
                 FilterChip(
                     selected = !startNow,
                     onClick = { startNow = false },
-                    label = { Text("Data e ora") },
+                    label = { Text(if (giornaliero) "Data" else "Data e ora") },
                 )
             }
 
@@ -116,8 +157,10 @@ fun EditCounterSheet(
                     OutlinedButton(onClick = { showDatePicker = true }) {
                         Text("📅 ${dateFmt.format(zoned)}")
                     }
-                    OutlinedButton(onClick = { showTimePicker = true }) {
-                        Text("🕐 ${timeFmt.format(zoned)}")
+                    if (!giornaliero) {
+                        OutlinedButton(onClick = { showTimePicker = true }) {
+                            Text("🕐 ${timeFmt.format(zoned)}")
+                        }
                     }
                 }
             }
@@ -131,7 +174,7 @@ fun EditCounterSheet(
                     if (!startNow && chosen > nowMs) {
                         Toast.makeText(context, "⚠️ Data nel futuro: riparto da adesso", Toast.LENGTH_SHORT).show()
                     }
-                    onSave(name, chosen.coerceAtMost(nowMs))
+                    onSave(name, chosen.coerceAtMost(nowMs), mode)
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Salva", fontWeight = FontWeight.Bold) }
