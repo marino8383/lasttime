@@ -277,6 +277,50 @@ fun HistorySheet(
                 }
             }
 
+            // Ritmo fra un giorno con evento e l'altro (Giornaliera): conta i giorni
+            // distinti, non le occorrenze — ×3 lo stesso giorno non stringe la media.
+            if (giornaliero && dayGroups.isNotEmpty()) {
+                item {
+                    Text(
+                        "📈 STATISTICHE",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    val primaMs = dayGroups.last().first().endMs
+                    val giorniTotali = calendarDaysBetween(primaMs, now) + 1
+                    val percento = dayGroups.size * 100.0 / giorniTotali
+                    SummaryRow(
+                        "Giorni attivi: ${dayGroups.size} su $giorniTotali " +
+                            "(${String.format(Locale.ITALIAN, "%.0f", percento)}%)"
+                    )
+                    if (dayGroups.size >= 2) {
+                        val gaps = (0 until dayGroups.lastIndex).map { i ->
+                            val newerMs = dayGroups[i].first().endMs
+                            val olderMs = dayGroups[i + 1].first().endMs
+                            Triple(calendarDaysBetween(olderMs, newerMs), olderMs, newerMs)
+                        }
+                        val media = gaps.sumOf { it.first }.toDouble() / gaps.size
+                        val massimo = gaps.maxByOrNull { it.first }!!
+                        val minimo = gaps.minByOrNull { it.first }!!
+                        SummaryRow(
+                            "Media fra un giorno e l'altro: ${String.format(Locale.ITALIAN, "%.1f", media)} giorni"
+                        )
+                        SummaryRow(
+                            "Massimo: ${massimo.first} giorni " +
+                                "(dal ${formatDateOnly(massimo.second)} al ${formatDateOnly(massimo.third)})"
+                        )
+                        SummaryRow(
+                            "Minimo: ${minimo.first} giorni " +
+                                "(dal ${formatDateOnly(minimo.second)} al ${formatDateOnly(minimo.third)})"
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
+            }
+
             // Elenco eventi per i Giornalieri: un giorno solo, non una riga per occorrenza
             if (giornaliero && dayGroups.isNotEmpty()) {
                 item {

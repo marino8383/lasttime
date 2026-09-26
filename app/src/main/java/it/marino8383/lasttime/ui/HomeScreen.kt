@@ -27,13 +27,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -151,7 +149,6 @@ fun HomeScreen(
         }
     }
 
-    var flipMode by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var showOptions by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
@@ -208,8 +205,8 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            // niente FAB in vista tabellone (v4), archivio (v24) o nascosti (v28)
-            if (!flipMode && !showArchive && !showHidden) {
+            // niente FAB in archivio (v24) o nascosti (v28)
+            if (!showArchive && !showHidden) {
                 FloatingActionButton(
                     onClick = { showAdd = true },
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -284,8 +281,6 @@ fun HomeScreen(
                 return@Column
             }
             Header(
-                flipMode = flipMode,
-                onFlip = { flipMode = !flipMode },
                 onOptions = { showOptions = true },
                 onArchive = { showArchive = true },
                 onHidden = { showHidden = true },
@@ -293,13 +288,7 @@ fun HomeScreen(
                 syncStato = syncStato.takeIf { counters.any { c -> c.sharedGroupId != null } },
                 onSync = { vm.syncNow() },
             )
-            if (flipMode) {
-                FlipView(
-                    counters = counters,
-                    now = now,
-                    onBoardDoubleTap = { restartTarget = it },
-                )
-            } else if (counters.isEmpty()) {
+            if (counters.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "Nessun contatore.\nTocca + per crearne uno.",
@@ -816,8 +805,6 @@ fun HomeScreen(
 
 @Composable
 private fun Header(
-    flipMode: Boolean,
-    onFlip: () -> Unit,
     onOptions: () -> Unit,
     onArchive: () -> Unit,
     onHidden: () -> Unit,
@@ -863,7 +850,6 @@ private fun Header(
         // Icone vettoriali uniformi (niente emoji miste): 40dp invece dei 48dp di
         // default, altrimenti su un telefono stretto il titolo finisce schiacciato
         // a sinistra — la diagnostica e' stata spostata dentro Opzioni apposta.
-        HeaderIcon(if (flipMode) Icons.Filled.ViewList else Icons.Filled.GridView, "Tabellone", onFlip)
         HeaderIcon(Icons.Filled.Archive, "Archivio", onArchive)
         HeaderIcon(Icons.Filled.VisibilityOff, "Nascosti", onHidden)
         HeaderIcon(Icons.Filled.Settings, "Opzioni", onOptions)
