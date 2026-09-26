@@ -18,8 +18,8 @@ android {
         applicationId = "it.marino8383.lasttime"
         minSdk = 26
         targetSdk = 34
-        versionCode = 60
-        versionName = "0.15.4"
+        versionCode = 61
+        versionName = "0.15.5"
 
         buildConfigField("String", "BUILD_TIME", "\"${buildTimestamp()}\"")
     }
@@ -73,6 +73,9 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
+    // Icone vettoriali uniformi (storico, archivio, occhio, ecc.): il set "core" bundlato
+    // di default con material3 ne ha solo una manciata, non basta a coprire i pannelli.
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
 

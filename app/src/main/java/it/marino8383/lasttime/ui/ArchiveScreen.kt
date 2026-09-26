@@ -14,7 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -87,7 +88,6 @@ fun ArchiveScreen(
                             now = now,
                             onHistory = { onHistory(counter) },
                             onResume = { onResume(counter) },
-                            onDelete = { onDelete(counter) },
                         )
                     }
                 }
@@ -103,7 +103,6 @@ private fun ArchivedCard(
     now: Long,
     onHistory: () -> Unit,
     onResume: () -> Unit,
-    onDelete: () -> Unit,
 ) {
     Card(
         shape = RoundedCornerShape(26.dp),
@@ -152,15 +151,15 @@ private fun ArchivedCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 IconButton(onClick = onHistory) {
-                    Text("🕘", fontSize = 16.sp)
+                    Icon(
+                        Icons.Filled.History, contentDescription = "Storico",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 IconButton(onClick = onResume) {
-                    Text("▶️", fontSize = 16.sp)
-                }
-                IconButton(onClick = onDelete) {
                     Icon(
-                        Icons.Filled.Delete, contentDescription = "Elimina",
-                        tint = MaterialTheme.colorScheme.error,
+                        Icons.Filled.PlayArrow, contentDescription = "Riprendi",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

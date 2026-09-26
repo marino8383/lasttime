@@ -23,10 +23,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -51,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
@@ -229,7 +237,6 @@ fun HomeScreen(
                                     onEdit = { editTarget = counter },
                                     onBell = { bellTarget = counter },
                                     onShare = { shareTarget = counter },
-                                    onDelete = { deleteTarget = counter },
                                     onToggleHidden = { vm.setHidden(counter, !counter.hidden) },
                                 )
                             }
@@ -242,7 +249,6 @@ fun HomeScreen(
                 flipMode = flipMode,
                 onFlip = { flipMode = !flipMode },
                 onOptions = { showOptions = true },
-                onDiagnostics = { showDiagnostics = true },
                 onArchive = { showArchive = true },
                 onHidden = { showHidden = true },
                 // l'indicatore esiste solo se c'e' davvero qualcosa di condiviso
@@ -281,7 +287,6 @@ fun HomeScreen(
                                 onEdit = { editTarget = counter },
                                 onBell = { bellTarget = counter },
                                 onShare = { shareTarget = counter },
-                                onDelete = { deleteTarget = counter },
                                 onToggleHidden = { vm.setHidden(counter, !counter.hidden) },
                             )
                         }
@@ -294,6 +299,10 @@ fun HomeScreen(
     if (showOptions) {
         OptionsSheet(
             onDismiss = { showOptions = false },
+            onDiagnostics = {
+                showOptions = false
+                showDiagnostics = true
+            },
             onJoin = { code, myName, onDone ->
                 vm.joinGroup(code, myName) { esito ->
                     onDone(
@@ -670,14 +679,13 @@ private fun Header(
     flipMode: Boolean,
     onFlip: () -> Unit,
     onOptions: () -> Unit,
-    onDiagnostics: () -> Unit,
     onArchive: () -> Unit,
     onHidden: () -> Unit,
     syncStato: SyncStatus.Stato?,
     onSync: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(20.dp, 20.dp, 20.dp, 10.dp),
+        Modifier.fillMaxWidth().padding(20.dp, 20.dp, 8.dp, 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -710,23 +718,26 @@ private fun Header(
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
                 )
             }
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(2.dp))
         }
-        IconButton(onClick = onFlip) {
-            Text(if (flipMode) "🗂" else "🚉", fontSize = 17.sp)
-        }
-        IconButton(onClick = onArchive) {
-            Text("📦", fontSize = 17.sp)
-        }
-        IconButton(onClick = onHidden) {
-            Text("🙈", fontSize = 17.sp)
-        }
-        IconButton(onClick = onDiagnostics) {
-            Text("🩺", fontSize = 17.sp)
-        }
-        IconButton(onClick = onOptions) {
-            Text("⚙️", fontSize = 17.sp)
-        }
+        // Icone vettoriali uniformi (niente emoji miste): 40dp invece dei 48dp di
+        // default, altrimenti su un telefono stretto il titolo finisce schiacciato
+        // a sinistra — la diagnostica e' stata spostata dentro Opzioni apposta.
+        HeaderIcon(if (flipMode) Icons.Filled.ViewList else Icons.Filled.GridView, "Tabellone", onFlip)
+        HeaderIcon(Icons.Filled.Archive, "Archivio", onArchive)
+        HeaderIcon(Icons.Filled.VisibilityOff, "Nascosti", onHidden)
+        HeaderIcon(Icons.Filled.Settings, "Opzioni", onOptions)
+    }
+}
+
+@Composable
+private fun HeaderIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
+        Icon(
+            icon, contentDescription = description,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(21.dp),
+        )
     }
 }
 
@@ -742,7 +753,6 @@ private fun CounterCard(
     onEdit: () -> Unit,
     onBell: () -> Unit,
     onShare: () -> Unit,
-    onDelete: () -> Unit,
     onToggleHidden: () -> Unit,
 ) {
     // Allineato al secondo del timer: anche il countdown campanella deriva da qui,
@@ -921,7 +931,10 @@ private fun CounterCard(
                 horizontalArrangement = Arrangement.End,
             ) {
                 IconButton(onClick = onHistory) {
-                    Text("🕘", fontSize = 16.sp)
+                    Icon(
+                        Icons.Filled.History, contentDescription = "Storico",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 IconButton(onClick = onBell) {
                     Icon(
@@ -935,12 +948,11 @@ private fun CounterCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                // 👥 acceso = condiviso: sulla card si vede a colpo d'occhio
+                // Acceso (colore primario) = condiviso: sulla card si vede a colpo d'occhio
                 IconButton(onClick = onShare) {
-                    Text(
-                        "👥",
-                        fontSize = 15.sp,
-                        color = if (counter.sharedGroupId != null) MaterialTheme.colorScheme.primary
+                    Icon(
+                        Icons.Filled.Group, contentDescription = "Condividi",
+                        tint = if (counter.sharedGroupId != null) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -962,15 +974,14 @@ private fun CounterCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                // 🙈 nasconde (continua a contare, sparisce da lista/tabellone e
-                // notifiche); 👁️ lo mostra di nuovo — vedi Counter.hidden
+                // Nasconde (continua a contare, sparisce da lista/tabellone e notifiche);
+                // mostra di nuovo se e' gia' nascosto — vedi Counter.hidden. L'eliminazione
+                // non ha piu' un'icona qui: si fa con lo swipe, come sull'archivio.
                 IconButton(onClick = onToggleHidden) {
-                    Text(if (counter.hidden) "👁️" else "🙈", fontSize = 15.sp)
-                }
-                IconButton(onClick = onDelete) {
                     Icon(
-                        Icons.Filled.Delete, contentDescription = "Elimina",
-                        tint = MaterialTheme.colorScheme.error,
+                        if (counter.hidden) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                        contentDescription = if (counter.hidden) "Mostra" else "Nascondi",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

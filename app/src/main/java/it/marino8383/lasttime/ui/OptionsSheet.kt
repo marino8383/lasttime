@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun OptionsSheet(
     onDismiss: () -> Unit,
+    onDiagnostics: () -> Unit = {},
     onJoin: (code: String, myName: String, onDone: (String) -> Unit) -> Unit = { _, _, _ -> },
 ) {
     val context = LocalContext.current
@@ -274,6 +275,26 @@ fun OptionsSheet(
                 Spacer(Modifier.height(10.dp))
                 Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
             }
+
+            Spacer(Modifier.height(22.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            Spacer(Modifier.height(18.dp))
+
+            Text(
+                "DIAGNOSTICA",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Appartenenza ai gruppi condivisi, permessi, e il diario di sganci e ricuciture.",
+                fontSize = 11.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            TextButton(onClick = onDiagnostics) { Text("Apri diagnostica") }
 
             Spacer(Modifier.height(24.dp))
         }
