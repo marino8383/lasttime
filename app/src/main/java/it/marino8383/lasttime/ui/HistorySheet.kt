@@ -1,11 +1,15 @@
 package it.marino8383.lasttime.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -15,7 +19,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,7 +60,12 @@ import it.marino8383.lasttime.formatShortDateTime
 import it.marino8383.lasttime.ui.theme.OnPrimaryContainer
 import it.marino8383.lasttime.ui.theme.PrimaryContainer
 import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private const val HOUR_MS = 3_600_000L
 private const val DAY_MS = 86_400_000L
@@ -72,6 +84,7 @@ fun HistorySheet(
     onDismiss: () -> Unit,
     onAddDay: (Long) -> Unit = {},
     onRemoveDay: (Round) -> Unit = {},
+    onRemoveDayAll: (List<Round>) -> Unit = {},
 ) {
     val giornaliero = counter.mode == CounterMode.GIORNALIERO
     val timed = rounds.filter { !it.noTime }
@@ -80,13 +93,28 @@ fun HistorySheet(
     val average = if (timed.isNotEmpty()) timed.sumOf { it.endMs - it.startMs } / timed.size else null
     var showAddDay by remember { mutableStateOf(false) }
 
-    val windows = listOf(
-        "1h" to HOUR_MS,
-        "24h" to DAY_MS,
-        "7g" to 7 * DAY_MS,
-        "30g" to 30 * DAY_MS,
-        "anno" to 365 * DAY_MS,
-    )
+    // Un contatore Giornaliero raggruppa i round per data di calendario: più occorrenze
+    // lo stesso giorno sono una riga sola con un contatore ×N, non righe ripetute.
+    val zone = ZoneId.systemDefault()
+    val dayGroups: List<List<Round>> = if (giornaliero) {
+        rounds.groupBy { Instant.ofEpochMilli(it.endMs).atZone(zone).toLocalDate() }
+            .values.sortedByDescending { it.first().endMs }
+    } else {
+        emptyList()
+    }
+
+    // Sui Giornalieri "1h" non direbbe niente: l'unità è il giorno, non ha senso sotto.
+    val windows = if (giornaliero) {
+        listOf("7g" to 7 * DAY_MS, "30g" to 30 * DAY_MS, "anno" to 365 * DAY_MS)
+    } else {
+        listOf(
+            "1h" to HOUR_MS,
+            "24h" to DAY_MS,
+            "7g" to 7 * DAY_MS,
+            "30g" to 30 * DAY_MS,
+            "anno" to 365 * DAY_MS,
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -153,8 +181,12 @@ fun HistorySheet(
             // Riepilogo
             item {
                 val eventsLabel = buildString {
-                    append("Eventi: ${rounds.size}")
-                    if (noTimeCount > 0) append(" (di cui $noTimeCount solo conteggio)")
+                    if (giornaliero) {
+                        append("Eventi: ${rounds.size} · giorni attivi: ${dayGroups.size}")
+                    } else {
+                        append("Eventi: ${rounds.size}")
+                        if (noTimeCount > 0) append(" (di cui $noTimeCount solo conteggio)")
+                    }
                 }
                 SummaryRow(eventsLabel)
                 if (!giornaliero) {
@@ -169,19 +201,26 @@ fun HistorySheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (giornaliero) {
+                Spacer(Modifier.height(14.dp))
+            }
+
+            // Calendario: colpo d'occhio sui giorni con almeno un'occorrenza, tocca per
+            // aggiungerne una (per togliere si usa la riga dell'evento più sotto)
+            if (giornaliero) {
+                item {
+                    DailyCalendarGrid(rounds = rounds, onDayTap = onAddDay)
                     Spacer(Modifier.height(10.dp))
                     OutlinedButton(onClick = { showAddDay = true }) {
                         Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.height(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Aggiungi un giorno dimenticato")
+                        Text("Aggiungi una data più lontana")
                     }
+                    Spacer(Modifier.height(14.dp))
                 }
-                Spacer(Modifier.height(14.dp))
             }
 
             // Quante volte
-            if (rounds.isNotEmpty() && !giornaliero) {
+            if (rounds.isNotEmpty()) {
                 item {
                     Text(
                         "📊 QUANTE VOLTE",
@@ -219,23 +258,111 @@ fun HistorySheet(
                             }
                         }
                     }
-                    average?.let {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "⏱ In media una volta ogni ${formatDurationTwoParts(it)} (solo round con tempi)",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    if (!giornaliero) {
+                        average?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "⏱ In media una volta ogni ${formatDurationTwoParts(it)} (solo round con tempi)",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                     Spacer(Modifier.height(14.dp))
                 }
             }
 
-            // Elenco round conclusi (per i Giornalieri, elenco eventi)
-            if (rounds.isNotEmpty()) {
+            // Elenco eventi per i Giornalieri: un giorno solo, non una riga per occorrenza
+            if (giornaliero && dayGroups.isNotEmpty()) {
                 item {
                     Text(
-                        if (giornaliero) "EVENTI" else "ROUND CONCLUSI",
+                        "GIORNI",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+                items(dayGroups.size) { i ->
+                    val group = dayGroups[i]
+                    val giorno = group.first()
+                    val n = group.size
+                    Column {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    formatDateOnly(giorno.endMs),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                val autori = group.mapNotNull { it.byName }.filter { it != Cloud.myName }.distinct()
+                                if (autori.isNotEmpty()) {
+                                    Text(
+                                        "👤 ${autori.joinToString(", ")}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                // Distanza in giorni dal giorno precedente (più vecchio):
+                                // è "quanti giorni senza" fra una volta e l'altra.
+                                if (i < dayGroups.lastIndex) {
+                                    val gap = calendarDaysBetween(dayGroups[i + 1].first().endMs, giorno.endMs)
+                                    Text(
+                                        if (gap == 1L) "+1 giorno dal precedente" else "+$gap giorni dal precedente",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            // ×N modificabile: − toglie una singola occorrenza, + ne aggiunge
+                            // un'altra lo stesso giorno. Il cestino toglie il giorno intero.
+                            IconButton(
+                                enabled = n > 1,
+                                onClick = { onRemoveDay(group.first()) },
+                            ) {
+                                Icon(
+                                    Icons.Filled.Remove, contentDescription = "Una in meno",
+                                    tint = if (n > 1) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                )
+                            }
+                            Text(
+                                "×$n",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            IconButton(onClick = { onAddDay(giorno.endMs) }) {
+                                Icon(
+                                    Icons.Filled.Add, contentDescription = "Un'altra volta",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            IconButton(onClick = { onRemoveDayAll(group) }) {
+                                Icon(
+                                    Icons.Filled.Delete, contentDescription = "Togli il giorno",
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                        if (i < dayGroups.size - 1) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                        }
+                    }
+                }
+            }
+
+            // Elenco round conclusi (Precisi)
+            if (!giornaliero && rounds.isNotEmpty()) {
+                item {
+                    Text(
+                        "ROUND CONCLUSI",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 1.5.sp,
@@ -250,42 +377,7 @@ fun HistorySheet(
                             Modifier.fillMaxWidth().padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            if (giornaliero) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        formatDateOnly(round.endMs),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    round.byName?.takeIf { it != Cloud.myName }?.let { chi ->
-                                        Text(
-                                            "👤 $chi",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
-                                }
-                                // Distanza in giorni dall'evento precedente (più vecchio):
-                                // è "quanti giorni senza" fra un evento e l'altro.
-                                if (i < rounds.lastIndex) {
-                                    val gap = calendarDaysBetween(rounds[i + 1].endMs, round.endMs)
-                                    Text(
-                                        if (gap == 0L) "stesso giorno" else if (gap == 1L) "+1 giorno" else "+$gap giorni",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(end = 4.dp),
-                                    )
-                                }
-                                IconButton(onClick = { onRemoveDay(round) }) {
-                                    Icon(
-                                        Icons.Filled.Delete, contentDescription = "Togli",
-                                        tint = MaterialTheme.colorScheme.error,
-                                    )
-                                }
-                            } else if (round.noTime) {
+                            if (round.noTime) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
                                         "🔢 SOLO CONTEGGIO — il ${formatShortDateTime(round.endMs)}",
@@ -360,7 +452,7 @@ fun HistorySheet(
                         // fusi indietro rispetto a UTC risulterebbe il giorno prima.
                         val date = Instant.ofEpochMilli(selected).atZone(ZoneOffset.UTC).toLocalDate()
                         val noonLocale = date.atTime(12, 0)
-                            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         onAddDay(noonLocale)
                     }
                     showAddDay = false
@@ -371,6 +463,113 @@ fun HistorySheet(
             },
         ) {
             DatePicker(state = dateState)
+        }
+    }
+}
+
+private val monthFmt = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.ITALIAN)
+private val weekdayLabels = listOf("L", "M", "M", "G", "V", "S", "D")
+
+/**
+ * Griglia mensile per i contatori Giornalieri (v28 fase 2): colpo d'occhio sui giorni con
+ * almeno un'occorrenza (verdi, con ×N se più di una), i vuoti restano neutri. Si naviga
+ * mese per mese; non si può andare oltre il mese corrente. Tocca un giorno per aggiungerne
+ * una occorrenza — per toglierne si usa la riga del giorno nell'elenco qui sotto.
+ */
+@Composable
+private fun DailyCalendarGrid(rounds: List<Round>, onDayTap: (Long) -> Unit) {
+    val zone = ZoneId.systemDefault()
+    val oggi = LocalDate.now(zone)
+    var mese by remember { mutableStateOf(YearMonth.from(oggi)) }
+    val conteggi = remember(rounds) {
+        rounds.groupingBy { Instant.ofEpochMilli(it.endMs).atZone(zone).toLocalDate() }.eachCount()
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = { mese = mese.minusMonths(1) }) {
+                Icon(Icons.Filled.ChevronLeft, contentDescription = "Mese precedente")
+            }
+            Text(
+                monthFmt.format(mese).replaceFirstChar { it.uppercase() },
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = { mese = mese.plusMonths(1) },
+                enabled = mese < YearMonth.from(oggi),
+            ) {
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Mese successivo")
+            }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            weekdayLabels.forEach { lettera ->
+                Text(
+                    lettera,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        val primoGiorno = mese.atDay(1)
+        val vuotiIniziali = primoGiorno.dayOfWeek.value - 1 // Lunedì=1 -> 0 caselle vuote
+        val giorniTotali = mese.lengthOfMonth()
+        val righe = (vuotiIniziali + giorniTotali + 6) / 7
+        for (r in 0 until righe) {
+            Row(Modifier.fillMaxWidth()) {
+                for (c in 0 until 7) {
+                    val numero = r * 7 + c - vuotiIniziali + 1
+                    Box(Modifier.weight(1f).padding(2.dp).aspectRatio(1f)) {
+                        if (numero in 1..giorniTotali) {
+                            val data = mese.atDay(numero)
+                            val n = conteggi[data] ?: 0
+                            val futuro = data.isAfter(oggi)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f)
+                                    .background(
+                                        color = if (n > 0) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        shape = RoundedCornerShape(8.dp),
+                                    )
+                                    .then(
+                                        if (data == oggi) Modifier.border(
+                                            1.5.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(8.dp)
+                                        ) else Modifier
+                                    )
+                                    .clickable(enabled = !futuro) { onDayTap(data.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()) },
+                            ) {
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    numero.toString(),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (n > 0) MaterialTheme.colorScheme.onPrimary
+                                    else if (futuro) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (n > 1) {
+                                    Text(
+                                        "×$n",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                }
+                                Spacer(Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

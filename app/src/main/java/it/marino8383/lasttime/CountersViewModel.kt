@@ -424,6 +424,34 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Storico GIORNALIERO, rimozione di un intero giorno (tutte le occorrenze insieme):
+     * il cestino sulla riga del giorno, non sulla singola occorrenza — quella si toglie
+     * un colpo alla volta con [removeDailyEvent]. Ricalcola una volta sola alla fine.
+     */
+    fun removeDailyDay(counter: Counter, roundsOfDay: List<Round>, onDone: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            val counter = db.counterDao().byId(counter.id) ?: counter
+            val groupId = counter.sharedGroupId
+            for (round in roundsOfDay) {
+                if (groupId != null) {
+                    try {
+                        Groups.deleteRound(groupId, round.uuid)
+                    } catch (t: Throwable) {
+                        onDone("⚠️ Tolto in parte: ${t.message}")
+                        db.counterDao().save(recomputeDaily(db.counterDao().byId(counter.id) ?: counter))
+                        AlarmScheduler.scheduleNext(getApplication())
+                        return@launch
+                    }
+                }
+                db.roundDao().deleteByUuid(round.uuid)
+            }
+            db.counterDao().save(recomputeDaily(db.counterDao().byId(counter.id) ?: counter))
+            AlarmScheduler.scheduleNext(getApplication())
+            onDone("✅ Giorno tolto.")
+        }
+    }
+
     /** Reset programmato nel futuro: il timer continua e si resetta da solo a [atMs]. L'ultimo comando vince. */
     fun scheduleReset(counter: Counter, atMs: Long) {
         viewModelScope.launch {

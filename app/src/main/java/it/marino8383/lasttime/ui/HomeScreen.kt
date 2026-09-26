@@ -402,6 +402,11 @@ fun HomeScreen(
                     Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()
                 }
             },
+            onRemoveDayAll = { roundsOfDay ->
+                vm.removeDailyDay(counter, roundsOfDay) { esito ->
+                    Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()
+                }
+            },
         )
     }
 
