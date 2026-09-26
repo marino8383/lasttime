@@ -13,6 +13,7 @@ import it.marino8383.lasttime.MainActivity
 import it.marino8383.lasttime.R
 import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.CounterMode
 
 object Notifications {
     // _v2: i canali creati in v0.3 erano senza vibrazione/suono espliciti e le
@@ -110,8 +111,11 @@ object Notifications {
                 else "👥 $byName: ${counter.name}"
             )
             .setContentText(
-                if (secret) "Riavviato da un'altra persona."
-                else "Fatto ripartire ${it.marino8383.lasttime.formatRingTime(atMs)}."
+                when {
+                    secret -> "Riavviato da un'altra persona."
+                    counter.mode == CounterMode.GIORNALIERO -> "+1 ${it.marino8383.lasttime.formatRingTime(atMs)}."
+                    else -> "Fatto ripartire ${it.marino8383.lasttime.formatRingTime(atMs)}."
+                }
             )
             .setContentIntent(
                 PendingIntent.getActivity(

@@ -396,7 +396,16 @@ fun HomeScreen(
             now = now,
             rounds = rounds,
             onDismiss = { historyTarget = null },
-            onAddDay = { dateMs -> vm.addDailyEvent(counter, dateMs) },
+            onAddDay = { dateMs ->
+                // Per oggi passa dalla stessa verifica del pulsante "+1": se nel frattempo
+                // l'ha già segnato un altro, avvisa invece di aggiungere alla cieca. Per
+                // una data passata (backfill vero) non serve: non tocca l'ultimo evento.
+                if (calendarDaysBetween(dateMs, System.currentTimeMillis()) == 0L) {
+                    onCardRestart(counter)
+                } else {
+                    vm.addDailyEvent(counter, dateMs)
+                }
+            },
             onRemoveDay = { round ->
                 vm.removeDailyEvent(counter, round) { esito ->
                     Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()

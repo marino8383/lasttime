@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -52,6 +54,7 @@ import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.calendarDaysBetween
+import it.marino8383.lasttime.formatClock
 import it.marino8383.lasttime.formatDateOnly
 import it.marino8383.lasttime.formatDateTime
 import it.marino8383.lasttime.sync.Cloud
@@ -92,6 +95,8 @@ fun HistorySheet(
     val longest = timed.maxOfOrNull { it.endMs - it.startMs }
     val average = if (timed.isNotEmpty()) timed.sumOf { it.endMs - it.startMs } / timed.size else null
     var showAddDay by remember { mutableStateOf(false) }
+    // Righe giorno aperte, per vedere chi ha fatto cosa e a che ora dentro la giornata.
+    var giorniAperti by remember { mutableStateOf(setOf<LocalDate>()) }
 
     // Un contatore Giornaliero raggruppa i round per data di calendario: più occorrenze
     // lo stesso giorno sono una riga sola con un contatore ×N, non righe ripetute.
@@ -287,21 +292,38 @@ fun HistorySheet(
                 items(dayGroups.size) { i ->
                     val group = dayGroups[i]
                     val giorno = group.first()
+                    val data = Instant.ofEpochMilli(giorno.endMs).atZone(zone).toLocalDate()
                     val n = group.size
+                    val aperto = data in giorniAperti
                     Column {
                         Row(
-                            Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp)
+                                // Tocca la data per aprire/chiudere il log di chi-quando dentro
+                                // il giorno — utile soprattutto quando n > 1 e più persone.
+                                .clickable {
+                                    giorniAperti = if (aperto) giorniAperti - data else giorniAperti + data
+                                },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(
-                                    formatDateOnly(giorno.endMs),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        formatDateOnly(giorno.endMs),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Icon(
+                                        if (aperto) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                        contentDescription = if (aperto) "Chiudi il dettaglio" else "Chi ha fatto cosa",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 2.dp).height(16.dp),
+                                    )
+                                }
                                 val autori = group.mapNotNull { it.byName }.filter { it != Cloud.myName }.distinct()
-                                if (autori.isNotEmpty()) {
+                                if (!aperto && autori.isNotEmpty()) {
                                     Text(
                                         "👤 ${autori.joinToString(", ")}",
                                         fontSize = 11.sp,
@@ -349,6 +371,33 @@ fun HistorySheet(
                                     Icons.Filled.Delete, contentDescription = "Togli il giorno",
                                     tint = MaterialTheme.colorScheme.error,
                                 )
+                            }
+                        }
+                        // Log di chi ha fatto cosa e a che ora, dentro il giorno — le voci
+                        // aggiunte a mano (backfill) non hanno un orario vero: mezzogiorno.
+                        if (aperto) {
+                            Column(Modifier.padding(start = 4.dp, bottom = 8.dp)) {
+                                group.sortedByDescending { it.endMs }.forEach { r ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            formatClock(r.endMs),
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.width(48.dp),
+                                        )
+                                        // Il nome vale solo sui condivisi: da solo, sei sempre tu.
+                                        if (counter.sharedGroupId != null) {
+                                            Text(
+                                                "👤 ${r.byName?.takeIf { it.isNotBlank() && it != Cloud.myName } ?: "tu"}",
+                                                fontSize = 11.5.sp,
+                                                color = if (r.byName != null && r.byName != Cloud.myName)
+                                                    MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                         if (i < dayGroups.size - 1) {
