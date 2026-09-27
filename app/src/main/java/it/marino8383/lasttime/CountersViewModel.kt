@@ -358,14 +358,24 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
             }
-            // La campanella scivola della stessa differenza: e' un aggiustamento
-            // dell'orario, non un nuovo riavvio da adesso.
-            val delta = at - round.endMs
+            // La prossima scadenza si ricalcola dall'istante corretto, non si sposta
+            // della stessa differenza: "scivolare" avrebbe portato dietro anche un
+            // eventuale scarto già accumulato da un "mantieni il ritmo" precedente (bug:
+            // segnalato da Fabrizio il 27/09, +8h da un orario corretto non tornava
+            // esatto). FIXED fa eccezione: il ritmo fisso non dipende da quando confermi,
+            // vedi editCounter — una correzione dell'orario non deve toccarlo.
+            val step = counter.bellMinutes?.times(60_000)
+            val newNextBell = when {
+                counter.nextBellAtMs == null -> null
+                counter.bellMode == "FIXED" -> counter.nextBellAtMs
+                step != null -> at + step
+                else -> counter.nextBellAtMs
+            }
             db.roundDao().correctEndMs(round.id, at, stampMs)
             db.counterDao().save(
                 counter.copy(
                     startMs = at,
-                    nextBellAtMs = counter.nextBellAtMs?.plus(delta),
+                    nextBellAtMs = newNextBell,
                 )
             )
             Notifications.cancel(getApplication(), counter.id)
@@ -408,14 +418,20 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
             }
-            // La campanella scivola della stessa differenza dell'orario di inizio: e'
-            // un ripristino di come stava prima, non un nuovo riavvio da adesso.
-            val delta = round.startMs - counter.startMs
+            // Ricalcolata dal nuovo inizio, non scivolata della stessa differenza —
+            // stesso motivo del fix in correctLastRestart. FIXED resta ferma.
+            val step = counter.bellMinutes?.times(60_000)
+            val newNextBell = when {
+                counter.nextBellAtMs == null -> null
+                counter.bellMode == "FIXED" -> counter.nextBellAtMs
+                step != null -> round.startMs + step
+                else -> counter.nextBellAtMs
+            }
             db.roundDao().deleteByUuid(round.uuid)
             db.counterDao().save(
                 counter.copy(
                     startMs = round.startMs,
-                    nextBellAtMs = counter.nextBellAtMs?.plus(delta),
+                    nextBellAtMs = newNextBell,
                     lastRoundUuid = precedente?.uuid,
                     lastRoundStartMs = precedente?.startMs,
                 )
