@@ -93,11 +93,13 @@ fun AdvancedRestartSheet(
     var showUndoConfirm by remember { mutableStateOf(false) }
 
     val nowMs = System.currentTimeMillis()
-    // Sulle ricorrenti: l'ultima scadenza calcolata, invece di un "minuti fa" a caso.
-    // Se e' passata (sforato) si chiude il round proprio li'; se e' ancora nel futuro
-    // diventa un reset programmato — il timer continua a contare e si resetta da solo
-    // quando ci arriva, mantenendo il ritmo (vedi Counter.restarted).
-    val bellTarget = counter.nextBellAtMs.takeIf { counter.bellMinutes != null && counter.bellRepeat }
+    // Se c'e' una campanella configurata, invece di un "minuti fa" a caso — anche
+    // silenziata (spegnerla toglie solo la notifica, non la scadenza) e anche su una
+    // singola non ancora suonata. Se e' passata (sforato) si chiude il round proprio
+    // li'; se e' ancora nel futuro diventa un reset programmato — il timer continua a
+    // contare e si resetta da solo quando ci arriva, mantenendo il ritmo (vedi
+    // Counter.restarted).
+    val bellTarget = counter.nextBellAtMs.takeIf { counter.bellMinutes != null }
     val target = when {
         quickSel == -2L && bellTarget != null -> bellTarget
         quickSel >= 0 -> nowMs - quickSel * 60_000
@@ -184,7 +186,8 @@ fun AdvancedRestartSheet(
                         onClick = { quickSel = -2L },
                         label = {
                             Text(
-                                if (bellTarget <= nowMs) "🔔 Alla campanella (sforata)" else "🔔 Alla campanella",
+                                if (bellTarget <= nowMs) "🔔 Sforata (${formatRingTime(bellTarget)})"
+                                else "🔔 Alle ${formatRingTime(bellTarget)}",
                                 fontSize = 11.sp,
                             )
                         },
