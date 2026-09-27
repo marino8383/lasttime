@@ -243,7 +243,7 @@ fun HomeScreen(
                         Text("←", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Text(
-                        "🙈 Nascosti",
+                        "Nascosti",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -252,7 +252,7 @@ fun HomeScreen(
                 if (hiddenCounters.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "Niente di nascosto.\nSull'occhio 🙈 di un contatore lo togli dai piedi\nsenza fermarlo.",
+                            "Niente di nascosto.\nSull'icona dell'occhio barrato di un contatore lo togli dai piedi\nsenza fermarlo.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )

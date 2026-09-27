@@ -83,7 +83,7 @@ fun OptionsSheet(
             Spacer(Modifier.height(16.dp))
 
             Text(
-                "TOLLERANZA “MANTIENI IL RITMO”",
+                "TOLLERANZA ANTICIPO/RITARDO",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp,
@@ -104,8 +104,10 @@ fun OptionsSheet(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "Se fai Fatto/↺ entro questo ritardo dopo lo squillo di una ricorrente, " +
-                    "la campanella mantiene il ritmo senza chiedere. Oltre, appare la scelta. " +
+                "Vale solo per le ricorrenti “Riparti da adesso”: quelle “Mantieni il ritmo” " +
+                    "tengono sempre il ritmo, qualunque sia lo scarto, e questa percentuale non le riguarda. " +
+                    "Se fai Fatto/↺ entro questa percentuale del periodo — prima o dopo lo squillo previsto — " +
+                    "il ritmo si mantiene da solo, senza chiedere. Oltre, appare la scelta. " +
                     "Es. 3% di 8 h ≈ 15 min; 3% di 1 min ≈ 2 s.",
                 fontSize = 11.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
