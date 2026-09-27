@@ -3,10 +3,15 @@ package it.marino8383.lasttime.ui
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -22,6 +27,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import it.marino8383.lasttime.ui.theme.SwipeArchiveBg
 import it.marino8383.lasttime.ui.theme.SwipeArchiveFg
@@ -30,13 +36,23 @@ import it.marino8383.lasttime.ui.theme.SwipeDeleteFg
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private val SwipeMax = 150.dp
-private val SwipeThreshold = 90.dp
+private val SwipeMaxRight = 150.dp
+private val SwipeThresholdRight = 90.dp
+
+// A sinistra, quando c'è anche "nascondi": due riquadri affiancati da toccare invece
+// di un trascinamento a soglia — si apre come un cassetto (si ferma tutto aperto o
+// tutto chiuso, mai a metà) e si sceglie toccando quello giusto.
+private val SwipeMaxLeftTwo = 220.dp
+private val SwipeBoxWidth = SwipeMaxLeftTwo / 2
+
 private val CardRadius = 26.dp
 
 /**
- * Card trascinabile in orizzontale (v23): swipe a destra = elimina, a sinistra = archivia.
- * Sotto compare l'underlay colorato con l'azione che scatterebbe.
+ * Card trascinabile in orizzontale (v23): swipe a destra = elimina (soglia, come
+ * sempre). Swipe a sinistra: se [onSwipeHide] è null, si comporta come prima (soglia =
+ * archivia); se non è null, si apre un cassetto con due riquadri — [hideLabel] e
+ * "Archivia" — e si sceglie toccando quello voluto (v0.21: nascondere è troppo
+ * frequente e leggero per condividere lo stesso gesto-soglia di archivia/elimina).
  *
  * Lo scroll verticale resta alla lista: detectHorizontalDragGestures parte solo dopo lo
  * slop orizzontale, quindi un dito che scende non viene intercettato. Allo stesso modo il
@@ -49,14 +65,18 @@ private val CardRadius = 26.dp
 fun SwipeableCard(
     onSwipeDelete: () -> Unit,
     onSwipeArchive: (() -> Unit)?,
+    onSwipeHide: (() -> Unit)? = null,
+    hideLabel: String = "Nascondi",
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
     val density = LocalDensity.current
-    val maxPx = with(density) { SwipeMax.toPx() }
-    val thresholdPx = with(density) { SwipeThreshold.toPx() }
+    val maxRightPx = with(density) { SwipeMaxRight.toPx() }
+    val thresholdRightPx = with(density) { SwipeThresholdRight.toPx() }
+    val maxLeftTwoPx = with(density) { SwipeMaxLeftTwo.toPx() }
+    val dueRiquadri = onSwipeHide != null
 
     // Solo il verso, non il valore: così il trascinamento non ricompone a ogni frame
     val direction by remember {
@@ -69,24 +89,90 @@ fun SwipeableCard(
         }
     }
 
+    fun animaA(target: Float) {
+        scope.launch { offsetX.animateTo(target, tween(180)) }
+    }
+
     Box(modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-        if (direction != 0) {
-            val deleting = direction > 0
+        if (direction > 0) {
             Box(
                 Modifier
                     .matchParentSize()
                     .clip(RoundedCornerShape(CardRadius))
-                    .background(if (deleting) SwipeDeleteBg else SwipeArchiveBg),
+                    .background(SwipeDeleteBg),
             ) {
                 Text(
-                    if (deleting) "🗑 Elimina" else "📦 Archivia",
+                    "🗑 Elimina",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = if (deleting) SwipeDeleteFg else SwipeArchiveFg,
+                    color = SwipeDeleteFg,
                     modifier = Modifier
-                        .align(if (deleting) Alignment.CenterStart else Alignment.CenterEnd)
+                        .align(Alignment.CenterStart)
                         .padding(horizontal = 22.dp),
                 )
+            }
+        } else if (direction < 0) {
+            if (dueRiquadri) {
+                Row(
+                    Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(CardRadius)),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .width(SwipeBoxWidth)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .clickable {
+                                onSwipeHide?.invoke()
+                                animaA(0f)
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            hideLabel,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .width(SwipeBoxWidth)
+                            .background(SwipeArchiveBg)
+                            .clickable {
+                                onSwipeArchive?.invoke()
+                                animaA(0f)
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Archivia",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = SwipeArchiveFg,
+                        )
+                    }
+                }
+            } else {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(CardRadius))
+                        .background(SwipeArchiveBg),
+                ) {
+                    Text(
+                        "📦 Archivia",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = SwipeArchiveFg,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(horizontal = 22.dp),
+                    )
+                }
             }
         }
 
@@ -98,23 +184,33 @@ fun SwipeableCard(
                         placeable.placeRelative(offsetX.value.roundToInt(), 0)
                     }
                 }
-                .pointerInput(onSwipeArchive != null) {
+                .pointerInput(onSwipeArchive != null, dueRiquadri) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
                             val settled = offsetX.value
-                            scope.launch { offsetX.animateTo(0f, tween(180)) }
                             when {
-                                settled > thresholdPx -> onSwipeDelete()
-                                settled < -thresholdPx -> onSwipeArchive?.invoke()
+                                settled > thresholdRightPx -> {
+                                    animaA(0f)
+                                    onSwipeDelete()
+                                }
+                                dueRiquadri && settled < -maxLeftTwoPx / 2f -> animaA(-maxLeftTwoPx)
+                                dueRiquadri -> animaA(0f)
+                                onSwipeArchive != null && settled < -thresholdRightPx -> {
+                                    animaA(0f)
+                                    onSwipeArchive.invoke()
+                                }
+                                else -> animaA(0f)
                             }
                         },
-                        onDragCancel = {
-                            scope.launch { offsetX.animateTo(0f, tween(180)) }
-                        },
+                        onDragCancel = { animaA(0f) },
                     ) { change, drag ->
                         change.consume()
-                        val lowerBound = if (onSwipeArchive != null) -maxPx else 0f
-                        val target = (offsetX.value + drag).coerceIn(lowerBound, maxPx)
+                        val lowerBound = when {
+                            dueRiquadri -> -maxLeftTwoPx
+                            onSwipeArchive != null -> -maxRightPx
+                            else -> 0f
+                        }
+                        val target = (offsetX.value + drag).coerceIn(lowerBound, maxRightPx)
                         scope.launch { offsetX.snapTo(target) }
                     }
                 },

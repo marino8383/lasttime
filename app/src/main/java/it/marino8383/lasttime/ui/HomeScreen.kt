@@ -29,10 +29,10 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -161,6 +161,7 @@ fun HomeScreen(
     var historyTarget by remember { mutableStateOf<Counter?>(null) }
     var editTarget by remember { mutableStateOf<Counter?>(null) }
     var deleteTarget by remember { mutableStateOf<Counter?>(null) }
+    var hideTarget by remember { mutableStateOf<Counter?>(null) }
     var restartTarget by remember { mutableStateOf<Counter?>(null) }
     var advancedTarget by remember { mutableStateOf<Counter?>(null) }
     var lateBellTarget by remember { mutableStateOf<Counter?>(null) }
@@ -262,6 +263,8 @@ fun HomeScreen(
                             SwipeableCard(
                                 onSwipeDelete = { deleteTarget = counter },
                                 onSwipeArchive = { archiveTarget = counter },
+                                onSwipeHide = { hideTarget = counter },
+                                hideLabel = "Mostra",
                             ) {
                                 CounterCard(
                                     counter = counter,
@@ -275,7 +278,6 @@ fun HomeScreen(
                                     onEdit = { editTarget = counter },
                                     onBell = { bellTarget = counter },
                                     onShare = { shareTarget = counter },
-                                    onToggleHidden = { vm.setHidden(counter, !counter.hidden) },
                                 )
                             }
                         }
@@ -343,6 +345,8 @@ fun HomeScreen(
                             SwipeableCard(
                                 onSwipeDelete = { deleteTarget = counter },
                                 onSwipeArchive = { archiveTarget = counter },
+                                onSwipeHide = { hideTarget = counter },
+                                hideLabel = if (counter.hidden) "Mostra" else "Nascondi",
                             ) {
                                 CounterCard(
                                     counter = counter,
@@ -356,7 +360,6 @@ fun HomeScreen(
                                     onEdit = { editTarget = counter },
                                     onBell = { bellTarget = counter },
                                     onShare = { shareTarget = counter },
-                                    onToggleHidden = { vm.setHidden(counter, !counter.hidden) },
                                 )
                             }
                         }
@@ -760,6 +763,32 @@ fun HomeScreen(
         )
     }
 
+    hideTarget?.let { counter ->
+        val daNascondere = !counter.hidden
+        AlertDialog(
+            onDismissRequest = { hideTarget = null },
+            title = { Text(if (daNascondere) "Nascondere il timer?" else "Mostrare di nuovo il timer?") },
+            text = {
+                Text(
+                    if (daNascondere)
+                        "“${counter.name}” sparisce da lista e tabellone e non manda più notifiche " +
+                            "su questo telefono, ma continua a contare e a sincronizzarsi come sempre."
+                    else
+                        "“${counter.name}” torna visibile in lista e tabellone."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.setHidden(counter, daNascondere)
+                    hideTarget = null
+                }) { Text(if (daNascondere) "Sì, nascondi" else "Sì, mostra") }
+            },
+            dismissButton = {
+                TextButton(onClick = { hideTarget = null }) { Text("No") }
+            },
+        )
+    }
+
     shareTarget?.let { target ->
         val counter = counters.firstOrNull { it.id == target.id } ?: target
         ShareSheet(
@@ -895,7 +924,6 @@ private fun CounterCard(
     onEdit: () -> Unit,
     onBell: () -> Unit,
     onShare: () -> Unit,
-    onToggleHidden: () -> Unit,
 ) {
     val giornaliero = counter.mode == CounterMode.GIORNALIERO
     // Allineato al secondo del timer: anche il countdown campanella deriva da qui,
@@ -1159,15 +1187,18 @@ private fun CounterCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                // Nasconde (continua a contare, sparisce da lista/tabellone e notifiche);
-                // mostra di nuovo se e' gia' nascosto — vedi Counter.hidden. L'eliminazione
-                // non ha piu' un'icona qui: si fa con lo swipe, come sull'archivio.
-                IconButton(onClick = onToggleHidden) {
-                    Icon(
-                        if (counter.hidden) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                        contentDescription = if (counter.hidden) "Mostra" else "Nascondi",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                // Stessa azione del doppio tap sul ↺, ma visibile: senza, chi non sa del
+                // doppio tap non scopre mai "Riparti avanzato" (correggi orari, eventi
+                // dimenticati, converti in Giornaliera...). Il doppio tap resta comunque,
+                // per chi lo conosce già. "Nascondi/Mostra" e' passato allo swipe apposta,
+                // per lasciare posto qui.
+                if (!giornaliero) {
+                    IconButton(onClick = onAdvancedRestart) {
+                        Icon(
+                            Icons.Filled.MoreHoriz, contentDescription = "Riparti avanzato",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
