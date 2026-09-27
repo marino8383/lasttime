@@ -29,8 +29,19 @@ class BellReceiver : BroadcastReceiver() {
 
                 // Reset programmati in scadenza: round chiuso all'istante programmato,
                 // timer ripartito da lì, campanella riarmata secondo le sue regole
-                dao.dueScheduledResets(now).forEach { counter ->
-                    val at = counter.scheduledResetMs ?: return@forEach
+                dao.dueScheduledResets(now).forEach { dueCounter ->
+                    var counter = dueCounter
+                    val groupId = counter.sharedGroupId
+                    if (groupId != null) {
+                        // scheduledResetMs e' sincronizzato: su un condiviso entrambi i
+                        // telefoni possono avere la stessa sveglia di sistema. Prima di
+                        // eseguire alla cieca si riverifica lo stato vero — l'altro
+                        // potrebbe averlo gia' fatto ripartire o aver annullato il reset
+                        // nel frattempo, altrimenti si rischia un doppio round.
+                        withTimeoutOrNull(4_000) { SyncEngine.checkCounter(app, groupId, counter.uuid) }
+                        counter = dao.byId(counter.id) ?: return@forEach
+                    }
+                    val at = counter.scheduledResetMs?.takeIf { it <= System.currentTimeMillis() } ?: return@forEach
                     app.db.roundDao().add(
                         Round(counterId = counter.id, startMs = counter.startMs, endMs = at),
                         counter,

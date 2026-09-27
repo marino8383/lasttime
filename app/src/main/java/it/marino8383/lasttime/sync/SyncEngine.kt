@@ -12,6 +12,7 @@ import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.nextDailyBellAtMs
+import it.marino8383.lasttime.formatRingTime
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
 import kotlinx.coroutines.CoroutineScope
@@ -210,16 +211,26 @@ object SyncEngine {
         val bellRepeat = data["bellRepeat"] as? Boolean ?: true
         val mode = data["mode"] as? String ?: CounterMode.PRECISO
         val dailyBellMinuteOfDay = (data["dailyBellMinuteOfDay"] as? Number)?.toInt()
+        // Calcolate dal telefono che ha scritto, non ricalcolate qui: vedi il commento
+        // su Groups.payload per il perché. hasNextBellField distingue un payload nuovo
+        // (il campo c'è, fosse anche null) da uno di prima che questi campi esistessero.
+        val hasNextBellField = data.containsKey("nextBellAtMs")
+        val syncedNextBell = (data["nextBellAtMs"] as? Number)?.toLong()
+        val hasScheduledResetField = data.containsKey("scheduledResetMs")
+        val syncedScheduledReset = (data["scheduledResetMs"] as? Number)?.toLong()
+
+        // Fallback legacy, solo se il mittente non porta ancora questi campi.
+        fun recomputeNextBell(from: Long, localPrevNextBell: Long?): Long? = if (mode == CounterMode.GIORNALIERO) {
+            val days = bellMinutes?.div(1440)
+            if (days != null && dailyBellMinuteOfDay != null) nextDailyBellAtMs(from, days, dailyBellMinuteOfDay) else null
+        } else {
+            bellMinutes?.times(60_000)?.let { from + it } ?: localPrevNextBell
+        }
 
         if (local == null) {
             // Prima volta che vediamo questo contatore: e' entrato nel gruppo da un altro
-            // telefono. Nasce qui con la campanella calcolata in locale.
-            val nextBell = if (mode == CounterMode.GIORNALIERO) {
-                val days = bellMinutes?.div(1440)
-                if (days != null && dailyBellMinuteOfDay != null) nextDailyBellAtMs(startMs, days, dailyBellMinuteOfDay) else null
-            } else {
-                bellMinutes?.times(60_000)?.let { startMs + it }
-            }
+            // telefono.
+            val nextBell = if (hasNextBellField) syncedNextBell else recomputeNextBell(startMs, null)
             dao.insertRaw(
                 Counter(
                     uuid = uuid,
@@ -229,6 +240,7 @@ object SyncEngine {
                     bellMode = bellMode,
                     bellRepeat = bellRepeat,
                     nextBellAtMs = nextBell,
+                    scheduledResetMs = if (hasScheduledResetField) syncedScheduledReset else null,
                     createdMs = System.currentTimeMillis(),
                     updatedMs = remoteUpdated,
                     sharedGroupId = groupId,
@@ -293,40 +305,34 @@ object SyncEngine {
             // (di prima che questo campo esistesse) non lo portava con sé.
             creatorUid = data["creatorUid"] as? String ?: local.creatorUid,
         )
-        if (mode == CounterMode.GIORNALIERO) {
-            // Sui Giornalieri si ricalcola sempre: siamo qui solo perché qualcosa di
-            // remoto e' cambiato, e la scadenza dipende sempre e solo da (data
-            // dell'ultimo evento, N giorni, orario) — niente FIXED, niente "da adesso".
-            val days = bellMinutes?.div(1440)
-            val nextBell = if (days != null && dailyBellMinuteOfDay != null) {
-                nextDailyBellAtMs(startMs, days, dailyBellMinuteOfDay)
-            } else null
-            updated = updated.copy(nextBellAtMs = nextBell, bellNotified = false, snoozeUntilMs = null)
+        val newNextBell = if (hasNextBellField) {
+            syncedNextBell
         } else {
-            // Quando rifare la scadenza locale. Oltre al caso ovvio — l'altro ha fatto
-            // ripartire il timer, e qui lo "sforato" si spegne da solo — ce ne sono due che
-            // erano scoperti:
-            //  - la campanella e' stata configurata o cambiata dall'altro dopo la condivisione
-            //  - non abbiamo nessuna scadenza, tipico di un contatore arrivato senza campanella
-            //    e configurato solo dopo: il badge compariva ma non c'era niente da suonare
-            // Una FIXED tiene il suo ritmo quando si sposta solo l'inizio, ma se il ritmo
-            // stesso cambia o manca del tutto va comunque ricalcolata.
+            // Fallback legacy (vedi sopra). Replica il vecchio comportamento: le FIXED
+            // non si ricalcolano su un semplice spostamento di startMs.
             val cambiataCampanella = bellMinutes != local.bellMinutes
             val senzaScadenza = local.nextBellAtMs == null
             val step = bellMinutes?.times(60_000)
-            val rifasa = step != null &&
-                (cambiataCampanella || senzaScadenza || (movedStart && bellMode != "FIXED"))
-            if (rifasa) {
-                updated = updated.copy(
-                    nextBellAtMs = startMs + step!!,
-                    bellNotified = false,
-                    snoozeUntilMs = null,
-                )
-            } else if (step == null) {
-                // campanella tolta dall'altro: qui sparisce anche la scadenza
-                updated = updated.copy(nextBellAtMs = null, bellNotified = false, snoozeUntilMs = null)
+            val rifasa = mode == CounterMode.GIORNALIERO ||
+                (step != null && (cambiataCampanella || senzaScadenza || (movedStart && bellMode != "FIXED")))
+            when {
+                rifasa -> recomputeNextBell(startMs, local.nextBellAtMs)
+                step == null -> null
+                else -> local.nextBellAtMs
             }
         }
+        val newScheduledReset = if (hasScheduledResetField) syncedScheduledReset else local.scheduledResetMs
+        // Il reset del "già notificato/rinviato" vale solo se la scadenza è davvero
+        // cambiata: un aggiornamento su un campo qualunque (es. il nome) non deve
+        // interrompere un rinvio in corso o far risuonare una campanella già vista.
+        val scadenzaCambiata = newNextBell != local.nextBellAtMs
+        val scadenzaResetCambiata = newScheduledReset != local.scheduledResetMs
+        updated = updated.copy(
+            nextBellAtMs = newNextBell,
+            scheduledResetMs = newScheduledReset,
+            bellNotified = if (scadenzaCambiata) false else local.bellNotified,
+            snoozeUntilMs = if (scadenzaCambiata) null else local.snoozeUntilMs,
+        )
         dao.updateRaw(updated) // updateRaw: updatedMs e' quello remoto, non va ritimbrato
         aligned[uuid] = remoteUpdated
         // Appena archiviato da un altro: via anche l'eventuale notifica ancora a video
@@ -337,6 +343,23 @@ object SyncEngine {
             val chi = (data["lastByName"] as? String)?.takeIf { it.isNotBlank() && it != Cloud.myName }
             if (chi != null) {
                 Notifications.notifySharedEvent(app, updated, chi, "Ripreso dall'archivio: il timer conta di nuovo.")
+            }
+        }
+        // Un reset programmato appena impostato (o tolto) da un altro: meglio saperlo
+        // prima che scatti, non solo a cose fatte come per un riavvio vero. Se invece
+        // e' sparito perche' e' proprio scattato (startMs si e' mosso insieme), lo dice
+        // gia' la notifica del round — qui si tacerebbe un "annullato" fuorviante.
+        if (scadenzaResetCambiata && (newScheduledReset != null || !movedStart) &&
+            local.notifyOnRemote && !local.hidden
+        ) {
+            val chi = (data["lastByName"] as? String)?.takeIf { it.isNotBlank() && it != Cloud.myName }
+            if (chi != null) {
+                val testo = if (newScheduledReset != null) {
+                    "Reset programmato: riparte ${formatRingTime(newScheduledReset)}."
+                } else {
+                    "Reset programmato annullato."
+                }
+                Notifications.notifySharedEvent(app, updated, chi, testo)
             }
         }
         AlarmScheduler.scheduleNext(app)

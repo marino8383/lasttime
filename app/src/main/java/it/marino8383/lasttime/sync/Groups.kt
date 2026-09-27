@@ -105,6 +105,14 @@ object Groups {
      * Solo i campi condivisi: nome, inizio del round e configurazione della campanella.
      * Restano fuori di proposito viewMode, bellEnabled, bellNotified e snoozeUntilMs,
      * che sono scelte del singolo telefono.
+     *
+     * nextBellAtMs viaggia calcolato, non ricalcolato da ogni telefono per conto suo:
+     * le correzioni manuali (Riparti avanzato, correggi/annulla l'ultimo riavvio) hanno
+     * regole diverse da un Fatto spontaneo — "mantieni il ritmo" vale per l'uno e non
+     * per l'altro — e un altro telefono, vedendo solo il risultato (startMs cambiato),
+     * non può distinguerli e rischia di ricalcolare una scadenza diversa (bug scoperto
+     * il 27/09). Stesso motivo per scheduledResetMs: senza, un reset programmato non si
+     * vedeva affatto sull'altro telefono finché non scattava.
      */
     fun payload(counter: Counter): Map<String, Any?> = mapOf(
         "uuid" to counter.uuid,
@@ -113,6 +121,8 @@ object Groups {
         "bellMinutes" to counter.bellMinutes,
         "bellMode" to counter.bellMode,
         "bellRepeat" to counter.bellRepeat,
+        "nextBellAtMs" to counter.nextBellAtMs,
+        "scheduledResetMs" to counter.scheduledResetMs,
         "updatedMs" to counter.updatedMs,
         // L'archivio è condiviso: un ciclo finisce per tutti e riprende per tutti.
         "archived" to counter.archived,
