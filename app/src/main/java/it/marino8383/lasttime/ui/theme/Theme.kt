@@ -20,6 +20,11 @@ val ErrorColor = Color(0xFFE0562F)
 val ErrorContainer = Color(0xFF2E2410)
 val OnErrorContainer = Color(0xFFFFB84D)
 
+// Reset programmato (v0.19): stato "in attesa", volutamente sul blu — l'unica nota
+// fredda in una palette tutta ambra/arancio, per non confonderlo con "sforato".
+val ScheduledContainer = Color(0xFF16232E)
+val OnScheduledContainer = Color(0xFF7EC8FF)
+
 // Underlay dello swipe sulle card (v23): destra = elimina, sinistra = archivia
 val SwipeDeleteBg = Color(0xFF3A1712)
 val SwipeDeleteFg = Color(0xFFF08A6B)

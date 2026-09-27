@@ -101,7 +101,9 @@ import it.marino8383.lasttime.sync.Updater
 import it.marino8383.lasttime.timeParts
 import it.marino8383.lasttime.ui.theme.OnErrorContainer
 import it.marino8383.lasttime.ui.theme.OnPrimaryContainer
+import it.marino8383.lasttime.ui.theme.OnScheduledContainer
 import it.marino8383.lasttime.ui.theme.PrimaryContainer
+import it.marino8383.lasttime.ui.theme.ScheduledContainer
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -918,6 +920,9 @@ private fun CounterCard(
     // L'allarme visivo vale anche a campanella spenta: spegnere la notifica significa
     // "non svegliarmi", non "nascondimi che il giro è scaduto".
     val over = scaduta
+    // Reset programmato non ancora scattato: stato "in attesa", colore a parte perché
+    // non è né normale né sforato — vedi ScheduledContainer.
+    val programmato = counter.scheduledResetMs?.let { it > now } == true
     // Prossimo squillo effettivo: rinvio pendente, oppure squillo programmato futuro
     val nextRing = when {
         counter.bellMinutes == null -> null
@@ -938,8 +943,11 @@ private fun CounterCard(
     Card(
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (over) MaterialTheme.colorScheme.errorContainer
-            else MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = when {
+                over -> MaterialTheme.colorScheme.errorContainer
+                programmato -> ScheduledContainer
+                else -> MaterialTheme.colorScheme.surfaceContainer
+            },
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -1085,14 +1093,16 @@ private fun CounterCard(
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
-            counter.scheduledResetMs?.takeIf { it > now }?.let {
-                Text(
-                    "⏲ reset programmato ${formatRingTime(it)}",
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+            if (programmato) {
+                counter.scheduledResetMs?.let { resetAt ->
+                    Text(
+                        "⏲ riparte tra ${formatDurationTwoParts((resetAt - now).coerceAtLeast(0))}",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = OnScheduledContainer,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
             }
             // sforata da quanto: timer che avanza, sincronizzato ai secondi del contatore.
             // Si vede anche a campanella spenta: è l'informazione che serve per decidere.
