@@ -17,9 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,8 +41,11 @@ private val SwipeThresholdRight = 90.dp
 
 // A sinistra, quando c'è anche "nascondi": due riquadri, uno sopra l'altro, da toccare
 // invece di un trascinamento a soglia — si apre come un cassetto (si ferma tutto
-// aperto o tutto chiuso, mai a metà) e si sceglie toccando quello giusto.
-private val SwipeMaxLeftStacked = 150.dp
+// aperto o tutto chiuso, mai a metà) e si sceglie toccando quello giusto. Si apre già
+// dopo un trascinamento corto (SwipeOpenTrigger), ma scivola via la card per intero
+// (larghezza vera, misurata) — altrimenti, essendo la card più larga della sola zona
+// rivelata, resterebbe visibile a metà uno spicchio tagliato di testo e icone.
+private val SwipeOpenTrigger = 90.dp
 
 private val CardRadius = 26.dp
 
@@ -72,8 +78,11 @@ fun SwipeableCard(
     val density = LocalDensity.current
     val maxRightPx = with(density) { SwipeMaxRight.toPx() }
     val thresholdRightPx = with(density) { SwipeThresholdRight.toPx() }
-    val maxLeftStackedPx = with(density) { SwipeMaxLeftStacked.toPx() }
+    val openTriggerPx = with(density) { SwipeOpenTrigger.toPx() }
     val dueRiquadri = onSwipeHide != null
+    // Larghezza vera della card, misurata: prima che sia nota (primo frame) usa il
+    // valore di sempre come fallback, così non si divide per zero.
+    var cardWidthPx by remember { mutableFloatStateOf(maxRightPx) }
 
     // Solo il verso, non il valore: così il trascinamento non ricompone a ogni frame
     val direction by remember {
@@ -90,7 +99,12 @@ fun SwipeableCard(
         scope.launch { offsetX.animateTo(target, tween(180)) }
     }
 
-    Box(modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+            .onSizeChanged { cardWidthPx = it.width.toFloat() },
+    ) {
         if (direction > 0) {
             Box(
                 Modifier
@@ -189,7 +203,7 @@ fun SwipeableCard(
                                     animaA(0f)
                                     onSwipeDelete()
                                 }
-                                dueRiquadri && settled < -maxLeftStackedPx / 2f -> animaA(-maxLeftStackedPx)
+                                dueRiquadri && settled < -openTriggerPx -> animaA(-cardWidthPx)
                                 dueRiquadri -> animaA(0f)
                                 onSwipeArchive != null && settled < -thresholdRightPx -> {
                                     animaA(0f)
@@ -202,7 +216,7 @@ fun SwipeableCard(
                     ) { change, drag ->
                         change.consume()
                         val lowerBound = when {
-                            dueRiquadri -> -maxLeftStackedPx
+                            dueRiquadri -> -cardWidthPx
                             onSwipeArchive != null -> -maxRightPx
                             else -> 0f
                         }
