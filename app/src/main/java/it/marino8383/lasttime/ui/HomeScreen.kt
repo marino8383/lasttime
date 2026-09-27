@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -1159,18 +1158,6 @@ private fun CounterCard(
                         contentDescription = if (giornaliero) "+1" else "Riparti",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-                // Stessa azione del doppio tap sul ↺, ma visibile: senza, chi non sa del
-                // doppio tap non scopre mai "Riparti avanzato" (correggi orari, eventi
-                // dimenticati, converti in Giornaliera...). Il doppio tap resta comunque,
-                // per chi lo conosce già.
-                if (!giornaliero) {
-                    IconButton(onClick = onAdvancedRestart) {
-                        Icon(
-                            Icons.Filled.MoreHoriz, contentDescription = "Riparti avanzato",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                 }
                 // Nasconde (continua a contare, sparisce da lista/tabellone e notifiche);
                 // mostra di nuovo se e' gia' nascosto — vedi Counter.hidden. L'eliminazione
