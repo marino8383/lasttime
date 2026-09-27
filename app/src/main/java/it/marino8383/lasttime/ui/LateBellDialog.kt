@@ -25,8 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.marino8383.lasttime.CountersViewModel.LateBellChoice
 import it.marino8383.lasttime.data.Counter
-import it.marino8383.lasttime.data.advanceToFuture
+import it.marino8383.lasttime.data.bellEarlinessMs
 import it.marino8383.lasttime.data.bellLatenessMs
+import it.marino8383.lasttime.data.keepRhythmNextBell
 import it.marino8383.lasttime.formatDurationTwoParts
 import it.marino8383.lasttime.formatRingTime
 
@@ -42,8 +43,9 @@ fun LateBellDialog(
     onChoose: (LateBellChoice) -> Unit,
 ) {
     val step = (counter.bellMinutes ?: 0) * 60_000
-    val keepAt = advanceToFuture(counter.nextBellAtMs ?: now, step, now)
+    val keepAt = keepRhythmNextBell(counter.nextBellAtMs ?: now, step, now)
     val fromNowAt = now + step
+    val earliness = counter.bellEarlinessMs(now)
     val lateness = counter.bellLatenessMs(now) ?: 0
 
     var choice by remember {
@@ -62,7 +64,10 @@ fun LateBellDialog(
         text = {
             Column {
                 Text(
-                    "La campanella è suonata ${formatDurationTwoParts(lateness)} fa. E la prossima?",
+                    if (earliness != null)
+                        "Hai anticipato di ${formatDurationTwoParts(earliness)} rispetto alla campanella. E la prossima?"
+                    else
+                        "La campanella è suonata ${formatDurationTwoParts(lateness)} fa. E la prossima?",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

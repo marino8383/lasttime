@@ -8,6 +8,7 @@ import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.advanceToFuture
+import it.marino8383.lasttime.data.keepRhythmNextBell
 import it.marino8383.lasttime.data.add
 import it.marino8383.lasttime.data.addDailyPoint
 import it.marino8383.lasttime.data.create
@@ -373,6 +374,58 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Annulla l'ultimo riavvio: elimina quel round dallo storico e il timer torna a
+     * contare da quando era cominciato, come se quel Fatto non fosse mai successo. Il
+     * round prima (se c'è) ridiventa l'ultimo, correggibile/annullabile a sua volta.
+     *
+     * Stessa eccezione di [correctLastRestart] — solo l'ULTIMO round, mai la storia più
+     * vecchia — solo che invece di aggiustare l'orario lo toglie del tutto. Su un
+     * condiviso lo può fare chiunque nel gruppo: le regole del server lo concedono solo
+     * finché resta l'ultimo, non oltre.
+     */
+    fun undoLastRestart(counter: Counter, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            var counter = db.counterDao().byId(counter.id) ?: counter
+            val groupId = counter.sharedGroupId
+            if (groupId != null) {
+                withTimeoutOrNull(4_000) { SyncEngine.checkCounter(getApplication(), groupId, counter.uuid) }
+                counter = db.counterDao().byId(counter.id) ?: counter
+            }
+            val roundUuid = counter.lastRoundUuid
+            val round = roundUuid?.let { db.roundDao().byUuid(it) }
+            if (round == null) {
+                onDone("⚠️ Nessun riavvio recente da annullare.")
+                return@launch
+            }
+            // Il round prima di questo (se c'è) ridiventa l'ultimo.
+            val precedente = db.roundDao().recentFor(counter.id, 2).getOrNull(1)
+            if (groupId != null) {
+                try {
+                    Groups.deleteRound(groupId, round.uuid)
+                } catch (t: Throwable) {
+                    onDone("⚠️ Non sono riuscito a toglierlo dal gruppo: ${t.message}")
+                    return@launch
+                }
+            }
+            // La campanella scivola della stessa differenza dell'orario di inizio: e'
+            // un ripristino di come stava prima, non un nuovo riavvio da adesso.
+            val delta = round.startMs - counter.startMs
+            db.roundDao().deleteByUuid(round.uuid)
+            db.counterDao().save(
+                counter.copy(
+                    startMs = round.startMs,
+                    nextBellAtMs = counter.nextBellAtMs?.plus(delta),
+                    lastRoundUuid = precedente?.uuid,
+                    lastRoundStartMs = precedente?.startMs,
+                )
+            )
+            Notifications.cancel(getApplication(), counter.id)
+            AlarmScheduler.scheduleNext(getApplication())
+            onDone("✅ Riavvio annullato.")
+        }
+    }
+
     // ---------------------------------------------------------------- modalità Giornaliera
 
     /**
@@ -546,7 +599,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             )
             val updated = when (choice) {
                 LateBellChoice.KEEP_RHYTHM ->
-                    base.copy(nextBellAtMs = advanceToFuture(counter.nextBellAtMs ?: now, step, now))
+                    base.copy(nextBellAtMs = keepRhythmNextBell(counter.nextBellAtMs ?: now, step, now))
                 LateBellChoice.FROM_NOW ->
                     base.copy(nextBellAtMs = now + step)
                 LateBellChoice.DISABLE ->

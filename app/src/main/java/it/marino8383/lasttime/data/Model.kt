@@ -518,10 +518,30 @@ fun Counter.bellLatenessMs(now: Long): Long? {
 }
 
 /**
+ * Simmetrico di [bellLatenessMs]: quanto manca alla campanella di una ricorrente non
+ * ancora scaduta. Serve a decidere se un Fatto anticipato (fatto un po' prima del
+ * previsto) mantiene comunque il ritmo, come già succede per un ritardo lieve.
+ */
+fun Counter.bellEarlinessMs(now: Long): Long? {
+    if (bellMinutes == null || !bellRepeat || !bellEnabled || bellNotified || nextBellAtMs == null) return null
+    return (nextBellAtMs - now).takeIf { it > 0 }
+}
+
+/**
+ * Prossima scadenza "mantenendo il ritmo" rispetto alla scadenza precedente
+ * [nextBellAtMs]: sempre almeno un passo dopo di lei, mai lei stessa invariata — un
+ * Fatto anticipato arriva con [now] ancora prima di [nextBellAtMs], e [advanceToFuture]
+ * da solo la lascerebbe ferma lì, come se questo Fatto non avesse chiuso nessun giro.
+ */
+fun keepRhythmNextBell(nextBellAtMs: Long, step: Long, now: Long): Long =
+    advanceToFuture(nextBellAtMs + step, step, now)
+
+/**
  * Restart del contatore ("Fatto" o ↺): round chiuso altrove, qui il nuovo stato.
- * Ricorrente: la campanella si resetta e riparte — sforata da poco → mantiene il
- * ritmo; altrimenti segue il bellMode (INTERVAL: X da adesso; FIXED: il ritmo non
- * cambia). Singola: il reset la disattiva sempre.
+ * Ricorrente: la campanella si resetta e riparte — scaduta da poco o anticipata di
+ * poco (stessa soglia, simmetrica) → mantiene il ritmo; altrimenti segue il bellMode
+ * (INTERVAL: X da adesso; FIXED: il ritmo non cambia mai). Singola: il reset la
+ * disattiva sempre.
  */
 fun Counter.restarted(now: Long, latePercent: Int): Counter {
     val step = bellMinutes?.times(60_000)
@@ -532,9 +552,12 @@ fun Counter.restarted(now: Long, latePercent: Int): Counter {
     if (step != null) {
         if (bellRepeat) {
             val lateness = bellLatenessMs(now)
-            val slightlyLate = lateness != null && lateness <= bellLateThreshold(step, latePercent)
-            nextBell = if (nextBellAtMs != null && (bellMode == "FIXED" || slightlyLate)) {
-                advanceToFuture(nextBellAtMs, step, now)
+            val earliness = bellEarlinessMs(now)
+            val threshold = bellLateThreshold(step, latePercent)
+            val slightlyLate = lateness != null && lateness <= threshold
+            val slightlyEarly = earliness != null && earliness <= threshold
+            nextBell = if (nextBellAtMs != null && (bellMode == "FIXED" || slightlyLate || slightlyEarly)) {
+                keepRhythmNextBell(nextBellAtMs, step, now)
             } else {
                 now + step
             }

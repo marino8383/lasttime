@@ -78,6 +78,7 @@ fun AdvancedRestartSheet(
     onAddTimedEvent: (Long) -> Unit,
     onCorrectLast: (Long) -> Unit,
     onConvertToDaily: () -> Unit = {},
+    onUndoLastRestart: () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -87,6 +88,7 @@ fun AdvancedRestartSheet(
     var missedMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var missedAdded by remember { mutableIntStateOf(0) }
     var showConvertConfirm by remember { mutableStateOf(false) }
+    var showUndoConfirm by remember { mutableStateOf(false) }
 
     val nowMs = System.currentTimeMillis()
     val target = if (quickSel >= 0) nowMs - quickSel * 60_000 else customMs
@@ -219,6 +221,33 @@ fun AdvancedRestartSheet(
                 )
             }
 
+            // Non solo correggere l'orario: buttare via del tutto l'ultimo riavvio, come
+            // se non fosse mai successo. Stessa eccezione stretta di "Correggi l'ultimo
+            // riavvio" — solo l'ULTIMO round — solo che qui sparisce anziché spostarsi.
+            if (counter.lastRoundUuid != null) {
+                Spacer(Modifier.height(18.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "↩️ ANNULLA L'ULTIMO RIAVVIO",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Toglie dallo storico l'ultimo round e il timer torna a contare da " +
+                        "quando era cominciato — utile se l'hai fatto ripartire per sbaglio.",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = { showUndoConfirm = true }) {
+                    Text("↩️ Annulla l'ultimo riavvio")
+                }
+            }
+
             Spacer(Modifier.height(18.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Spacer(Modifier.height(14.dp))
@@ -329,6 +358,30 @@ fun AdvancedRestartSheet(
             },
             dismissButton = {
                 TextButton(onClick = { showConvertConfirm = false }) { Text("Annulla") }
+            },
+        )
+    }
+
+    if (showUndoConfirm) {
+        val lastRoundStart = counter.lastRoundStartMs
+        AlertDialog(
+            onDismissRequest = { showUndoConfirm = false },
+            title = { Text("Annullare l'ultimo riavvio?") },
+            text = {
+                Text(
+                    "Il round appena chiuso di “${counter.name}” viene tolto dallo storico" +
+                        (lastRoundStart?.let { " e il timer torna a contare dal ${formatDateTime(it)}" } ?: "") +
+                        "."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUndoConfirm = false
+                    onUndoLastRestart()
+                }) { Text("Sì, annulla") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUndoConfirm = false }) { Text("No") }
             },
         )
     }

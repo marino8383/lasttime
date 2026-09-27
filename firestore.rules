@@ -93,9 +93,16 @@ service cloud.firestore {
           && request.resource.data.endMs <= request.time.toMillis()
           && (resource.data.endMsUpdatedAt == null || request.resource.data.endMsUpdatedAt >= resource.data.endMsUpdatedAt)
           && request.resource.data.endMsUpdatedAt <= request.time.toMillis();
-        // Sui Giornalieri niente append-only: chiunque nel gruppo puo' cancellare
-        // qualunque evento passato, non solo l'ultimo (deciso il 26/09 insieme a Fabrizio).
-        allow delete: if isMember(groupId) && isDailyCounter(groupId, resource.data.counterUuid);
+        // Cancellazione: sui Giornalieri qualunque evento passato, non solo l'ultimo
+        // (deciso il 26/09). Sui Precisi resta append-only tranne l'ULTIMO round, che si
+        // puo' anche annullare del tutto (non solo correggerne l'endMs, vedi la regola
+        // "update" sopra) — stessa eccezione stretta, stesso motivo: e' l'unico round che
+        // non ha ancora storia sopra di se'.
+        allow delete: if isMember(groupId) && (
+          isDailyCounter(groupId, resource.data.counterUuid) ||
+          get(/databases/$(database)/documents/groups/$(groupId)/counters/$(resource.data.counterUuid))
+            .data.get('lastRoundUuid', '') == roundUuid
+        );
       }
     }
   }

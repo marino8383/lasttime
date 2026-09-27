@@ -84,6 +84,7 @@ import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.calendarDaysBetween
 import it.marino8383.lasttime.data.bellLateThreshold
 import it.marino8383.lasttime.data.bellLatenessMs
+import it.marino8383.lasttime.data.bellEarlinessMs
 import it.marino8383.lasttime.formatDateTime
 import it.marino8383.lasttime.formatDateOnly
 import it.marino8383.lasttime.formatClock
@@ -500,11 +501,19 @@ fun HomeScreen(
                             return@checkBeforeRestart
                         }
                         val fresco = esito.counter
-                        // Ricorrente suonata da molto: prima di ripartire si chiede della campanella
-                        val lateness = fresco.bellLatenessMs(System.currentTimeMillis())
+                        // Ricorrente suonata da molto, o fatta molto in anticipo: prima di
+                        // ripartire si chiede della campanella. Entro soglia in entrambi i
+                        // versi si mantiene il ritmo da soli, senza disturbare.
+                        val now2 = System.currentTimeMillis()
+                        val lateness = fresco.bellLatenessMs(now2)
+                        val earliness = fresco.bellEarlinessMs(now2)
                         val threshold = fresco.bellMinutes
                             ?.let { bellLateThreshold(it * 60_000, AppSettings.latePercent(context)) }
-                        if (lateness != null && threshold != null && lateness > threshold) {
+                        val fuoriSoglia = threshold != null && (
+                            (lateness != null && lateness > threshold) ||
+                                (earliness != null && earliness > threshold)
+                            )
+                        if (fuoriSoglia) {
                             lateBellTarget = fresco
                         } else {
                             vm.restart(fresco)
@@ -549,6 +558,12 @@ fun HomeScreen(
             onConvertToDaily = {
                 vm.convertToDaily(counter) {
                     Toast.makeText(context, "🗓️ Convertito in Giornaliera", Toast.LENGTH_SHORT).show()
+                }
+                advancedTarget = null
+            },
+            onUndoLastRestart = {
+                vm.undoLastRestart(counter) { esito ->
+                    Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()
                 }
                 advancedTarget = null
             },
