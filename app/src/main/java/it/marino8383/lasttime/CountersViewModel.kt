@@ -361,14 +361,15 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             }
             // La prossima scadenza si ricalcola dall'istante corretto, non si sposta
             // della stessa differenza: "scivolare" avrebbe portato dietro anche un
-            // eventuale scarto già accumulato da un "mantieni il ritmo" precedente (bug:
-            // segnalato da Fabrizio il 27/09, +8h da un orario corretto non tornava
-            // esatto). FIXED fa eccezione: il ritmo fisso non dipende da quando confermi,
-            // vedi editCounter — una correzione dell'orario non deve toccarlo.
+            // eventuale scarto già accumulato da un "mantieni il ritmo" precedente (bug
+            // segnalato da Fabrizio il 27/09). Vale anche sulle FIXED: "il ritmo fisso
+            // non dipende da quando confermi" e' per il Fatto spontaneo, non per una
+            // correzione esplicita — chi sceglie a mano un orario si aspetta che la
+            // scadenza lo segua, non un'ancora vecchia scollegata (stesso principio di
+            // Counter.restartedAt).
             val step = counter.bellMinutes?.times(60_000)
             val newNextBell = when {
                 counter.nextBellAtMs == null -> null
-                counter.bellMode == "FIXED" -> counter.nextBellAtMs
                 step != null -> at + step
                 else -> counter.nextBellAtMs
             }
@@ -420,11 +421,10 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             // Ricalcolata dal nuovo inizio, non scivolata della stessa differenza —
-            // stesso motivo del fix in correctLastRestart. FIXED resta ferma.
+            // stesso motivo del fix in correctLastRestart, vale anche sulle FIXED.
             val step = counter.bellMinutes?.times(60_000)
             val newNextBell = when {
                 counter.nextBellAtMs == null -> null
-                counter.bellMode == "FIXED" -> counter.nextBellAtMs
                 step != null -> round.startMs + step
                 else -> counter.nextBellAtMs
             }

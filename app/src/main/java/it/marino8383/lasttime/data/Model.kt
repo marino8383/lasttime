@@ -578,12 +578,12 @@ fun Counter.restarted(now: Long, latePercent: Int): Counter {
 
 /**
  * Come [restarted], ma per un istante scelto a mano (Riparti avanzato: chip rapide,
- * data/ora, "con orario"): niente euristica di ritardo/anticipo. Quella confronta [now]
- * con la scadenza già in memoria per capire "quanto ci è mancato mantenere il ritmo" —
- * ma qui [now] è un istante scelto dall'utente, spesso ore nel passato, scollegato da
- * quella scadenza: applicarla avrebbe prodotto scadenze a caso (bug segnalato da
- * Fabrizio il 27/09). FIXED fa eccezione come sempre: il ritmo fisso non dipende da
- * quando confermi.
+ * data/ora, "con orario"): niente euristica di ritardo/anticipo, e la prossima scadenza
+ * si ricalcola sempre da quell'istante — **anche sulle FIXED**. "Il ritmo fisso non
+ * dipende da quando confermi" vale per il Fatto spontaneo (restarted), non per una
+ * correzione esplicita della storia: chi va a scegliere a mano un orario preciso si
+ * aspetta che la scadenza segua quello, non un'ancora vecchia scollegata (bug segnalato
+ * da Fabrizio il 27/09, due volte: prima su "corregge l'ultimo riavvio", poi qui).
  */
 fun Counter.restartedAt(now: Long): Counter {
     val step = bellMinutes?.times(60_000)
@@ -591,7 +591,7 @@ fun Counter.restartedAt(now: Long): Counter {
     var enabled = bellEnabled
     if (step != null) {
         if (bellRepeat) {
-            nextBell = if (bellMode == "FIXED") nextBellAtMs else now + step
+            nextBell = now + step
         } else {
             enabled = false
             nextBell = null
