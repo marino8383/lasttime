@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.marino8383.lasttime.data.Counter
+import it.marino8383.lasttime.data.advanceToFuture
 import it.marino8383.lasttime.formatRingTime
 
 private enum class BellUnit(val label: String, val minutes: Long) {
@@ -72,17 +73,18 @@ fun BellDialog(
     val amount = amountText.toLongOrNull()?.takeIf { it > 0 }
     val bellMinutes = amount?.times(unit.minutes)
 
-    // "Da quando": ovvio se la scadenza da inizio timer è già passata (=> da adesso)
-    // o se il timer è appena partito (le due opzioni coincidono); altrimenti si chiede.
+    // "Da quando": ovvio solo se il timer è appena partito (le due opzioni coincidono);
+    // altrimenti si chiede. "Da inizio timer" resta ancorato all'orario di partenza —
+    // avanzato alla prossima occorrenza futura del ritmo, non un singolo "+passo" che
+    // sul timer avviato da un pezzo sarebbe già scaduto (e si perderebbe l'orario
+    // "rotondo" rispetto all'inizio, es. sempre allo stesso minuto).
     val now = System.currentTimeMillis()
     val stepMs = bellMinutes?.times(60_000)
-    val fromStart = stepMs?.let { counter.startMs + it }
+    val fromStart = stepMs?.let { advanceToFuture(counter.startMs + it, it, now) }
     val fromNow = stepMs?.let { now + it }
-    val startExpired = fromStart != null && fromStart <= now
-    val ambiguous = fromStart != null && !startExpired && (now - counter.startMs) >= 60_000
+    val ambiguous = fromStart != null && (now - counter.startMs) >= 60_000
     val nextBellAt = when {
         stepMs == null -> null
-        startExpired -> fromNow
         ambiguous && !anchorFromStart -> fromNow
         else -> fromStart
     }
