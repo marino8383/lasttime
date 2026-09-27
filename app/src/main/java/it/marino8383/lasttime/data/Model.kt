@@ -507,12 +507,13 @@ fun advanceToFuture(from: Long, stepMs: Long, now: Long): Long {
 }
 
 /**
- * Da quanto è sforata una ricorrente attiva (null se non applicabile o se non è
- * suonata senza risposta). Conta solo se davvero suonata (bellNotified): una
- * ciclica a metà ciclo non è "in ritardo". Serve a decidere se il Fatto deve chiedere.
+ * Da quanto è sforata una ricorrente (null se non applicabile o se non è suonata senza
+ * risposta). Conta solo se davvero suonata (bellNotified): una ciclica a metà ciclo non
+ * è "in ritardo". Serve a decidere se il Fatto deve chiedere. Vale anche a campanella
+ * silenziata: spegnerla toglie la notifica, non il ritmo — vedi Counter.restarted.
  */
 fun Counter.bellLatenessMs(now: Long): Long? {
-    if (bellMinutes == null || !bellRepeat || !bellEnabled || !bellNotified || nextBellAtMs == null) return null
+    if (bellMinutes == null || !bellRepeat || !bellNotified || nextBellAtMs == null) return null
     // la scadenza suonata resta in nextBellAtMs (non si auto-avanza più)
     return (now - nextBellAtMs).takeIf { it >= 0 }
 }
@@ -520,10 +521,11 @@ fun Counter.bellLatenessMs(now: Long): Long? {
 /**
  * Simmetrico di [bellLatenessMs]: quanto manca alla campanella di una ricorrente non
  * ancora scaduta. Serve a decidere se un Fatto anticipato (fatto un po' prima del
- * previsto) mantiene comunque il ritmo, come già succede per un ritardo lieve.
+ * previsto) mantiene comunque il ritmo, come già succede per un ritardo lieve — anche
+ * a campanella silenziata, stesso motivo.
  */
 fun Counter.bellEarlinessMs(now: Long): Long? {
-    if (bellMinutes == null || !bellRepeat || !bellEnabled || bellNotified || nextBellAtMs == null) return null
+    if (bellMinutes == null || !bellRepeat || bellNotified || nextBellAtMs == null) return null
     return (nextBellAtMs - now).takeIf { it > 0 }
 }
 
