@@ -93,7 +93,16 @@ fun AdvancedRestartSheet(
     var showUndoConfirm by remember { mutableStateOf(false) }
 
     val nowMs = System.currentTimeMillis()
-    val target = if (quickSel >= 0) nowMs - quickSel * 60_000 else customMs
+    // Sulle ricorrenti: l'ultima scadenza calcolata, invece di un "minuti fa" a caso.
+    // Se e' passata (sforato) si chiude il round proprio li'; se e' ancora nel futuro
+    // diventa un reset programmato — il timer continua a contare e si resetta da solo
+    // quando ci arriva, mantenendo il ritmo (vedi Counter.restarted).
+    val bellTarget = counter.nextBellAtMs.takeIf { counter.bellMinutes != null && counter.bellRepeat }
+    val target = when {
+        quickSel == -2L && bellTarget != null -> bellTarget
+        quickSel >= 0 -> nowMs - quickSel * 60_000
+        else -> customMs
+    }
     val lastRoundStart = counter.lastRoundStartMs
     // Dentro l'ultimo round chiuso: non e' un riavvio nuovo, e' l'orario di quello gia'
     // fatto che si sposta. Oltre quel confine si mangerebbe il round prima, e resta bloccato.
@@ -162,13 +171,28 @@ fun AdvancedRestartSheet(
                     )
                 }
                 FilterChip(
-                    selected = quickSel < 0,
+                    selected = quickSel == -1L,
                     onClick = { quickSel = -1 },
                     label = { Text("Data e ora", fontSize = 11.sp) },
                 )
             }
+            if (bellTarget != null) {
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(
+                        selected = quickSel == -2L,
+                        onClick = { quickSel = -2L },
+                        label = {
+                            Text(
+                                if (bellTarget <= nowMs) "🔔 Alla campanella (sforata)" else "🔔 Alla campanella",
+                                fontSize = 11.sp,
+                            )
+                        },
+                    )
+                }
+            }
 
-            if (quickSel < 0) {
+            if (quickSel == -1L) {
                 Spacer(Modifier.height(8.dp))
                 DateTimeRow(valueMs = customMs, onChange = { customMs = it })
             }
