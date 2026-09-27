@@ -143,7 +143,7 @@ fun BellDialog(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     if (repeat) "Si riarma ogni volta, finché non la spegni."
-                    else "Suona una volta e si spegne (i rimandi valgono comunque).",
+                    else "Suona una volta e si spegne — anche se fai Fatto prima che suoni (i rimandi valgono comunque).",
                     fontSize = 11.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

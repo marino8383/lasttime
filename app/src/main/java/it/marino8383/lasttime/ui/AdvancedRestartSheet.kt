@@ -78,9 +78,7 @@ fun AdvancedRestartSheet(
     onCancelSchedule: () -> Unit,
     onAddMissed: (Long) -> Unit,
     onAddTimedEvent: (Long) -> Unit,
-    onCorrectLast: (Long) -> Unit,
     onConvertToDaily: () -> Unit = {},
-    onUndoLastRestart: () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -90,7 +88,6 @@ fun AdvancedRestartSheet(
     var missedMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var missedAdded by remember { mutableIntStateOf(0) }
     var showConvertConfirm by remember { mutableStateOf(false) }
-    var showUndoConfirm by remember { mutableStateOf(false) }
 
     val nowMs = System.currentTimeMillis()
     // Se c'e' una campanella configurata, invece di un "minuti fa" a caso — anche
@@ -105,11 +102,9 @@ fun AdvancedRestartSheet(
         quickSel >= 0 -> nowMs - quickSel * 60_000
         else -> customMs
     }
-    val lastRoundStart = counter.lastRoundStartMs
-    // Dentro l'ultimo round chiuso: non e' un riavvio nuovo, e' l'orario di quello gia'
-    // fatto che si sposta. Oltre quel confine si mangerebbe il round prima, e resta bloccato.
-    val correctable = lastRoundStart != null && target >= lastRoundStart && target < counter.startMs
-    val beforeRound = target < (lastRoundStart ?: counter.startMs)
+    // Correggere/annullare l'ultimo round già chiuso si fa dallo Storico (matita/cestino
+    // sulla sua riga): qui si riavvia solo dentro il round ancora aperto.
+    val beforeRound = target < counter.startMs
     val isFuture = target > nowMs + 1_000
 
     ModalBottomSheet(
@@ -203,19 +198,11 @@ fun AdvancedRestartSheet(
             Spacer(Modifier.height(8.dp))
             when {
                 beforeRound -> Text(
-                    if (lastRoundStart != null)
-                        "⚠️ Andrebbe oltre l'inizio dell'ultimo round (dal ${formatDateTime(lastRoundStart)}): si mangerebbe quello prima."
-                    else
-                        "⚠️ Prima dell'inizio del round attuale (dal ${formatDateTime(counter.startMs)})",
+                    "⚠️ Prima dell'inizio del round attuale (dal ${formatDateTime(counter.startMs)}). " +
+                        "Per correggere un round già chiuso usa lo Storico.",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.Bold,
-                )
-                correctable -> Text(
-                    "✏️ Corregge l'ultimo riavvio già fatto (${formatRingTime(counter.startMs)}) portandolo a " +
-                        "${formatRingTime(target)}. Non aggiunge un round nuovo.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary,
                 )
                 isFuture -> Text(
                     "⏲ Il timer continua e si resetta da solo ${formatRingTime(target)}. Un nuovo comando sostituirà questa programmazione.",
@@ -233,49 +220,14 @@ fun AdvancedRestartSheet(
             Button(
                 enabled = !beforeRound,
                 onClick = {
-                    when {
-                        isFuture -> onSchedule(target)
-                        correctable -> onCorrectLast(target)
-                        else -> onRestartAt(target)
-                    }
+                    if (isFuture) onSchedule(target) else onRestartAt(target)
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    when {
-                        isFuture -> "⏲ Programma il reset"
-                        correctable -> "✏️ Correggi l'ultimo riavvio"
-                        else -> "↺ Riparti"
-                    },
+                    if (isFuture) "⏲ Programma il reset" else "↺ Riparti",
                     fontWeight = FontWeight.Bold,
                 )
-            }
-
-            // Non solo correggere l'orario: buttare via del tutto l'ultimo riavvio, come
-            // se non fosse mai successo. Stessa eccezione stretta di "Correggi l'ultimo
-            // riavvio" — solo l'ULTIMO round — solo che qui sparisce anziché spostarsi.
-            if (counter.lastRoundUuid != null) {
-                Spacer(Modifier.height(18.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    "↩️ ANNULLA L'ULTIMO RIAVVIO",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.5.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Toglie dallo storico l'ultimo round e il timer torna a contare da " +
-                        "quando era cominciato — utile se l'hai fatto ripartire per sbaglio.",
-                    fontSize = 11.5.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { showUndoConfirm = true }) {
-                    Text("↩️ Annulla l'ultimo riavvio")
-                }
             }
 
             Spacer(Modifier.height(18.dp))
@@ -388,30 +340,6 @@ fun AdvancedRestartSheet(
             },
             dismissButton = {
                 TextButton(onClick = { showConvertConfirm = false }) { Text("Annulla") }
-            },
-        )
-    }
-
-    if (showUndoConfirm) {
-        val lastRoundStart = counter.lastRoundStartMs
-        AlertDialog(
-            onDismissRequest = { showUndoConfirm = false },
-            title = { Text("Annullare l'ultimo riavvio?") },
-            text = {
-                Text(
-                    "Il round appena chiuso di “${counter.name}” viene tolto dallo storico" +
-                        (lastRoundStart?.let { " e il timer torna a contare dal ${formatDateTime(it)}" } ?: "") +
-                        "."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showUndoConfirm = false
-                    onUndoLastRestart()
-                }) { Text("Sì, annulla") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showUndoConfirm = false }) { Text("No") }
             },
         )
     }

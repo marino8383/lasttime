@@ -78,17 +78,6 @@ fun LateBellDialog(
                     subtitle = "prossima ${formatRingTime(keepAt)}",
                     onClick = { choice = LateBellChoice.KEEP_RHYTHM },
                 )
-                // Ha senso solo in anticipo: non e' un Fatto adesso, e' "non ancora" — il
-                // round resta aperto e si chiude da solo quando arriva la campanella,
-                // come il chip "alla campanella" di Riparti avanzato quando e' nel futuro.
-                if (earliness != null) {
-                    ChoiceRow(
-                        selected = choice == LateBellChoice.SCHEDULE,
-                        title = "⏲ Aspetta la campanella",
-                        subtitle = "si resetta da solo alle ${formatRingTime(counter.nextBellAtMs ?: now)}",
-                        onClick = { choice = LateBellChoice.SCHEDULE },
-                    )
-                }
                 ChoiceRow(
                     selected = choice == LateBellChoice.FROM_NOW,
                     title = "Riparti da adesso",
@@ -104,9 +93,7 @@ fun LateBellDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onChoose(choice) }) {
-                Text(if (choice == LateBellChoice.SCHEDULE) "Programma" else "Riparti")
-            }
+            TextButton(onClick = { onChoose(choice) }) { Text("Riparti") }
         },
         dismissButton = {},
     )
