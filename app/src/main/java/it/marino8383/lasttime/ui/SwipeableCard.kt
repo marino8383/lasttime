@@ -5,13 +5,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -39,20 +36,20 @@ import kotlin.math.roundToInt
 private val SwipeMaxRight = 150.dp
 private val SwipeThresholdRight = 90.dp
 
-// A sinistra, quando c'è anche "nascondi": due riquadri affiancati da toccare invece
-// di un trascinamento a soglia — si apre come un cassetto (si ferma tutto aperto o
-// tutto chiuso, mai a metà) e si sceglie toccando quello giusto.
-private val SwipeMaxLeftTwo = 220.dp
-private val SwipeBoxWidth = SwipeMaxLeftTwo / 2
+// A sinistra, quando c'è anche "nascondi": due riquadri, uno sopra l'altro, da toccare
+// invece di un trascinamento a soglia — si apre come un cassetto (si ferma tutto
+// aperto o tutto chiuso, mai a metà) e si sceglie toccando quello giusto.
+private val SwipeMaxLeftStacked = 150.dp
 
 private val CardRadius = 26.dp
 
 /**
  * Card trascinabile in orizzontale (v23): swipe a destra = elimina (soglia, come
  * sempre). Swipe a sinistra: se [onSwipeHide] è null, si comporta come prima (soglia =
- * archivia); se non è null, si apre un cassetto con due riquadri — [hideLabel] e
- * "Archivia" — e si sceglie toccando quello voluto (v0.21: nascondere è troppo
- * frequente e leggero per condividere lo stesso gesto-soglia di archivia/elimina).
+ * archivia); se non è null, si apre un cassetto con due riquadri, uno sopra l'altro —
+ * [hideLabel] in alto e "Archivia" sotto — e si sceglie toccando quello voluto (v0.22:
+ * nascondere è troppo frequente e leggero per condividere lo stesso gesto-soglia di
+ * archivia/elimina).
  *
  * Lo scroll verticale resta alla lista: detectHorizontalDragGestures parte solo dopo lo
  * slop orizzontale, quindi un dito che scende non viene intercettato. Allo stesso modo il
@@ -75,7 +72,7 @@ fun SwipeableCard(
     val density = LocalDensity.current
     val maxRightPx = with(density) { SwipeMaxRight.toPx() }
     val thresholdRightPx = with(density) { SwipeThresholdRight.toPx() }
-    val maxLeftTwoPx = with(density) { SwipeMaxLeftTwo.toPx() }
+    val maxLeftStackedPx = with(density) { SwipeMaxLeftStacked.toPx() }
     val dueRiquadri = onSwipeHide != null
 
     // Solo il verso, non il valore: così il trascinamento non ricompone a ogni frame
@@ -113,16 +110,15 @@ fun SwipeableCard(
             }
         } else if (direction < 0) {
             if (dueRiquadri) {
-                Row(
+                Column(
                     Modifier
                         .matchParentSize()
                         .clip(RoundedCornerShape(CardRadius)),
-                    horizontalArrangement = Arrangement.End,
                 ) {
                     Box(
                         Modifier
-                            .fillMaxHeight()
-                            .width(SwipeBoxWidth)
+                            .weight(1f)
+                            .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                             .clickable {
                                 onSwipeHide?.invoke()
@@ -139,8 +135,8 @@ fun SwipeableCard(
                     }
                     Box(
                         Modifier
-                            .fillMaxHeight()
-                            .width(SwipeBoxWidth)
+                            .weight(1f)
+                            .fillMaxWidth()
                             .background(SwipeArchiveBg)
                             .clickable {
                                 onSwipeArchive?.invoke()
@@ -193,7 +189,7 @@ fun SwipeableCard(
                                     animaA(0f)
                                     onSwipeDelete()
                                 }
-                                dueRiquadri && settled < -maxLeftTwoPx / 2f -> animaA(-maxLeftTwoPx)
+                                dueRiquadri && settled < -maxLeftStackedPx / 2f -> animaA(-maxLeftStackedPx)
                                 dueRiquadri -> animaA(0f)
                                 onSwipeArchive != null && settled < -thresholdRightPx -> {
                                     animaA(0f)
@@ -206,7 +202,7 @@ fun SwipeableCard(
                     ) { change, drag ->
                         change.consume()
                         val lowerBound = when {
-                            dueRiquadri -> -maxLeftTwoPx
+                            dueRiquadri -> -maxLeftStackedPx
                             onSwipeArchive != null -> -maxRightPx
                             else -> 0f
                         }
