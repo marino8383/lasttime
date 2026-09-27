@@ -596,13 +596,23 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Scelta dell'utente quando fa Fatto/↺ con una ricorrente scaduta da molto. */
-    enum class LateBellChoice { KEEP_RHYTHM, FROM_NOW, DISABLE }
+    /** Scelta dell'utente quando fa Fatto/↺ con una ricorrente scaduta da molto, o
+     * anticipata di molto (SCHEDULE ha senso solo in questo secondo caso). */
+    enum class LateBellChoice { KEEP_RHYTHM, FROM_NOW, DISABLE, SCHEDULE }
 
     /** Come [restart], ma con la decisione esplicita sulla campanella in ritardo. */
     fun restartWithBellChoice(counter: Counter, choice: LateBellChoice) {
         viewModelScope.launch {
             val counter = db.counterDao().byId(counter.id) ?: counter
+            // Non è un Fatto adesso: è un "non ancora, aspetta la campanella" — il round
+            // resta aperto, si programma solo il reset automatico a quell'istante (come
+            // il chip "alla campanella" di Riparti avanzato quando è nel futuro).
+            if (choice == LateBellChoice.SCHEDULE) {
+                val target = counter.nextBellAtMs ?: return@launch
+                db.counterDao().save(counter.copy(scheduledResetMs = target))
+                AlarmScheduler.scheduleNext(getApplication())
+                return@launch
+            }
             val now = System.currentTimeMillis()
             val step = (counter.bellMinutes ?: 0) * 60_000
             val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
@@ -621,6 +631,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     base.copy(nextBellAtMs = now + step)
                 LateBellChoice.DISABLE ->
                     base.copy(bellEnabled = false)
+                LateBellChoice.SCHEDULE -> base // gestito sopra con return@launch, mai qui
             }
             db.counterDao().save(updated)
             Notifications.cancel(getApplication(), counter.id)
