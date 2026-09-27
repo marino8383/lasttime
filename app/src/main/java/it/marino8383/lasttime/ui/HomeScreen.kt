@@ -460,6 +460,16 @@ fun HomeScreen(
                     Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()
                 }
             },
+            onCorrectLast = { at ->
+                vm.correctLastRestart(counter, at) { esito ->
+                    Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()
+                }
+            },
+            onUndoLastRestart = {
+                vm.undoLastRestart(counter) { esito ->
+                    Toast.makeText(context, esito, Toast.LENGTH_SHORT).show()
+                }
+            },
         )
     }
 

@@ -22,9 +22,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,8 +39,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,6 +92,8 @@ fun HistorySheet(
     onAddDay: (Long) -> Unit = {},
     onRemoveDay: (Round) -> Unit = {},
     onRemoveDayAll: (List<Round>) -> Unit = {},
+    onCorrectLast: (Long) -> Unit = {},
+    onUndoLastRestart: () -> Unit = {},
 ) {
     val giornaliero = counter.mode == CounterMode.GIORNALIERO
     val timed = rounds.filter { !it.noTime }
@@ -97,6 +103,10 @@ fun HistorySheet(
     var showAddDay by remember { mutableStateOf(false) }
     // Righe giorno aperte, per vedere chi ha fatto cosa e a che ora dentro la giornata.
     var giorniAperti by remember { mutableStateOf(setOf<LocalDate>()) }
+    // Riga dell'ultimo round (Precisi): stessa eccezione stretta di "Riparti avanzato",
+    // solo qui a portata di mano dentro lo storico.
+    var showEditLast by remember { mutableStateOf(false) }
+    var showUndoLastConfirm by remember { mutableStateOf(false) }
 
     // Un contatore Giornaliero raggruppa i round per data di calendario: più occorrenze
     // lo stesso giorno sono una riga sola con un contatore ×N, non righe ripetute.
@@ -522,6 +532,23 @@ fun HistorySheet(
                                     textAlign = TextAlign.End,
                                 )
                             }
+                            // Solo sull'ULTIMO round vero (non un giro "solo conteggio"):
+                            // stessa eccezione stretta di "Riparti avanzato", qui a portata
+                            // di mano — matita corregge l'orario, cestino annulla il riavvio.
+                            if (round.uuid == counter.lastRoundUuid) {
+                                IconButton(onClick = { showEditLast = true }) {
+                                    Icon(
+                                        Icons.Filled.Edit, contentDescription = "Correggi l'orario",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                IconButton(onClick = { showUndoLastConfirm = true }) {
+                                    Icon(
+                                        Icons.Filled.Delete, contentDescription = "Annulla il riavvio",
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            }
                         }
                         if (i < rounds.size - 1) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -556,6 +583,117 @@ fun HistorySheet(
             },
         ) {
             DatePicker(state = dateState)
+        }
+    }
+
+    if (showUndoLastConfirm) {
+        AlertDialog(
+            onDismissRequest = { showUndoLastConfirm = false },
+            title = { Text("Annullare l'ultimo riavvio?") },
+            text = {
+                Text(
+                    "Il round appena chiuso viene tolto dallo storico e il timer torna a " +
+                        "contare da quando era cominciato."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUndoLastConfirm = false
+                    onUndoLastRestart()
+                }) { Text("Sì, annulla") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUndoLastConfirm = false }) { Text("No") }
+            },
+        )
+    }
+
+    if (showEditLast) {
+        val target = rounds.firstOrNull { it.uuid == counter.lastRoundUuid }
+        if (target != null) {
+            var editMs by remember(target.uuid) { mutableStateOf(target.endMs) }
+            var showDatePart by remember { mutableStateOf(false) }
+            var showTimePart by remember { mutableStateOf(false) }
+
+            AlertDialog(
+                onDismissRequest = { showEditLast = false },
+                title = { Text("Correggi l'ultimo riavvio") },
+                text = {
+                    Column {
+                        Text(
+                            "Nuovo orario di fine per questo round:",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { showDatePart = true }) {
+                                Text("📅 ${formatDateOnly(editMs)}")
+                            }
+                            OutlinedButton(onClick = { showTimePart = true }) {
+                                Text("🕐 ${formatClock(editMs)}")
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showEditLast = false
+                        onCorrectLast(editMs)
+                    }) { Text("Salva") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEditLast = false }) { Text("Annulla") }
+                },
+            )
+
+            if (showDatePart) {
+                val dateState = rememberDatePickerState(initialSelectedDateMillis = editMs)
+                DatePickerDialog(
+                    onDismissRequest = { showDatePart = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            dateState.selectedDateMillis?.let { selected ->
+                                // Stessa convenzione di showAddDay: il DatePicker incodifica
+                                // sempre a mezzanotte UTC, va riletta come data e rimessa
+                                // sull'ora già scelta nel fuso locale.
+                                val date = Instant.ofEpochMilli(selected).atZone(ZoneOffset.UTC).toLocalDate()
+                                val time = Instant.ofEpochMilli(editMs).atZone(ZoneId.systemDefault()).toLocalTime()
+                                editMs = date.atTime(time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            }
+                            showDatePart = false
+                        }) { Text("OK") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDatePart = false }) { Text("Annulla") }
+                    },
+                ) {
+                    DatePicker(state = dateState)
+                }
+            }
+
+            if (showTimePart) {
+                val zoned = Instant.ofEpochMilli(editMs).atZone(ZoneId.systemDefault())
+                val timeState = rememberTimePickerState(
+                    initialHour = zoned.hour,
+                    initialMinute = zoned.minute,
+                    is24Hour = true,
+                )
+                AlertDialog(
+                    onDismissRequest = { showTimePart = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            editMs = zoned.toLocalDate().atTime(timeState.hour, timeState.minute)
+                                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            showTimePart = false
+                        }) { Text("OK") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showTimePart = false }) { Text("Annulla") }
+                    },
+                    text = { TimePicker(state = timeState) },
+                )
+            }
         }
     }
 }
