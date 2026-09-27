@@ -18,6 +18,7 @@ import it.marino8383.lasttime.data.noonOf
 import it.marino8383.lasttime.data.save
 import it.marino8383.lasttime.data.saveLocal
 import it.marino8383.lasttime.data.restarted
+import it.marino8383.lasttime.data.restartedAt
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
 import it.marino8383.lasttime.sync.Cloud
@@ -308,7 +309,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             if (at < counter.startMs) return@launch // la UI valida già; qui è solo difesa
             val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = at), counter)
             db.counterDao().save(
-                counter.restarted(at, AppSettings.latePercent(getApplication()))
+                counter.restartedAt(at)
                     .copy(lastRoundUuid = round.uuid, lastRoundStartMs = round.startMs)
             )
             Notifications.cancel(getApplication(), counter.id)

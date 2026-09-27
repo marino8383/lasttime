@@ -576,6 +576,37 @@ fun Counter.restarted(now: Long, latePercent: Int): Counter {
     )
 }
 
+/**
+ * Come [restarted], ma per un istante scelto a mano (Riparti avanzato: chip rapide,
+ * data/ora, "con orario"): niente euristica di ritardo/anticipo. Quella confronta [now]
+ * con la scadenza già in memoria per capire "quanto ci è mancato mantenere il ritmo" —
+ * ma qui [now] è un istante scelto dall'utente, spesso ore nel passato, scollegato da
+ * quella scadenza: applicarla avrebbe prodotto scadenze a caso (bug segnalato da
+ * Fabrizio il 27/09). FIXED fa eccezione come sempre: il ritmo fisso non dipende da
+ * quando confermi.
+ */
+fun Counter.restartedAt(now: Long): Counter {
+    val step = bellMinutes?.times(60_000)
+    var nextBell = nextBellAtMs
+    var enabled = bellEnabled
+    if (step != null) {
+        if (bellRepeat) {
+            nextBell = if (bellMode == "FIXED") nextBellAtMs else now + step
+        } else {
+            enabled = false
+            nextBell = null
+        }
+    }
+    return copy(
+        startMs = now,
+        bellNotified = false,
+        snoozeUntilMs = null,
+        nextBellAtMs = nextBell,
+        bellEnabled = enabled,
+        scheduledResetMs = null,
+    )
+}
+
 /** Valori validi di [Counter.mode]. */
 object CounterMode {
     const val PRECISO = "PRECISO"
