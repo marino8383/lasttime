@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -83,6 +84,7 @@ import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.calendarDaysBetween
+import it.marino8383.lasttime.data.parseStates
 import it.marino8383.lasttime.data.RhythmDeviation
 import it.marino8383.lasttime.data.rhythmDeviation
 import it.marino8383.lasttime.data.doneTargetMs
@@ -204,6 +206,7 @@ fun HomeScreen(
     var shareTarget by remember { mutableStateOf<Counter?>(null) }
     var resumeTarget by remember { mutableStateOf<Counter?>(null) }
     var staleTarget by remember { mutableStateOf<CountersViewModel.FreshCheck?>(null) }
+    var stateTarget by remember { mutableStateOf<Counter?>(null) }
     // Un controllo al giorno, all'apertura. Una versione nuova non esce quattro volte all'ora.
     var novita by remember { mutableStateOf<Updater.Novita?>(null) }
     LaunchedEffect(Unit) { novita = Updater.controlla(context) }
@@ -215,7 +218,10 @@ fun HomeScreen(
     // Giornalieri "+1" è diretto — niente conferma, niente "mantieni il ritmo" — ma la
     // verifica di freschezza sui condivisi resta (vedi checkBeforeRestart).
     val onCardRestart: (Counter) -> Unit = { counter ->
-        if (counter.mode == CounterMode.GIORNALIERO) {
+        if (counter.mode == CounterMode.STATI) {
+            // Uno Stati non riparte: il pulsante apre il cambio di stato con orario e nota.
+            stateTarget = counter
+        } else if (counter.mode == CounterMode.GIORNALIERO) {
             vm.checkBeforeRestart(counter) { esito ->
                 if (esito.moved) staleTarget = esito else vm.restart(esito.counter)
             }
@@ -226,7 +232,18 @@ fun HomeScreen(
     // Doppio tap: sui Precisi apre Riparti avanzato; sui Giornalieri non ha un "avanzato"
     // a sé — aggiungere o togliere un giorno si fa dallo storico, quindi apre quello.
     val onCardAdvanced: (Counter) -> Unit = { counter ->
-        if (counter.mode == CounterMode.GIORNALIERO) historyTarget = counter else advancedTarget = counter
+        when (counter.mode) {
+            CounterMode.GIORNALIERO -> historyTarget = counter
+            CounterMode.STATI -> stateTarget = counter
+            else -> advancedTarget = counter
+        }
+    }
+    // Chip di uno stato sulla card: cambio immediato, adesso. Per un orario passato o una
+    // nota c'è la maschera (stateTarget). Il toast arriva solo se non è cambiato niente.
+    val onCardState: (Counter, String?) -> Unit = { counter, state ->
+        vm.changeState(counter, state) { esito ->
+            esito?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        }
     }
 
     Scaffold(
@@ -313,6 +330,7 @@ fun HomeScreen(
                                     onEdit = { editTarget = counter },
                                     onBell = { bellTarget = counter },
                                     onShare = { shareTarget = counter },
+                                    onChangeState = { s -> onCardState(counter, s) },
                                 )
                             }
                         }
@@ -395,6 +413,7 @@ fun HomeScreen(
                                     onEdit = { editTarget = counter },
                                     onBell = { bellTarget = counter },
                                     onShare = { shareTarget = counter },
+                                    onChangeState = { s -> onCardState(counter, s) },
                                     highlighted = counter.id == highlightId,
                                 )
                             }
@@ -518,8 +537,11 @@ fun HomeScreen(
         EditCounterSheet(
             counter = null,
             onDismiss = { showAdd = false },
-            onSave = { name, startMs, mode, roundMinutes ->
-                vm.addCounter(name, startMs, bellMinutes = null, mode = mode, roundMinutes = roundMinutes)
+            onSave = { name, startMs, mode, roundMinutes, states, initialState ->
+                vm.addCounter(
+                    name, startMs, bellMinutes = null, mode = mode, roundMinutes = roundMinutes,
+                    states = states, initialState = initialState,
+                )
                 showAdd = false
             },
         )
@@ -529,10 +551,28 @@ fun HomeScreen(
         EditCounterSheet(
             counter = counter,
             onDismiss = { editTarget = null },
-            onSave = { name, startMs, mode, roundMinutes ->
-                vm.editCounter(counter, name, startMs, mode, roundMinutes)
+            onSave = { name, startMs, mode, roundMinutes, states, _ ->
+                vm.editCounter(counter, name, startMs, mode, roundMinutes, states)
                 editTarget = null
             },
+        )
+    }
+
+    stateTarget?.let { target ->
+        val counter = counters.firstOrNull { it.id == target.id }
+            ?: hiddenCounters.firstOrNull { it.id == target.id }
+            ?: target
+        StateChangeSheet(
+            counter = counter,
+            now = now,
+            onDismiss = { stateTarget = null },
+            onChange = { state, atMs, note ->
+                vm.changeState(counter, state, atMs, note) { esito ->
+                    esito?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+                }
+                stateTarget = null
+            },
+            onSaveCurrentNote = { vm.setCurrentNote(counter, it) },
         )
     }
 
@@ -736,7 +776,7 @@ fun HomeScreen(
                                 " Essendo condiviso, torna in linea per tutti."
                             else ""
                     )
-                    if (!giornaliero) {
+                    if (counter.mode == CounterMode.PRECISO) {
                         Spacer(Modifier.height(14.dp))
                         Text(
                             "RIPARTE",
@@ -982,9 +1022,11 @@ private fun CounterCard(
     onEdit: () -> Unit,
     onBell: () -> Unit,
     onShare: () -> Unit,
+    onChangeState: (String?) -> Unit = {},
     highlighted: Boolean = false,
 ) {
     val giornaliero = counter.mode == CounterMode.GIORNALIERO
+    val stati = counter.mode == CounterMode.STATI
     // Cornice arancione che pulsa, con un alone che sfuma verso l'esterno: il timer appena
     // ripreso dall'archivio, per trovarlo a colpo d'occhio. Disegnata dietro la card, così
     // non sposta niente nel layout quando compare e scompare.
@@ -1126,6 +1168,17 @@ private fun CounterCard(
                 }
             }
 
+            if (stati) {
+                // Lo stato in corso viene prima del tempo: è la cosa che si guarda.
+                Text(
+                    stateLabel(counter.currentState),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (counter.currentState != null) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
             if (giornaliero) {
                 val giorni = calendarDaysBetween(counter.startMs, now)
                 Text(
@@ -1166,7 +1219,7 @@ private fun CounterCard(
                     color = if (over) OnErrorContainer else MaterialTheme.colorScheme.onSurface,
                     style = TextStyle(fontFeatureSettings = "tnum"),
                     modifier = Modifier
-                        .padding(top = 12.dp)
+                        .padding(top = if (stati) 0.dp else 12.dp)
                         // Solo le cifre cambiano vista al tap (v21) — sui Giornalieri non c'è
                         // nient'altro da ciclare, la data di calendario è l'unica vista.
                         .clickable { onCycleView() },
@@ -1181,6 +1234,24 @@ private fun CounterCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
+            if (stati) {
+                counter.currentNote?.let { nota ->
+                    Text(
+                        "📝 $nota",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                // Tocca uno stato per passarci adesso; quello in corso è evidenziato.
+                Spacer(Modifier.height(8.dp))
+                StateChips(
+                    states = parseStates(counter.states),
+                    selected = counter.currentState,
+                    onSelect = { s -> if (s != counter.currentState) onChangeState(s) },
+                )
+            }
             if (giornaliero && todayCount > 0) {
                 Text(
                     if (todayCount == 1) "oggi 1 volta" else "oggi $todayCount volte",
@@ -1237,11 +1308,14 @@ private fun CounterCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onBell) {
-                    Icon(
-                        Icons.Filled.Notifications, contentDescription = "Campanella",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                // Gli Stati non hanno campanella: non c'è una scadenza, solo un cambio.
+                if (!stati) {
+                    IconButton(onClick = onBell) {
+                        Icon(
+                            Icons.Filled.Notifications, contentDescription = "Campanella",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 IconButton(onClick = onEdit) {
                     Icon(
@@ -1272,8 +1346,16 @@ private fun CounterCard(
                         },
                 ) {
                     Icon(
-                        if (giornaliero) Icons.Filled.Add else Icons.Filled.Refresh,
-                        contentDescription = if (giornaliero) "+1" else "Riparti",
+                        when {
+                            giornaliero -> Icons.Filled.Add
+                            stati -> Icons.Filled.SwapHoriz
+                            else -> Icons.Filled.Refresh
+                        },
+                        contentDescription = when {
+                            giornaliero -> "+1"
+                            stati -> "Cambia stato"
+                            else -> "Riparti"
+                        },
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -1282,7 +1364,7 @@ private fun CounterCard(
                 // dimenticati, converti in Giornaliera...). Il doppio tap resta comunque,
                 // per chi lo conosce già. "Nascondi/Mostra" e' passato allo swipe apposta,
                 // per lasciare posto qui.
-                if (!giornaliero) {
+                if (!giornaliero && !stati) {
                     IconButton(onClick = onAdvancedRestart) {
                         Icon(
                             Icons.Filled.MoreHoriz, contentDescription = "Riparti avanzato",

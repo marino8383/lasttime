@@ -6,6 +6,7 @@ import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.LateBellChoice
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.add
+import it.marino8383.lasttime.data.changedState
 import it.marino8383.lasttime.data.doneTargetMs
 import it.marino8383.lasttime.data.addDailyPoint
 import it.marino8383.lasttime.data.loggedDaily
@@ -27,7 +28,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * diverso. Il Fatto dalla notifica, per esempio, non segnava l'ultimo round — e
  * "Annulla l'ultimo riavvio" andava poi a togliere la dose precedente.
  *
- * Una modalità nuova (Periodi) si aggiunge qui come un ramo in più di [restart].
+ * Gli Stati hanno il loro ingresso, [changeState]; [restart] li rimanda lì.
  */
 object CounterActions {
 
@@ -76,6 +77,12 @@ object CounterActions {
      */
     suspend fun restart(context: Context, counter: Counter, atMs: Long, rhythm: Rhythm = Rhythm.Auto) {
         val db = db(context)
+        if (counter.mode == CounterMode.STATI) {
+            // Uno Stati non "riparte": al massimo resta nello stesso stato con un
+            // intervallo nuovo (un reset programmato arrivato da chissà dove).
+            changeState(context, counter, counter.currentState, atMs, counter.currentNote)
+            return
+        }
         if (counter.mode != CounterMode.GIORNALIERO && counter.startMs > atMs) {
             // Timer creato per partire più tardi (quick pick su un orario tondo futuro) e
             // non ancora partito: non c'è nessun giro da chiudere, parte semplicemente da qui.
@@ -95,6 +102,32 @@ object CounterActions {
         Notifications.cancel(context, counter.id)
         AlarmScheduler.scheduleNext(context)
     }
+
+    /**
+     * Modalità STATI: da [atMs] il contatore è in [state] (null = nessuno). L'intervallo
+     * dello stato vecchio si chiude nello storico con la sua nota, e diventa l'ultimo round
+     * — così Correggi/Annulla dallo storico funzionano come per un riavvio.
+     */
+    suspend fun changeState(context: Context, counter: Counter, state: String?, atMs: Long, note: String? = null) {
+        val db = db(context)
+        var next = counter.changedState(state, atMs, note)
+        if (counter.startMs < atMs) {
+            val round = db.roundDao().add(closingRound(counter, atMs), counter)
+            next = next.copy(lastRoundUuid = round.uuid, lastRoundStartMs = round.startMs)
+        }
+        db.counterDao().save(next)
+        Notifications.cancel(context, counter.id)
+        AlarmScheduler.scheduleNext(context)
+    }
+
+    /** Il round che chiude l'intervallo in corso ad [endMs]; sugli Stati porta con sé stato e nota. */
+    private fun closingRound(counter: Counter, endMs: Long) = Round(
+        counterId = counter.id,
+        startMs = counter.startMs,
+        endMs = endMs,
+        state = counter.currentState,
+        note = counter.currentNote,
+    )
 
     /**
      * "Fatto" toccato a [now], dalla card o dalla notifica. Se il timer arrotonda
@@ -132,7 +165,7 @@ object CounterActions {
         )
         // né su un timer che doveva ancora partire: non c'è un giro da chiudere
         if (counter.mode != CounterMode.GIORNALIERO && counter.startMs < now) {
-            val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
+            val round = db.roundDao().add(closingRound(counter, now), counter)
             archived = archived.copy(lastRoundUuid = round.uuid, lastRoundStartMs = round.startMs)
         }
         db.counterDao().save(archived)

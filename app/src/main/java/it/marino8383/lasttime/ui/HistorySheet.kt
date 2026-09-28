@@ -58,6 +58,7 @@ import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.calendarDaysBetween
+import it.marino8383.lasttime.data.stateStats
 import it.marino8383.lasttime.formatClock
 import it.marino8383.lasttime.formatDateOnly
 import it.marino8383.lasttime.formatDateTime
@@ -96,6 +97,7 @@ fun HistorySheet(
     onUndoLastRestart: () -> Unit = {},
 ) {
     val giornaliero = counter.mode == CounterMode.GIORNALIERO
+    val stati = counter.mode == CounterMode.STATI
     val timed = rounds.filter { !it.noTime }
     val noTimeCount = rounds.size - timed.size
     val longest = timed.maxOfOrNull { it.endMs - it.startMs }
@@ -161,7 +163,11 @@ fun HistorySheet(
                     Column(Modifier.padding(14.dp)) {
                         val archivedMs = counter.archivedMs.takeIf { counter.archived }
                         Text(
-                            if (archivedMs != null) "📦 IN ARCHIVIO" else "ROUND IN CORSO",
+                            when {
+                                archivedMs != null -> "📦 IN ARCHIVIO"
+                                stati -> "ADESSO: ${stateLabel(counter.currentState).uppercase()}"
+                                else -> "ROUND IN CORSO"
+                            },
                             fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.5.sp,
@@ -188,9 +194,51 @@ fun HistorySheet(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
+                        if (stati && !counter.archived) {
+                            counter.currentNote?.let { Text("📝 $it", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+                        }
                     }
                 }
                 Spacer(Modifier.height(14.dp))
+            }
+
+            // Stati: quanto tempo in ciascuno, stato in corso compreso. Le percentuali
+            // sono solo sugli stati veri: "nessuno" c'è, ma non ruba quote agli altri.
+            if (stati) {
+                item {
+                    Text(
+                        "📈 TEMPO PER STATO",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    val inCorso = counter.startMs.takeIf { !counter.archived }
+                    stateStats(rounds, counter.currentState, inCorso, now).forEach { st ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stateLabel(st.state),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (st.state != null) MaterialTheme.colorScheme.onSurface
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                buildString {
+                                    append(formatDurationTwoParts(st.totalMs))
+                                    st.percent?.let { append(" · ${String.format(Locale.ITALIAN, "%.0f", it)}%") }
+                                    append(if (st.times == 1) " · 1 volta" else " · ${st.times} volte")
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
             }
 
             // Riepilogo
@@ -204,14 +252,19 @@ fun HistorySheet(
                     }
                 }
                 SummaryRow(eventsLabel)
-                if (!giornaliero) {
+                // Sugli Stati durata più lunga e media mescolerebbero stati diversi: il tempo
+                // per stato qui sopra dice già quello che serve.
+                if (!giornaliero && !stati) {
                     longest?.let { SummaryRow("Più lungo: ${formatDurationTwoParts(it)}") }
                     average?.let { SummaryRow("Media: ${formatDurationTwoParts(it)}") }
                 }
                 if (rounds.isEmpty()) {
                     Text(
-                        if (giornaliero) "Nessun evento: tocca “+1” per registrare il primo."
-                        else "Nessun round concluso: riparti il timer per registrare il primo.",
+                        when {
+                            giornaliero -> "Nessun evento: tocca “+1” per registrare il primo."
+                            stati -> "Nessun cambio di stato: tocca uno stato sulla card per registrare il primo."
+                            else -> "Nessun round concluso: riparti il timer per registrare il primo."
+                        },
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -273,7 +326,7 @@ fun HistorySheet(
                             }
                         }
                     }
-                    if (!giornaliero) {
+                    if (!giornaliero && !stati) {
                         average?.let {
                             Spacer(Modifier.height(8.dp))
                             Text(
@@ -465,7 +518,7 @@ fun HistorySheet(
             if (!giornaliero && rounds.isNotEmpty()) {
                 item {
                     Text(
-                        "ROUND CONCLUSI",
+                        if (stati) "STATI PASSATI" else "ROUND CONCLUSI",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 1.5.sp,
@@ -506,6 +559,15 @@ fun HistorySheet(
                                 )
                             } else {
                                 Column(Modifier.weight(1f)) {
+                                    if (stati) {
+                                        Text(
+                                            stateLabel(round.state) + (round.note?.let { " · 📝 $it" } ?: ""),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (round.state != null) MaterialTheme.colorScheme.onSurface
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                     Text(
                                         "${formatShortDateTime(round.startMs)} → ${formatShortDateTime(round.endMs)}",
                                         fontSize = 12.sp,
@@ -589,11 +651,14 @@ fun HistorySheet(
     if (showUndoLastConfirm) {
         AlertDialog(
             onDismissRequest = { showUndoLastConfirm = false },
-            title = { Text("Annullare l'ultimo riavvio?") },
+            title = { Text(if (stati) "Annullare l'ultimo cambio di stato?" else "Annullare l'ultimo riavvio?") },
             text = {
                 Text(
-                    "Il round appena chiuso viene tolto dallo storico e il timer torna a " +
-                        "contare da quando era cominciato."
+                    if (stati)
+                        "Si torna allo stato di prima, come se il cambio non fosse mai successo."
+                    else
+                        "Il round appena chiuso viene tolto dallo storico e il timer torna a " +
+                            "contare da quando era cominciato."
                 )
             },
             confirmButton = {

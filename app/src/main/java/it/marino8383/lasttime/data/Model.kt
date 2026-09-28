@@ -119,6 +119,16 @@ data class Counter(
      * Sincronizzato: è una regola del timer, sui condivisi vale per tutti.
      */
     val roundMinutes: Int? = null,
+    /**
+     * Solo in modalità STATI: gli stati possibili, uno per riga (vedi parseStates).
+     * Sincronizzato. Rinominare uno stato non tocca i round già chiusi, che portano il
+     * nome copiato — come per l'autore.
+     */
+    val states: String? = null,
+    /** Stato dell'intervallo in corso (da startMs); null = nessuno. Sincronizzato. */
+    val currentState: String? = null,
+    /** Nota dell'intervallo in corso ("febbre"): finisce nel round quando si chiude. */
+    val currentNote: String? = null,
 )
 
 @Entity(
@@ -159,6 +169,10 @@ data class Round(
      * sia la più recente. Stesso ruolo di [Counter.updatedMs], solo per questo campo.
      */
     val endMsUpdatedAt: Long? = null,
+    /** Modalità STATI: in che stato era questo intervallo (nome copiato); null = nessuno. */
+    val state: String? = null,
+    /** Modalità STATI: la nota dell'intervallo, scritta mentre era in corso. */
+    val note: String? = null,
 )
 
 @Dao
@@ -371,7 +385,7 @@ data class RoundSummary(
 /** Quante volte oggi per un contatore (vedi [RoundDao.todayCounts]). */
 data class CounterDayCount(val counterId: Long, val n: Int)
 
-@Database(entities = [Counter::class, Round::class], version = 17, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 18, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -504,5 +518,16 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
 val MIGRATION_16_17 = object : Migration(16, 17) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE counters ADD COLUMN roundMinutes INTEGER")
+    }
+}
+
+/** Modalità Stati: vedi [Counter.states], [Counter.currentState], [Round.state]. Tutto null sui vecchi. */
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN states TEXT")
+        db.execSQL("ALTER TABLE counters ADD COLUMN currentState TEXT")
+        db.execSQL("ALTER TABLE counters ADD COLUMN currentNote TEXT")
+        db.execSQL("ALTER TABLE rounds ADD COLUMN state TEXT")
+        db.execSQL("ALTER TABLE rounds ADD COLUMN note TEXT")
     }
 }

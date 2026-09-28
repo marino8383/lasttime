@@ -454,6 +454,8 @@ object SyncEngine {
                 endMs = endMs,
                 noTime = data["noTime"] as? Boolean ?: false,
                 byName = byName,
+                state = data["state"] as? String,
+                note = data["note"] as? String,
             )
         )
 
@@ -464,7 +466,14 @@ object SyncEngine {
         if (counter.notifyOnRemote && !counter.hidden && appenaFatto && !byName.isNullOrBlank() &&
             byName != Cloud.myName
         ) {
-            Notifications.notifySharedRestart(app, counter, byName, endMs)
+            if (counter.mode == CounterMode.STATI) {
+                // Il round chiuso è lo stato di prima: quello nuovo arriva col contatore,
+                // magari dopo, quindi qui si dice solo da cosa si è usciti.
+                val prima = (data["state"] as? String) ?: "nessuno"
+                Notifications.notifySharedEvent(app, counter, byName, "Cambio di stato ${formatRingTime(endMs)} (prima: $prima).")
+            } else {
+                Notifications.notifySharedRestart(app, counter, byName, endMs)
+            }
         }
     }
 

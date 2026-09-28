@@ -11,6 +11,8 @@ package it.marino8383.lasttime.data
 object CounterMode {
     const val PRECISO = "PRECISO"
     const val GIORNALIERO = "GIORNALIERO"
+    /** Sempre in uno stato (Counter.currentState), ogni cambio chiude un round: vedi States.kt. */
+    const val STATI = "STATI"
 }
 
 /**

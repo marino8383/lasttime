@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.sp
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.ROUND_STEPS
+import it.marino8383.lasttime.data.STATE_PRESETS
+import it.marino8383.lasttime.data.joinStates
+import it.marino8383.lasttime.data.parseStates
 import it.marino8383.lasttime.data.roundNearestMs
 import it.marino8383.lasttime.formatClock
 import java.time.Instant
@@ -60,7 +63,7 @@ private val timeFmt = DateTimeFormatter.ofPattern("HH:mm", Locale.ITALIAN)
 fun EditCounterSheet(
     counter: Counter?,
     onDismiss: () -> Unit,
-    onSave: (name: String, startMs: Long, mode: String, roundMinutes: Int?) -> Unit,
+    onSave: (name: String, startMs: Long, mode: String, roundMinutes: Int?, states: String?, initialState: String?) -> Unit,
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -75,6 +78,14 @@ fun EditCounterSheet(
     var pickedMs by remember { mutableStateOf<Long?>(null) }
     var roundMinutes by remember { mutableStateOf(counter?.roundMinutes) }
     val giornaliero = mode == CounterMode.GIORNALIERO
+    val stati = mode == CounterMode.STATI
+    // Stati: il testo così come lo si scrive, uno per riga; e da quale si parte.
+    var statesText by remember { mutableStateOf(parseStates(counter?.states).joinToString("\n")) }
+    val statesList = parseStates(statesText)
+    var initialState by remember { mutableStateOf<String?>(null) }
+    var initialChosen by remember { mutableStateOf(false) }
+    // Finché non si sceglie a mano, si parte dal primo stato dell'elenco.
+    val initial = if (initialChosen) initialState?.takeIf { it in statesList } else statesList.firstOrNull()
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -122,19 +133,91 @@ fun EditCounterSheet(
                         onClick = { mode = CounterMode.GIORNALIERO },
                         label = { Text("A giorni") },
                     )
+                    FilterChip(
+                        selected = stati,
+                        onClick = { mode = CounterMode.STATI },
+                        label = { Text("Stati") },
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            if (stati) {
+                Text(
+                    "STATI",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                if (counter == null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        STATE_PRESETS.forEach { (label, preset) ->
+                            FilterChip(
+                                selected = statesList == preset,
+                                onClick = {
+                                    statesText = preset.joinToString("\n")
+                                    if (name.isBlank()) name = if (preset.size == 2) preset.first() else label
+                                },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                OutlinedTextField(
+                    value = statesText,
+                    onValueChange = { statesText = it },
+                    label = { Text("Uno per riga (es. Felice, Stanco…)") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    if (counter == null)
+                        "Uno stato alla volta: ogni cambio chiude quello di prima nello storico. " +
+                            "C'è sempre anche “nessuno”, che non entra nelle percentuali."
+                    else
+                        "Rinominare uno stato non cambia lo storico già scritto.",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                if (counter == null && statesList.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "SI PARTE DA",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    StateChips(
+                        states = statesList,
+                        selected = initial,
+                        onSelect = {
+                            initialChosen = true
+                            initialState = it
+                        },
+                    )
                 }
                 Spacer(Modifier.height(16.dp))
             }
 
             Text(
-                if (giornaliero) "ULTIMO EVENTO" else "INIZIO",
+                when {
+                    giornaliero -> "ULTIMO EVENTO"
+                    stati -> "DA QUANDO"
+                    else -> "INIZIO"
+                },
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(8.dp))
-            if (counter == null && !giornaliero) {
+            if (counter == null && mode == CounterMode.PRECISO) {
                 // Nuovo timer al secondo: "Adesso" col quick pick degli orari tondi.
                 // FilterChip non si presta al tieni-premuto-e-scorri, quindi qui è un
                 // componente a sé; "Data e ora" resta sotto com'era.
@@ -165,6 +248,7 @@ fun EditCounterSheet(
                                 when {
                                     giornaliero -> "Oggi"
                                     counter == null -> "Adesso"
+                                    stati -> "Da adesso"
                                     else -> "Riparti da adesso"
                                 }
                             )
@@ -193,7 +277,7 @@ fun EditCounterSheet(
                 }
             }
 
-            if (!giornaliero) {
+            if (mode == CounterMode.PRECISO) {
                 Spacer(Modifier.height(16.dp))
                 Text(
                     "ARROTONDA IL FATTO",
@@ -237,7 +321,7 @@ fun EditCounterSheet(
 
             Spacer(Modifier.height(20.dp))
             Button(
-                enabled = name.isNotBlank(),
+                enabled = name.isNotBlank() && (!stati || statesList.isNotEmpty()),
                 onClick = {
                     val nowMs = System.currentTimeMillis()
                     val chosen = if (startNow) pickedMs ?: nowMs else startMs
@@ -246,7 +330,7 @@ fun EditCounterSheet(
                     }
                     // Il futuro vale solo se scelto col quick pick: parte più tardi, da solo.
                     val start = if (startNow && pickedMs != null) chosen else chosen.coerceAtMost(nowMs)
-                    onSave(name, start, mode, roundMinutes)
+                    onSave(name, start, mode, roundMinutes, joinStates(statesList), initial)
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Salva", fontWeight = FontWeight.Bold) }

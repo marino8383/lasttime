@@ -141,6 +141,8 @@ object Groups {
         "noTime" to round.noTime,
         "byName" to round.byName,
         "endMsUpdatedAt" to round.endMsUpdatedAt,
+        "state" to round.state,
+        "note" to round.note,
     )
 
     /** Un evento nello storico del gruppo. Append-only: si scrive e non si tocca piu'. */

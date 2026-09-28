@@ -53,6 +53,10 @@ object SyncedCounter {
         Campo("roundMinutes", { it.roundMinutes }) { c, d ->
             c.copy(roundMinutes = (d["roundMinutes"] as? Number)?.toInt())
         },
+        // Modalità Stati: l'elenco e lo stato in corso valgono per tutti, nota compresa.
+        Campo("states", { it.states }) { c, d -> c.copy(states = d["states"] as? String) },
+        Campo("currentState", { it.currentState }) { c, d -> c.copy(currentState = d["currentState"] as? String) },
+        Campo("currentNote", { it.currentNote }) { c, d -> c.copy(currentNote = d["currentNote"] as? String) },
         // Chi l'ha condiviso per primo (vedi Counter.creatorUid). Non deve mai tornare a
         // null solo perché una scrittura remota vecchia, di prima che il campo esistesse,
         // non lo portava con sé.

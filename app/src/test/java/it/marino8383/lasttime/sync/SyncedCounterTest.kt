@@ -28,6 +28,9 @@ class SyncedCounterTest {
         dailyBellMinuteOfDay = 900,
         creatorUid = "uid-mio",
         roundMinutes = 15,
+        states = "Felice\nStanco",
+        currentState = "Stanco",
+        currentNote = "riunione",
         // locali: non devono viaggiare
         bellEnabled = false,
         viewMode = "COMPACT",

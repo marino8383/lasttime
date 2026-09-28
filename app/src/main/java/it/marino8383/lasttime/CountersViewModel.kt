@@ -84,10 +84,17 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         bellMinutes: Long?,
         mode: String = CounterMode.PRECISO,
         roundMinutes: Int? = null,
+        states: String? = null,
+        initialState: String? = null,
     ) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            val start = if (mode == CounterMode.GIORNALIERO) noonOf(startMs).coerceAtMost(now) else startMs
+            val start = when (mode) {
+                CounterMode.GIORNALIERO -> noonOf(startMs).coerceAtMost(now)
+                // Uno stato non comincia nel futuro: non c'è un "parte alle…" per l'umore.
+                CounterMode.STATI -> startMs.coerceAtMost(now)
+                else -> startMs
+            }
             db.counterDao().create(
                 Counter(
                     name = name.trim(),
@@ -95,7 +102,9 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     bellMinutes = bellMinutes,
                     createdMs = now,
                     mode = mode,
-                    roundMinutes = roundMinutes.takeIf { mode != CounterMode.GIORNALIERO },
+                    roundMinutes = roundMinutes.takeIf { mode == CounterMode.PRECISO },
+                    states = states.takeIf { mode == CounterMode.STATI },
+                    currentState = initialState.takeIf { mode == CounterMode.STATI },
                     // Va in fondo alla lista: vedi Counter.sortOrder.
                     sortOrder = now,
                 )
@@ -127,19 +136,26 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         startMs: Long,
         mode: String = counter.mode,
         roundMinutes: Int? = counter.roundMinutes,
+        states: String? = counter.states,
     ) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val cambiaModalita = mode != counter.mode
             // Inizio invariato = si tiene com'è, anche se è nel futuro (timer in attesa di
             // partire): riportarlo ad adesso lo farebbe partire solo per aver cambiato nome.
-            val start = if (startMs == counter.startMs) startMs
+            var start = if (startMs == counter.startMs) startMs
             else (if (mode == CounterMode.GIORNALIERO) noonOf(startMs) else startMs).coerceAtMost(now)
+            // Sugli Stati l'inizio è quello dello stato in corso: non può scavalcare
+            // all'indietro l'intervallo già chiuso prima, si accavallerebbero.
+            if (mode == CounterMode.STATI && start != counter.startMs) {
+                start = start.coerceAtLeast(db.roundDao().lastEnd(counter.id) ?: 0)
+            }
             var updated = counter.copy(
                 name = name.trim(),
                 startMs = start,
                 mode = mode,
-                roundMinutes = roundMinutes.takeIf { mode != CounterMode.GIORNALIERO },
+                roundMinutes = roundMinutes.takeIf { mode == CounterMode.PRECISO },
+                states = states.takeIf { mode == CounterMode.STATI },
             )
             if (cambiaModalita) {
                 // La vecchia campanella non ha senso nell'altra modalità (minuti/ore contro
@@ -218,7 +234,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             // futuro — e allora resta "da partire" fino a quell'ora, come un timer nuovo.
             // Mai prima dell'archiviazione: si accavallerebbe all'ultimo round chiuso.
             val start = startMs
-                ?.takeIf { counter.mode != CounterMode.GIORNALIERO }
+                ?.takeIf { counter.mode == CounterMode.PRECISO }
                 ?.coerceAtLeast(counter.archivedMs ?: 0)
                 ?: now
             db.counterDao().save(
@@ -399,11 +415,48 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     nextBellAtMs = newNextBell,
                     lastRoundUuid = precedente?.uuid,
                     lastRoundStartMs = precedente?.startMs,
+                    // Stati: annullare un cambio riporta lo stato (e la nota) di prima.
+                    currentState = if (counter.mode == CounterMode.STATI) round.state else counter.currentState,
+                    currentNote = if (counter.mode == CounterMode.STATI) round.note else counter.currentNote,
                 )
             )
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
             onDone("✅ Riavvio annullato.")
+        }
+    }
+
+    // ---------------------------------------------------------------- modalità Stati
+
+    /**
+     * Passa a [state] (null = nessuno) ad [atMs], adesso se null. Su un condiviso prima si
+     * chiede al gruppo: se l'altro ha appena messo lo stesso stato non si scrive niente —
+     * un secondo cambio identico lascerebbe solo un intervallo di pochi secondi.
+     */
+    fun changeState(counter: Counter, state: String?, atMs: Long? = null, note: String? = null, onDone: (String?) -> Unit = {}) {
+        viewModelScope.launch {
+            val fresco = CounterActions.latest(getApplication(), counter, askGroup = true)
+            if (fresco.currentState == state && atMs == null) {
+                val chi = if (fresco.startMs != counter.startMs) db.roundDao().lastAuthor(counter.id) else null
+                onDone(
+                    if (chi != null && chi != Cloud.myName) "👥 $chi l'ha già segnato: ${state ?: "nessuno"}."
+                    else "Già in questo stato."
+                )
+                return@launch
+            }
+            val now = System.currentTimeMillis()
+            // Mai prima dell'inizio dello stato in corso: si mangerebbe l'intervallo di prima.
+            val at = (atMs ?: now).coerceIn(fresco.startMs.coerceAtMost(now), now)
+            CounterActions.changeState(getApplication(), fresco, state, at, note)
+            onDone(null)
+        }
+    }
+
+    /** Nota dello stato in corso: si può scrivere o correggere finché lo stato dura. */
+    fun setCurrentNote(counter: Counter, note: String) {
+        viewModelScope.launch {
+            val c = CounterActions.latest(getApplication(), counter)
+            db.counterDao().save(c.copy(currentNote = note.trim().takeIf { it.isNotEmpty() }))
         }
     }
 
