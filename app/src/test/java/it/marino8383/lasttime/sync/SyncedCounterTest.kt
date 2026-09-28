@@ -67,6 +67,17 @@ class SyncedCounterTest {
     }
 
     @Test
+    fun stati_unTelefonoVecchioNonCancellaElencoEStato() {
+        val vecchia = SyncedCounter.payload(mio) - "states" - "currentState" - "currentNote"
+        val c = SyncedCounter.apply(mio, vecchia)
+        assertEquals("Felice\nStanco", c.states)
+        assertEquals("Stanco", c.currentState)
+        assertEquals("riunione", c.currentNote)
+        // null presente invece vale: è "nessuno"
+        assertEquals(null, SyncedCounter.apply(mio, SyncedCounter.payload(mio) + ("currentState" to null)).currentState)
+    }
+
+    @Test
     fun payloadVecchio_senzaCampiNuovi_prendeIDefault() {
         val minimo = mapOf<String, Any?>("name" to "X", "startMs" to 5L)
         val c = SyncedCounter.apply(mio, minimo)

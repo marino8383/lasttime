@@ -29,6 +29,9 @@ object SyncedCounter {
 
     private fun Map<String, Any?>.long(key: String) = (this[key] as? Number)?.toLong()
 
+    /** Il valore se la chiave c'è (anche null), altrimenti [keep]: vedi i campi degli Stati. */
+    private fun Map<String, Any?>.stringOr(key: String, keep: String?) = if (containsKey(key)) this[key] as? String else keep
+
     private val CAMPI: List<Campo> = listOf(
         Campo("name", { it.name }) { c, d -> c.copy(name = d["name"] as? String ?: c.name) },
         Campo("startMs", { it.startMs }) { c, d -> c.copy(startMs = d.long("startMs") ?: c.startMs) },
@@ -54,9 +57,12 @@ object SyncedCounter {
             c.copy(roundMinutes = (d["roundMinutes"] as? Number)?.toInt())
         },
         // Modalità Stati: l'elenco e lo stato in corso valgono per tutti, nota compresa.
-        Campo("states", { it.states }) { c, d -> c.copy(states = d["states"] as? String) },
-        Campo("currentState", { it.currentState }) { c, d -> c.copy(currentState = d["currentState"] as? String) },
-        Campo("currentNote", { it.currentNote }) { c, d -> c.copy(currentNote = d["currentNote"] as? String) },
+        // Chiave assente = il telefono dall'altra parte è di prima degli Stati e non li
+        // conosce: si tiene quello che c'è. Senza, un suo riavvio cancellava elenco e
+        // stato a tutti (successo davvero con la 0.26.0). Null presente = "nessuno", vale.
+        Campo("states", { it.states }) { c, d -> c.copy(states = d.stringOr("states", c.states)) },
+        Campo("currentState", { it.currentState }) { c, d -> c.copy(currentState = d.stringOr("currentState", c.currentState)) },
+        Campo("currentNote", { it.currentNote }) { c, d -> c.copy(currentNote = d.stringOr("currentNote", c.currentNote)) },
         // Chi l'ha condiviso per primo (vedi Counter.creatorUid). Non deve mai tornare a
         // null solo perché una scrittura remota vecchia, di prima che il campo esistesse,
         // non lo portava con sé.

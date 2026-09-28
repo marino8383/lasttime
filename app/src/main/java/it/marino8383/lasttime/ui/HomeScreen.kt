@@ -1245,9 +1245,19 @@ private fun CounterCard(
                     )
                 }
                 // Tocca uno stato per passarci adesso; quello in corso è evidenziato.
+                val elenco = parseStates(counter.states)
+                if (elenco.isEmpty()) {
+                    Text(
+                        "⚠️ Nessuno stato nell'elenco: aggiungili da ✏️ Modifica.",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 StateChips(
-                    states = parseStates(counter.states),
+                    states = elenco,
                     selected = counter.currentState,
                     onSelect = { s -> if (s != counter.currentState) onChangeState(s) },
                 )
