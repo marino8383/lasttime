@@ -170,7 +170,9 @@ object Notifications {
             .addAction(
                 Notification.Action.Builder(
                     null,
-                    "Rimanda",
+                    // Sui condivisi il rinvio è personale: l'altro viene avvisato lo stesso, e un
+                    // Fatto di chiunque lo cancella (vedi SyncEngine.applyRemote).
+                    if (counter.sharedGroupId != null) "Rimanda (solo io)" else "Rimanda",
                     PendingIntent.getActivity(
                         context, counter.id.toInt(),
                         Intent(context, MainActivity::class.java)
