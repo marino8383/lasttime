@@ -72,11 +72,22 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun addCounter(name: String, startMs: Long, bellMinutes: Long?, mode: String = CounterMode.PRECISO) {
+    /**
+     * Nuovo contatore. Un inizio nel futuro arriva solo dal quick pick degli orari tondi
+     * ("parte alle 14:30"): il timer resta in attesa e parte da solo a quell'ora — la card
+     * lo mostra come programmato. Da "Data e ora" il futuro è già riportato ad adesso
+     * nella schermata (v16); i Giornalieri contano date, lì il futuro non ha senso.
+     */
+    fun addCounter(
+        name: String,
+        startMs: Long,
+        bellMinutes: Long?,
+        mode: String = CounterMode.PRECISO,
+        roundMinutes: Int? = null,
+    ) {
         viewModelScope.launch {
-            // Data nel futuro -> clamp ad adesso (v16)
             val now = System.currentTimeMillis()
-            val start = (if (mode == CounterMode.GIORNALIERO) noonOf(startMs) else startMs).coerceAtMost(now)
+            val start = if (mode == CounterMode.GIORNALIERO) noonOf(startMs).coerceAtMost(now) else startMs
             db.counterDao().create(
                 Counter(
                     name = name.trim(),
@@ -84,6 +95,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     bellMinutes = bellMinutes,
                     createdMs = now,
                     mode = mode,
+                    roundMinutes = roundMinutes.takeIf { mode != CounterMode.GIORNALIERO },
                     // Va in fondo alla lista: vedi Counter.sortOrder.
                     sortOrder = now,
                 )
@@ -92,10 +104,10 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Configurazione della campanella. startMs non si tocca: un timer in attesa di partire resta in attesa. */
     fun updateCounter(counter: Counter) {
         viewModelScope.launch {
-            val clamped = counter.copy(startMs = counter.startMs.coerceAtMost(System.currentTimeMillis()))
-            db.counterDao().save(clamped)
+            db.counterDao().save(counter)
             AlarmScheduler.scheduleNext(getApplication())
         }
     }
@@ -109,12 +121,26 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      * a prescindere da quando confermi è esattamente il suo motivo di esistere — la
      * pillola delle 8 resta delle 8 anche se correggi l'ora in cui l'hai presa.
      */
-    fun editCounter(counter: Counter, name: String, startMs: Long, mode: String = counter.mode) {
+    fun editCounter(
+        counter: Counter,
+        name: String,
+        startMs: Long,
+        mode: String = counter.mode,
+        roundMinutes: Int? = counter.roundMinutes,
+    ) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val cambiaModalita = mode != counter.mode
-            val start = (if (mode == CounterMode.GIORNALIERO) noonOf(startMs) else startMs).coerceAtMost(now)
-            var updated = counter.copy(name = name.trim(), startMs = start, mode = mode)
+            // Inizio invariato = si tiene com'è, anche se è nel futuro (timer in attesa di
+            // partire): riportarlo ad adesso lo farebbe partire solo per aver cambiato nome.
+            val start = if (startMs == counter.startMs) startMs
+            else (if (mode == CounterMode.GIORNALIERO) noonOf(startMs) else startMs).coerceAtMost(now)
+            var updated = counter.copy(
+                name = name.trim(),
+                startMs = start,
+                mode = mode,
+                roundMinutes = roundMinutes.takeIf { mode != CounterMode.GIORNALIERO },
+            )
             if (cambiaModalita) {
                 // La vecchia campanella non ha senso nell'altra modalità (minuti/ore contro
                 // "ogni N giorni alle HH:MM"): si azzera, si riconfigura da capo.
@@ -244,12 +270,12 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Fatto adesso: sui Precisi chiude il round corrente e riparte, sui Giornalieri è il
      * "+1" — niente conferma né "mantieni il ritmo", più volte lo stesso giorno sono
-     * normali. La strada la sceglie [CounterActions.restart] in base alla modalità.
+     * normali. Se il timer arrotonda vale l'orario tondo più vicino (vedi CounterActions.done).
      */
     fun restart(counter: Counter) {
         viewModelScope.launch {
             val counter = CounterActions.latest(getApplication(), counter)
-            CounterActions.restart(getApplication(), counter, System.currentTimeMillis())
+            CounterActions.done(getApplication(), counter, System.currentTimeMillis())
         }
     }
 
@@ -515,7 +541,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun restartWithBellChoice(counter: Counter, choice: LateBellChoice) {
         viewModelScope.launch {
             val counter = CounterActions.latest(getApplication(), counter)
-            CounterActions.restart(getApplication(), counter, System.currentTimeMillis(), Rhythm.Choice(choice))
+            CounterActions.done(getApplication(), counter, System.currentTimeMillis(), Rhythm.Choice(choice))
         }
     }
 

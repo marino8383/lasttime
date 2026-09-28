@@ -150,6 +150,58 @@ class BellRulesTest {
         assertFalse(c.restartedWithChoice(adesso, LateBellChoice.DISABLE).bellEnabled)
     }
 
+    // ------------------------------------------------------------ orari tondi
+
+    @Test
+    fun arrotondamenti_primaDopoEPiuVicino() {
+        val t = at(2026, 9, 28, 14, 19) + 30_000 // 14:19:30
+        assertEquals(at(2026, 9, 28, 14, 15), roundFloorMs(t, 15))
+        assertEquals(at(2026, 9, 28, 14, 30), roundCeilMs(t, 15))
+        assertEquals(at(2026, 9, 28, 14, 15), roundNearestMs(t, 15))
+        assertEquals(at(2026, 9, 28, 14, 20), roundNearestMs(t, 5))
+        assertEquals(at(2026, 9, 28, 14, 0), roundNearestMs(t, 60))
+        // già tondo: resta com'è
+        assertEquals(at(2026, 9, 28, 14, 15), roundCeilMs(at(2026, 9, 28, 14, 15), 15))
+    }
+
+    @Test
+    fun aPariDistanza_vinceQuelloDopo() {
+        // 14:22:30 è a metà fra 14:15 e 14:30: meglio segnare una dose più tardi che prima
+        assertEquals(at(2026, 9, 28, 14, 30), roundNearestMs(at(2026, 9, 28, 14, 22) + 30_000, 15))
+    }
+
+    @Test
+    fun quickPick_alle1419() {
+        val adesso = at(2026, 9, 28, 14, 19) + 30_000
+        assertEquals(
+            listOf(
+                at(2026, 9, 28, 14, 0),
+                at(2026, 9, 28, 14, 15),
+                adesso,
+                at(2026, 9, 28, 14, 20),
+                at(2026, 9, 28, 14, 30),
+                at(2026, 9, 28, 15, 0),
+            ),
+            quickStartTimes(adesso),
+        )
+    }
+
+    @Test
+    fun fattoArrotondato() {
+        val c = tachipirina().copy(roundMinutes = 15)
+        // senza arrotondamento: l'istante preciso
+        assertEquals(at(2026, 9, 28, 14, 19), tachipirina().doneTargetMs(at(2026, 9, 28, 14, 19)))
+        // 14:19 → 14:15 (nel passato: riparte da lì)
+        assertEquals(at(2026, 9, 28, 14, 15), c.doneTargetMs(at(2026, 9, 28, 14, 19)))
+        // 14:23 → 14:30 (nel futuro: il chiamante lo programma)
+        assertEquals(at(2026, 9, 28, 14, 30), c.doneTargetMs(at(2026, 9, 28, 14, 23)))
+        // il tondo prima dell'inizio del giro non vale: si prende quello dopo
+        val appenaPartito = c.copy(startMs = at(2026, 9, 28, 14, 17))
+        assertEquals(at(2026, 9, 28, 14, 30), appenaPartito.doneTargetMs(at(2026, 9, 28, 14, 19)))
+        // i Giornalieri non si arrotondano
+        assertEquals(at(2026, 1, 20, 14, 19), giornaliero().copy(roundMinutes = 15).doneTargetMs(at(2026, 1, 20, 14, 19)))
+    }
+
     // ------------------------------------------------------------ loggedDaily (+1 Giornaliero)
 
     @Test

@@ -84,6 +84,7 @@ import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.calendarDaysBetween
 import it.marino8383.lasttime.data.RhythmDeviation
 import it.marino8383.lasttime.data.rhythmDeviation
+import it.marino8383.lasttime.data.doneTargetMs
 import it.marino8383.lasttime.formatDateTime
 import it.marino8383.lasttime.formatDateOnly
 import it.marino8383.lasttime.formatClock
@@ -481,8 +482,8 @@ fun HomeScreen(
         EditCounterSheet(
             counter = null,
             onDismiss = { showAdd = false },
-            onSave = { name, startMs, mode ->
-                vm.addCounter(name, startMs, bellMinutes = null, mode = mode)
+            onSave = { name, startMs, mode, roundMinutes ->
+                vm.addCounter(name, startMs, bellMinutes = null, mode = mode, roundMinutes = roundMinutes)
                 showAdd = false
             },
         )
@@ -492,8 +493,8 @@ fun HomeScreen(
         EditCounterSheet(
             counter = counter,
             onDismiss = { editTarget = null },
-            onSave = { name, startMs, mode ->
-                vm.editCounter(counter, name, startMs, mode)
+            onSave = { name, startMs, mode, roundMinutes ->
+                vm.editCounter(counter, name, startMs, mode, roundMinutes)
                 editTarget = null
             },
         )
@@ -518,8 +519,13 @@ fun HomeScreen(
                         // Ricorrente suonata da molto, o fatta molto in anticipo: prima di
                         // ripartire si chiede della campanella. Entro soglia in entrambi i
                         // versi si mantiene il ritmo da soli, senza disturbare.
-                        val fuoriSoglia = fresco.rhythmDeviation(
-                            System.currentTimeMillis(),
+                        // Il confronto va fatto all'istante che varrà davvero: col Fatto
+                        // arrotondato è l'orario tondo, e se quello è nel futuro diventa un
+                        // reset programmato — lì la campanella riparte da sola, niente domande.
+                        val now2 = System.currentTimeMillis()
+                        val target = fresco.doneTargetMs(now2)
+                        val fuoriSoglia = target <= now2 && fresco.rhythmDeviation(
+                            target,
                             AppSettings.latePercent(context),
                         ) == RhythmDeviation.LARGE
                         if (fuoriSoglia) {
@@ -932,7 +938,10 @@ private fun CounterCard(
     val over = scaduta
     // Reset programmato non ancora scattato: stato "in attesa", colore a parte perché
     // non è né normale né sforato — vedi ScheduledContainer.
-    val programmato = counter.scheduledResetMs?.let { it > now } == true
+    // Timer creato per partire più tardi (quick pick su un orario tondo futuro): stesso
+    // stato "in attesa" di un reset programmato, conta da zero quando arriva l'ora.
+    val daPartire = counter.startMs > now
+    val programmato = counter.scheduledResetMs?.let { it > now } == true || daPartire
     // Prossimo squillo effettivo: rinvio pendente, oppure squillo programmato futuro
     val nextRing = when {
         counter.bellMinutes == null -> null
@@ -1079,6 +1088,7 @@ private fun CounterCard(
             }
             Text(
                 if (giornaliero) "ultima volta il ${formatDateOnly(counter.startMs)}"
+                else if (daPartire) "parte ${formatRingTime(counter.startMs)}"
                 else "dal ${formatDateTime(counter.startMs)}",
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -1104,9 +1114,9 @@ private fun CounterCard(
                 )
             }
             if (programmato) {
-                counter.scheduledResetMs?.let { resetAt ->
+                (counter.scheduledResetMs ?: counter.startMs.takeIf { it > now })?.let { resetAt ->
                     Text(
-                        "⏲ riparte tra ${formatDurationTwoParts((resetAt - now).coerceAtLeast(0))}",
+                        "⏲ ${if (daPartire) "parte" else "riparte"} tra ${formatDurationTwoParts((resetAt - now).coerceAtLeast(0))}",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = OnScheduledContainer,

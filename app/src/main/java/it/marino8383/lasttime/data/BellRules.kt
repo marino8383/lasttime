@@ -188,6 +188,65 @@ fun Counter.restartedWithChoice(now: Long, choice: LateBellChoice): Counter {
     }
 }
 
+// ---------------------------------------------------------------- orari tondi
+
+/** Arrotondamenti proposti: in creazione (quick pick) e per il Fatto (Counter.roundMinutes). */
+val ROUND_STEPS = listOf(5, 15, 30, 60)
+
+/**
+ * L'orario tondo a [minutes] appena prima di [ms] (o [ms] stesso se è già tondo), sull'ora
+ * **locale**: a 15 minuti le 14:19 diventano 14:15, a 60 le 14:00. Allineato ai minuti del
+ * giorno e non all'epoch, così "tondo" vuol dire tondo sull'orologio anche con l'ora legale.
+ */
+fun roundFloorMs(ms: Long, minutes: Int): Long {
+    val zone = java.time.ZoneId.systemDefault()
+    val z = java.time.Instant.ofEpochMilli(ms).atZone(zone)
+    val minuteOfDay = z.hour * 60 + z.minute
+    return z.toLocalDate().atStartOfDay(zone)
+        .plusMinutes((minuteOfDay / minutes * minutes).toLong())
+        .toInstant().toEpochMilli()
+}
+
+/** L'orario tondo a [minutes] appena dopo [ms] (o [ms] stesso se è già tondo). */
+fun roundCeilMs(ms: Long, minutes: Int): Long {
+    val floor = roundFloorMs(ms, minutes)
+    return if (floor == ms) ms else floor + minutes * 60_000L
+}
+
+/**
+ * L'orario tondo più vicino. A pari distanza vince quello dopo: su una medicina
+ * segnarla un po' più tardi del vero fa suonare la dose successiva un po' più tardi,
+ * mai prima del dovuto.
+ */
+fun roundNearestMs(ms: Long, minutes: Int): Long {
+    val floor = roundFloorMs(ms, minutes)
+    val ceil = roundCeilMs(ms, minutes)
+    return if (ms - floor < ceil - ms) floor else ceil
+}
+
+/**
+ * Quando vale un Fatto toccato a [now]: l'istante preciso, oppure l'orario tondo più
+ * vicino se il timer arrotonda ([Counter.roundMinutes]). Se il tondo è nel futuro il
+ * chiamante lo programma (CounterActions.done); se cadesse prima dell'inizio del giro in
+ * corso si prende quello dopo — tornare indietro oltre si mangerebbe il round.
+ * I Giornalieri contano date, non orari: lì non si arrotonda niente.
+ */
+fun Counter.doneTargetMs(now: Long): Long {
+    val step = roundMinutes?.takeIf { it > 0 && mode != CounterMode.GIORNALIERO } ?: return now
+    val nearest = roundNearestMs(now, step)
+    return if (nearest < startMs) roundCeilMs(now, step) else nearest
+}
+
+/**
+ * Gli orari da proporre per far partire un timer adesso: l'istante preciso più gli orari
+ * tondi prima e dopo per ogni arrotondamento. Alle 14:19 → 14:00, 14:15, 14:19, 14:20,
+ * 14:30, 15:00. Quelli nel futuro fanno partire il timer più tardi.
+ */
+fun quickStartTimes(now: Long): List<Long> =
+    (ROUND_STEPS.flatMap { listOf(roundFloorMs(now, it), roundCeilMs(now, it)) } + now)
+        .distinct()
+        .sorted()
+
 /**
  * Prossima scadenza di un contatore GIORNALIERO: [days] giorni dopo la **data** di
  * [fromMs] (non l'istante esatto), alle ore [minuteOfDay] (minuti da mezzanotte). Data di

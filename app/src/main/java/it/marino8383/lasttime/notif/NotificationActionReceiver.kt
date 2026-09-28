@@ -42,7 +42,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                             // può chiedere conferma, quindi nel dubbio non si riavvia.
                             val giaFatto = seenStartMs != null && fresco.startMs != seenStartMs
                             if (!giaFatto && !fresco.archived) {
-                                CounterActions.restart(context, fresco, System.currentTimeMillis())
+                                CounterActions.done(context, fresco, System.currentTimeMillis())
                             }
                         }
                     }

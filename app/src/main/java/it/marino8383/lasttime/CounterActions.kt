@@ -6,6 +6,7 @@ import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.LateBellChoice
 import it.marino8383.lasttime.data.Round
 import it.marino8383.lasttime.data.add
+import it.marino8383.lasttime.data.doneTargetMs
 import it.marino8383.lasttime.data.addDailyPoint
 import it.marino8383.lasttime.data.loggedDaily
 import it.marino8383.lasttime.data.restarted
@@ -75,7 +76,11 @@ object CounterActions {
      */
     suspend fun restart(context: Context, counter: Counter, atMs: Long, rhythm: Rhythm = Rhythm.Auto) {
         val db = db(context)
-        if (counter.mode == CounterMode.GIORNALIERO) {
+        if (counter.mode != CounterMode.GIORNALIERO && counter.startMs > atMs) {
+            // Timer creato per partire più tardi (quick pick su un orario tondo futuro) e
+            // non ancora partito: non c'è nessun giro da chiudere, parte semplicemente da qui.
+            db.counterDao().save(counter.restartedAt(atMs))
+        } else if (counter.mode == CounterMode.GIORNALIERO) {
             db.roundDao().addDailyPoint(Round(counterId = counter.id, startMs = atMs, endMs = atMs), counter)
             db.counterDao().save(counter.loggedDaily(atMs))
         } else {
@@ -89,6 +94,23 @@ object CounterActions {
         }
         Notifications.cancel(context, counter.id)
         AlarmScheduler.scheduleNext(context)
+    }
+
+    /**
+     * "Fatto" toccato a [now], dalla card o dalla notifica. Se il timer arrotonda
+     * (Counter.roundMinutes) vale l'orario tondo più vicino: nel passato riparte da lì,
+     * nel futuro diventa un reset programmato a quell'ora — il timer continua a contare
+     * fino ad allora, e sui condivisi l'altro vede il "riparte alle…".
+     */
+    suspend fun done(context: Context, counter: Counter, now: Long, rhythm: Rhythm = Rhythm.Auto) {
+        val target = counter.doneTargetMs(now)
+        if (target > now) {
+            db(context).counterDao().save(counter.copy(scheduledResetMs = target))
+            Notifications.cancel(context, counter.id)
+            AlarmScheduler.scheduleNext(context)
+        } else {
+            restart(context, counter, target, rhythm)
+        }
     }
 
     /**
@@ -108,7 +130,8 @@ object CounterActions {
             snoozeUntilMs = null,
             scheduledResetMs = null,
         )
-        if (counter.mode != CounterMode.GIORNALIERO) {
+        // né su un timer che doveva ancora partire: non c'è un giro da chiudere
+        if (counter.mode != CounterMode.GIORNALIERO && counter.startMs < now) {
             val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
             archived = archived.copy(lastRoundUuid = round.uuid, lastRoundStartMs = round.startMs)
         }

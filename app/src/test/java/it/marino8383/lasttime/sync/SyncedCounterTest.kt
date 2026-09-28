@@ -27,6 +27,7 @@ class SyncedCounterTest {
         mode = CounterMode.GIORNALIERO,
         dailyBellMinuteOfDay = 900,
         creatorUid = "uid-mio",
+        roundMinutes = 15,
         // locali: non devono viaggiare
         bellEnabled = false,
         viewMode = "COMPACT",

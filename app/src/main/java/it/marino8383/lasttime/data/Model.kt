@@ -112,6 +112,13 @@ data class Counter(
      * piccoli interi consecutivi (vedi CountersViewModel.reorder).
      */
     val sortOrder: Long = 0L,
+    /**
+     * Arrotondamento del Fatto, in minuti (5, 15, 30, 60); null = preciso al secondo.
+     * Se valorizzato, il Fatto vale all'orario tondo più vicino — e se quello è ancora
+     * nel futuro diventa un reset programmato a quell'ora. Vedi Counter.doneTargetMs.
+     * Sincronizzato: è una regola del timer, sui condivisi vale per tutti.
+     */
+    val roundMinutes: Int? = null,
 )
 
 @Entity(
@@ -364,7 +371,7 @@ data class RoundSummary(
 /** Quante volte oggi per un contatore (vedi [RoundDao.todayCounts]). */
 data class CounterDayCount(val counterId: Long, val n: Int)
 
-@Database(entities = [Counter::class, Round::class], version = 16, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 17, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -490,5 +497,12 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
 val MIGRATION_7_8 = object : Migration(7, 8) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE rounds ADD COLUMN byName TEXT")
+    }
+}
+
+/** Arrotondamento del Fatto: vedi [Counter.roundMinutes]. Null = preciso, com'era. */
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN roundMinutes INTEGER")
     }
 }

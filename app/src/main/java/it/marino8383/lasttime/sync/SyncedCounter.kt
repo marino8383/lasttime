@@ -49,6 +49,10 @@ object SyncedCounter {
         Campo("dailyBellMinuteOfDay", { it.dailyBellMinuteOfDay }) { c, d ->
             c.copy(dailyBellMinuteOfDay = (d["dailyBellMinuteOfDay"] as? Number)?.toInt())
         },
+        // Arrotondamento del Fatto: una regola del timer, vale per tutti.
+        Campo("roundMinutes", { it.roundMinutes }) { c, d ->
+            c.copy(roundMinutes = (d["roundMinutes"] as? Number)?.toInt())
+        },
         // Chi l'ha condiviso per primo (vedi Counter.creatorUid). Non deve mai tornare a
         // null solo perché una scrittura remota vecchia, di prima che il campo esistesse,
         // non lo portava con sé.

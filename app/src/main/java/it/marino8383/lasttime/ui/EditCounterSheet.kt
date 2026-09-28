@@ -38,6 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.CounterMode
+import it.marino8383.lasttime.data.ROUND_STEPS
+import it.marino8383.lasttime.data.roundNearestMs
+import it.marino8383.lasttime.formatClock
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -49,14 +52,15 @@ private val timeFmt = DateTimeFormatter.ofPattern("HH:mm", Locale.ITALIAN)
 
 /**
  * Bottom sheet di creazione/modifica contatore (pattern A della v3):
- * nome + inizio (adesso oppure data/ora scelta; futuro -> clamp ad adesso, v16).
+ * nome + inizio (adesso — con quick pick degli orari tondi — oppure data/ora scelta;
+ * futuro da data/ora -> clamp ad adesso, v16) + arrotondamento del Fatto.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditCounterSheet(
     counter: Counter?,
     onDismiss: () -> Unit,
-    onSave: (name: String, startMs: Long, mode: String) -> Unit,
+    onSave: (name: String, startMs: Long, mode: String, roundMinutes: Int?) -> Unit,
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -67,6 +71,9 @@ fun EditCounterSheet(
     var startMs by remember { mutableLongStateOf(counter?.startMs ?: System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
+    // Quick pick su "Adesso" (solo in creazione): null = adesso al secondo.
+    var pickedMs by remember { mutableStateOf<Long?>(null) }
+    var roundMinutes by remember { mutableStateOf(counter?.roundMinutes) }
     val giornaliero = mode == CounterMode.GIORNALIERO
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
@@ -127,25 +134,48 @@ fun EditCounterSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
+            if (counter == null && !giornaliero) {
+                // Nuovo timer al secondo: "Adesso" col quick pick degli orari tondi.
+                // FilterChip non si presta al tieni-premuto-e-scorri, quindi qui è un
+                // componente a sé; "Data e ora" resta sotto com'era.
+                QuickStartPick(
                     selected = startNow,
-                    onClick = { startNow = true },
-                    label = {
-                        Text(
-                            when {
-                                giornaliero -> "Oggi"
-                                counter == null -> "Adesso"
-                                else -> "Riparti da adesso"
-                            }
-                        )
+                    pickedMs = pickedMs,
+                    onPick = {
+                        startNow = true
+                        pickedMs = it
                     },
                 )
+                Spacer(Modifier.height(8.dp))
                 FilterChip(
                     selected = !startNow,
-                    onClick = { startNow = false },
-                    label = { Text(if (giornaliero) "Data" else "Data e ora") },
+                    onClick = {
+                        startNow = false
+                        pickedMs = null
+                    },
+                    label = { Text("Data e ora") },
                 )
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = startNow,
+                        onClick = { startNow = true },
+                        label = {
+                            Text(
+                                when {
+                                    giornaliero -> "Oggi"
+                                    counter == null -> "Adesso"
+                                    else -> "Riparti da adesso"
+                                }
+                            )
+                        },
+                    )
+                    FilterChip(
+                        selected = !startNow,
+                        onClick = { startNow = false },
+                        label = { Text(if (giornaliero) "Data" else "Data e ora") },
+                    )
+                }
             }
 
             if (!startNow) {
@@ -163,16 +193,60 @@ fun EditCounterSheet(
                 }
             }
 
+            if (!giornaliero) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "ARROTONDA IL FATTO",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    (listOf<Int?>(null) + ROUND_STEPS).forEach { step ->
+                        FilterChip(
+                            selected = roundMinutes == step,
+                            onClick = { roundMinutes = step },
+                            label = {
+                                Text(
+                                    when (step) {
+                                        null -> "No"
+                                        60 -> "1 h"
+                                        else -> "$step′"
+                                    }
+                                )
+                            },
+                        )
+                    }
+                }
+                roundMinutes?.let { step ->
+                    // Esempio concreto con l'ora di adesso: si capisce più di una regola.
+                    val ora = System.currentTimeMillis()
+                    val tondo = roundNearestMs(ora, step)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Il Fatto vale all'orario tondo più vicino: toccato adesso vale " +
+                            "${formatClock(tondo)}" +
+                            (if (tondo > ora) ", e fino ad allora il timer continua: riparte da solo a quell'ora." else "."),
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
             Button(
                 enabled = name.isNotBlank(),
                 onClick = {
                     val nowMs = System.currentTimeMillis()
-                    val chosen = if (startNow) nowMs else startMs
+                    val chosen = if (startNow) pickedMs ?: nowMs else startMs
                     if (!startNow && chosen > nowMs) {
                         Toast.makeText(context, "⚠️ Data nel futuro: riparto da adesso", Toast.LENGTH_SHORT).show()
                     }
-                    onSave(name, chosen.coerceAtMost(nowMs), mode)
+                    // Il futuro vale solo se scelto col quick pick: parte più tardi, da solo.
+                    val start = if (startNow && pickedMs != null) chosen else chosen.coerceAtMost(nowMs)
+                    onSave(name, start, mode, roundMinutes)
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Salva", fontWeight = FontWeight.Bold) }
