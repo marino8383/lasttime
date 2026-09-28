@@ -38,6 +38,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import it.marino8383.lasttime.data.isQuickNow
+import it.marino8383.lasttime.data.quickStartDefault
 import it.marino8383.lasttime.data.quickStartTimes
 import it.marino8383.lasttime.formatClock
 import it.marino8383.lasttime.formatDurationTwoParts
@@ -70,8 +72,10 @@ fun QuickStartPick(
     fun indexAt(local: Offset): Int? {
         val root = chipCoords?.localToRoot(local) ?: return null
         return itemBounds.entries.firstOrNull { (_, r) ->
-            // tolleranza verticale larga: il dito copre la casella, non serve centrarla
-            root.x in r.left..r.right && root.y in (r.top - r.height)..(r.bottom + r.height * 2)
+            // Si entra nella fila solo scendendoci col dito: prima il dito è ancora sul
+            // pulsante, e la casella che per caso gli sta sotto non è una scelta. Sotto,
+            // tolleranza larga: il dito copre la casella, non serve centrarla.
+            root.x in r.left..r.right && root.y in (r.top - r.height / 4)..(r.bottom + r.height * 2)
         }?.key
     }
 
@@ -116,13 +120,14 @@ fun QuickStartPick(
                         nowAtOpen = System.currentTimeMillis()
                         itemBounds.clear()
                         open = true
-                        var pos = down.position
+                        // Già evidenziato il tondo più vicino: rilasciare senza muoversi sceglie lui.
+                        val proposto = quickStartTimes(nowAtOpen).indexOf(quickStartDefault(nowAtOpen)).takeIf { it >= 0 }
+                        hovered = proposto
                         drag(down.id) { change ->
-                            pos = change.position
-                            hovered = indexAt(pos)
+                            indexAt(change.position)?.let { hovered = it }
                             change.consume()
                         }
-                        indexAt(pos)?.let { choose(it) }
+                        hovered?.let { choose(it) }
                         hovered = null
                     }
                 }
@@ -135,7 +140,7 @@ fun QuickStartPick(
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 times.forEachIndexed { i, t ->
-                    val scelto = if (pickedMs == null) t == nowAtOpen else t == pickedMs
+                    val scelto = if (pickedMs == null) isQuickNow(t, nowAtOpen) else t == pickedMs
                     val futuro = t > nowAtOpen
                     Box(
                         Modifier
@@ -157,13 +162,13 @@ fun QuickStartPick(
                             Text(
                                 formatClock(t),
                                 fontSize = 13.sp,
-                                fontWeight = if (t == nowAtOpen) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                fontWeight = if (isQuickNow(t, nowAtOpen)) FontWeight.ExtraBold else FontWeight.SemiBold,
                                 color = if (hovered == i) MaterialTheme.colorScheme.onPrimary
                                 else MaterialTheme.colorScheme.onSurface,
                             )
                             Text(
                                 when {
-                                    t == nowAtOpen -> "adesso"
+                                    isQuickNow(t, nowAtOpen) -> "adesso"
                                     futuro -> "dopo"
                                     else -> "prima"
                                 },

@@ -242,10 +242,22 @@ fun Counter.doneTargetMs(now: Long): Long {
  * tondi prima e dopo per ogni arrotondamento. Alle 14:19 → 14:00, 14:15, 14:19, 14:20,
  * 14:30, 15:00. Quelli nel futuro fanno partire il timer più tardi.
  */
-fun quickStartTimes(now: Long): List<Long> =
-    (ROUND_STEPS.flatMap { listOf(roundFloorMs(now, it), roundCeilMs(now, it)) } + now)
-        .distinct()
-        .sorted()
+fun quickStartTimes(now: Long): List<Long> {
+    val tondi = ROUND_STEPS.flatMap { listOf(roundFloorMs(now, it), roundCeilMs(now, it)) }.distinct()
+    // Alle 15:00:20 il tondo 15:00 e l'istante preciso si leggono uguali: due "15:00" di
+    // fila non si distinguono. In quel caso "adesso" è il tondo stesso (vedi isQuickNow).
+    return (if (tondi.any { isQuickNow(it, now) }) tondi else tondi + now).sorted()
+}
+
+/** [t] è "adesso" nella fila del quick pick: l'istante preciso, o un tondo dello stesso minuto. */
+fun isQuickNow(t: Long, now: Long): Boolean = t <= now && now - t < 60_000
+
+/**
+ * L'orario che il quick pick propone per primo, già evidenziato all'apertura: il tondo a
+ * 5 minuti più vicino — alle 14:59 le 15:00, alle 14:19 le 14:20. Rilasciare il dito
+ * senza spostarlo sceglie questo.
+ */
+fun quickStartDefault(now: Long): Long = roundNearestMs(now, 5)
 
 /**
  * Prossima scadenza di un contatore GIORNALIERO: [days] giorni dopo la **data** di

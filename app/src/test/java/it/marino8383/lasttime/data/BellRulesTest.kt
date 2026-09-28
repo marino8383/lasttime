@@ -3,6 +3,7 @@ package it.marino8383.lasttime.data
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.ZoneId
@@ -185,6 +186,27 @@ class BellRulesTest {
             quickStartTimes(adesso),
         )
     }
+
+    @Test
+    fun quickPick_alle1500_nienteDoppione() {
+        // alle 15:00:20 il tondo 15:00 è "adesso": due 15:00 in fila non avrebbero senso
+        val adesso = at(2026, 9, 28, 15, 0) + 20_000
+        val fila = quickStartTimes(adesso)
+        assertEquals(1, fila.count { formatHm(it) == "15:00" })
+        assertEquals(at(2026, 9, 28, 15, 0), fila.single { isQuickNow(it, adesso) })
+    }
+
+    @Test
+    fun quickPick_primaScelta_eIlTondoPiuVicino() {
+        assertEquals(at(2026, 9, 28, 15, 0), quickStartDefault(at(2026, 9, 28, 14, 59)))
+        assertEquals(at(2026, 9, 28, 14, 20), quickStartDefault(at(2026, 9, 28, 14, 19)))
+        // ed è sempre una delle caselle proposte
+        val t = at(2026, 9, 28, 14, 59) + 40_000
+        assertTrue(quickStartDefault(t) in quickStartTimes(t))
+    }
+
+    private fun formatHm(ms: Long) =
+        java.time.Instant.ofEpochMilli(ms).atZone(zone).let { "%02d:%02d".format(it.hour, it.minute) }
 
     @Test
     fun fattoArrotondato() {

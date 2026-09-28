@@ -683,20 +683,39 @@ fun HomeScreen(
     }
 
     resumeTarget?.let { counter ->
-        // Di default il giro precedente si chiude: riprendere un timer archiviato è
-        // ricominciare un ciclo. Chi vuole la continuità la chiede esplicitamente.
-        var tieniStorico by remember(counter.id) { mutableStateOf(false) }
+        // Di default si tiene lo storico: riprendere la tachipirina alla prossima influenza
+        // e vedere tutte le dosi di sempre è il caso normale. Ripartire pulito si chiede.
+        var tieniStorico by remember(counter.id) { mutableStateOf(true) }
+        // Quando riparte: come per un timer nuovo, adesso o un orario tondo (anche futuro).
+        var ripartiMs by remember(counter.id) { mutableStateOf<Long?>(null) }
+        val giornaliero = counter.mode == CounterMode.GIORNALIERO
         AlertDialog(
             onDismissRequest = { resumeTarget = null },
             title = { Text("▶️ Riprendere il timer?") },
             text = {
                 Column {
                     Text(
-                        "“${counter.name}” torna fra gli attivi e parte un round nuovo da adesso." +
+                        "“${counter.name}” torna fra gli attivi con un round nuovo." +
                             if (counter.sharedGroupId != null)
                                 " Essendo condiviso, torna in linea per tutti."
                             else ""
                     )
+                    if (!giornaliero) {
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            "RIPARTE",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        QuickStartPick(
+                            selected = true,
+                            pickedMs = ripartiMs,
+                            onPick = { ripartiMs = it },
+                        )
+                    }
                     Spacer(Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -719,7 +738,7 @@ fun HomeScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.resumeCounter(counter, keepHistory = tieniStorico)
+                    vm.resumeCounter(counter, keepHistory = tieniStorico, startMs = ripartiMs)
                     resumeTarget = null
                 }) { Text("Riprendi") }
             },

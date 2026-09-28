@@ -211,18 +211,25 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      * non vengono cancellati — sono append-only e non si riscrive la storia di nessuno —
      * ma escono da storico e statistiche, che ripartono da qui.
      */
-    fun resumeCounter(counter: Counter, keepHistory: Boolean = true) {
+    fun resumeCounter(counter: Counter, keepHistory: Boolean = true, startMs: Long? = null) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
+            // Orario scelto col quick pick (Precisi soltanto): un tondo nel passato, o nel
+            // futuro — e allora resta "da partire" fino a quell'ora, come un timer nuovo.
+            // Mai prima dell'archiviazione: si accavallerebbe all'ultimo round chiuso.
+            val start = startMs
+                ?.takeIf { counter.mode != CounterMode.GIORNALIERO }
+                ?.coerceAtLeast(counter.archivedMs ?: 0)
+                ?: now
             db.counterDao().save(
                 counter.copy(
                     archived = false,
                     archivedMs = null,
-                    startMs = now,
+                    startMs = start,
                     bellNotified = false,
                     snoozeUntilMs = null,
-                    // la campanella riparte da adesso, qualunque fosse il ritmo di prima
-                    nextBellAtMs = counter.bellFrom(now),
+                    // la campanella riparte da lì, qualunque fosse il ritmo di prima
+                    nextBellAtMs = counter.bellFrom(start),
                     historyFromMs = if (keepHistory) counter.historyFromMs else now,
                 )
             )
