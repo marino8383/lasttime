@@ -428,6 +428,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             val counter = CounterActions.latest(getApplication(), counter)
             val reset = counter.copy(
                 mode = CounterMode.GIORNALIERO,
+                roundMinutes = null, // i Giornalieri contano date: niente da arrotondare
                 bellMinutes = null,
                 dailyBellMinuteOfDay = null,
                 nextBellAtMs = null,

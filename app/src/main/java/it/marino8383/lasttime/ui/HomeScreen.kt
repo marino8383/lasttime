@@ -940,7 +940,9 @@ private fun CounterCard(
     // non è né normale né sforato — vedi ScheduledContainer.
     // Timer creato per partire più tardi (quick pick su un orario tondo futuro): stesso
     // stato "in attesa" di un reset programmato, conta da zero quando arriva l'ora.
-    val daPartire = counter.startMs > now
+    // Solo al secondo: un Giornaliero segna gli eventi a mezzogiorno della data, e prima
+    // delle 12 un evento di oggi sembrerebbe "nel futuro" senza esserlo.
+    val daPartire = !giornaliero && counter.startMs > now
     val programmato = counter.scheduledResetMs?.let { it > now } == true || daPartire
     // Prossimo squillo effettivo: rinvio pendente, oppure squillo programmato futuro
     val nextRing = when {
