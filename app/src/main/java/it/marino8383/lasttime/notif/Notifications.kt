@@ -26,6 +26,8 @@ object Notifications {
     const val ACTION_DONE = "it.marino8383.lasttime.action.DONE"
     const val ACTION_DISMISS = "it.marino8383.lasttime.action.DISMISS"
     const val EXTRA_SNOOZE_COUNTER_ID = "snoozeCounterId"
+    /** startMs del contatore quando la notifica è stata mostrata: vedi NotificationActionReceiver. */
+    const val EXTRA_SEEN_START_MS = "seenStartMs"
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -161,9 +163,9 @@ object Notifications {
             .setContentIntent(tap)
             .setAutoCancel(true)
             // Scarta: chiude la notifica, il contatore continua
-            .addAction(actionBuilder(context, counter.id, ACTION_DISMISS, "Scarta"))
+            .addAction(actionBuilder(context, counter, ACTION_DISMISS, "Scarta"))
             // Fatto: round loggato, il contatore riparte da adesso
-            .addAction(actionBuilder(context, counter.id, ACTION_DONE, "Fatto"))
+            .addAction(actionBuilder(context, counter, ACTION_DONE, "Fatto"))
             // Rimanda: apre la maschera per scegliere di quanto rinviare la campanella
             .addAction(
                 Notification.Action.Builder(
@@ -187,17 +189,18 @@ object Notifications {
 
     private fun actionBuilder(
         context: Context,
-        counterId: Long,
+        counter: Counter,
         action: String,
         label: String,
     ): Notification.Action = Notification.Action.Builder(
         null,
         label,
         PendingIntent.getBroadcast(
-            context, counterId.toInt(),
+            context, counter.id.toInt(),
             Intent(context, NotificationActionReceiver::class.java)
                 .setAction(action)
-                .setData(Uri.parse("lasttime://counter/$counterId")),
+                .setData(Uri.parse("lasttime://counter/${counter.id}"))
+                .putExtra(EXTRA_SEEN_START_MS, counter.startMs),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         ),
     ).build()

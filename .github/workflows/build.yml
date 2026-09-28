@@ -31,13 +31,13 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          gradle assembleDebug 2>&1 | tee build.log
+          gradle testDebugUnitTest assembleDebug 2>&1 | tee build.log
 
       - name: Report errors as annotations
         if: failure()
         shell: bash
         run: |
-          grep -E "^e: |error:|FAILURE:|Caused by|What went wrong" build.log | head -40 | \
+          grep -E "^e: |error:|FAILURE:|FAILED|Caused by|What went wrong" build.log | head -40 | \
             while IFS= read -r line; do echo "::error::${line}"; done
 
       - uses: actions/upload-artifact@v4

@@ -102,9 +102,9 @@ object Groups {
     }
 
     /**
-     * Solo i campi condivisi: nome, inizio del round e configurazione della campanella.
-     * Restano fuori di proposito viewMode, bellEnabled, bellNotified e snoozeUntilMs,
-     * che sono scelte del singolo telefono.
+     * Solo i campi condivisi, elencati in [SyncedCounter]; qui si aggiungono quelli con
+     * regole proprie. Restano fuori di proposito viewMode, bellEnabled, bellNotified e
+     * snoozeUntilMs, che sono scelte del singolo telefono.
      *
      * nextBellAtMs viaggia calcolato, non ricalcolato da ogni telefono per conto suo:
      * le correzioni manuali (Riparti avanzato, correggi/annulla l'ultimo riavvio) hanno
@@ -114,33 +114,14 @@ object Groups {
      * il 27/09). Stesso motivo per scheduledResetMs: senza, un reset programmato non si
      * vedeva affatto sull'altro telefono finché non scattava.
      */
-    fun payload(counter: Counter): Map<String, Any?> = mapOf(
+    fun payload(counter: Counter): Map<String, Any?> = SyncedCounter.payload(counter) + mapOf(
         "uuid" to counter.uuid,
-        "name" to counter.name,
-        "startMs" to counter.startMs,
-        "bellMinutes" to counter.bellMinutes,
-        "bellMode" to counter.bellMode,
-        "bellRepeat" to counter.bellRepeat,
+        "updatedMs" to counter.updatedMs,
         "nextBellAtMs" to counter.nextBellAtMs,
         "scheduledResetMs" to counter.scheduledResetMs,
-        "updatedMs" to counter.updatedMs,
-        // L'archivio è condiviso: un ciclo finisce per tutti e riprende per tutti.
-        "archived" to counter.archived,
-        "archivedMs" to counter.archivedMs,
-        "historyFromMs" to counter.historyFromMs,
         // Chi ha scritto per ultimo. Non si salva in locale: serve solo a intestare gli
         // avvisi ("Vale ha ripreso Tachipirina"), dove non c'è un round che porti la firma.
         "lastByName" to Cloud.myName.takeIf { it.isNotBlank() },
-        // Puntano all'ultimo round vero: è quello che le regole del server lasciano ancora
-        // correggere (solo endMs), per "Correggi l'ultimo riavvio".
-        "lastRoundUuid" to counter.lastRoundUuid,
-        "lastRoundStartMs" to counter.lastRoundStartMs,
-        // Modalità Giornaliera: cambia come si conta e le regole del server per i round
-        // di questo contatore (niente più append-only, vedi firestore.rules).
-        "mode" to counter.mode,
-        "dailyBellMinuteOfDay" to counter.dailyBellMinuteOfDay,
-        // Chi l'ha condiviso per primo: vedi Counter.creatorUid.
-        "creatorUid" to counter.creatorUid,
     )
 
     /**

@@ -11,7 +11,7 @@ import it.marino8383.lasttime.LastTimeApp
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.Round
-import it.marino8383.lasttime.data.nextDailyBellAtMs
+import it.marino8383.lasttime.data.nextBellFrom
 import it.marino8383.lasttime.formatRingTime
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
@@ -208,7 +208,6 @@ object SyncEngine {
         val startMs = (data["startMs"] as? Number)?.toLong() ?: return
         val bellMinutes = (data["bellMinutes"] as? Number)?.toLong()
         val bellMode = data["bellMode"] as? String ?: "INTERVAL"
-        val bellRepeat = data["bellRepeat"] as? Boolean ?: true
         val mode = data["mode"] as? String ?: CounterMode.PRECISO
         val dailyBellMinuteOfDay = (data["dailyBellMinuteOfDay"] as? Number)?.toInt()
         // Calcolate dal telefono che ha scritto, non ricalcolate qui: vedi il commento
@@ -220,38 +219,23 @@ object SyncEngine {
         val syncedScheduledReset = (data["scheduledResetMs"] as? Number)?.toLong()
 
         // Fallback legacy, solo se il mittente non porta ancora questi campi.
-        fun recomputeNextBell(from: Long, localPrevNextBell: Long?): Long? = if (mode == CounterMode.GIORNALIERO) {
-            val days = bellMinutes?.div(1440)
-            if (days != null && dailyBellMinuteOfDay != null) nextDailyBellAtMs(from, days, dailyBellMinuteOfDay) else null
-        } else {
-            bellMinutes?.times(60_000)?.let { from + it } ?: localPrevNextBell
-        }
+        fun recomputeNextBell(from: Long, localPrevNextBell: Long?): Long? =
+            nextBellFrom(mode, bellMinutes, dailyBellMinuteOfDay, from)
+                ?: localPrevNextBell.takeIf { mode != CounterMode.GIORNALIERO }
 
         if (local == null) {
             // Prima volta che vediamo questo contatore: e' entrato nel gruppo da un altro
             // telefono.
             val nextBell = if (hasNextBellField) syncedNextBell else recomputeNextBell(startMs, null)
             dao.insertRaw(
-                Counter(
-                    uuid = uuid,
-                    name = name,
-                    startMs = startMs,
-                    bellMinutes = bellMinutes,
-                    bellMode = bellMode,
-                    bellRepeat = bellRepeat,
+                SyncedCounter.apply(
+                    Counter(uuid = uuid, name = name, startMs = startMs, createdMs = System.currentTimeMillis()),
+                    data,
+                ).copy(
                     nextBellAtMs = nextBell,
                     scheduledResetMs = if (hasScheduledResetField) syncedScheduledReset else null,
-                    createdMs = System.currentTimeMillis(),
                     updatedMs = remoteUpdated,
                     sharedGroupId = groupId,
-                    archived = data["archived"] as? Boolean ?: false,
-                    archivedMs = (data["archivedMs"] as? Number)?.toLong(),
-                    historyFromMs = (data["historyFromMs"] as? Number)?.toLong(),
-                    lastRoundUuid = data["lastRoundUuid"] as? String,
-                    lastRoundStartMs = (data["lastRoundStartMs"] as? Number)?.toLong(),
-                    mode = mode,
-                    dailyBellMinuteOfDay = dailyBellMinuteOfDay,
-                    creatorUid = data["creatorUid"] as? String,
                 )
             )
             aligned[uuid] = remoteUpdated
@@ -285,25 +269,11 @@ object SyncEngine {
 
         val movedStart = startMs != local.startMs
         val archived = data["archived"] as? Boolean ?: false
-        var updated = local.copy(
-            name = name,
-            startMs = startMs,
-            bellMinutes = bellMinutes,
-            bellMode = bellMode,
-            bellRepeat = bellRepeat,
+        // Tutti i campi condivisi in un colpo, archivio compreso: se l'altro ha chiuso il
+        // ciclo, si chiude anche qui.
+        var updated = SyncedCounter.apply(local, data).copy(
             updatedMs = remoteUpdated,
             sharedGroupId = groupId,
-            // Archivio condiviso: se l'altro ha chiuso il ciclo, si chiude anche qui
-            archived = archived,
-            archivedMs = (data["archivedMs"] as? Number)?.toLong(),
-            historyFromMs = (data["historyFromMs"] as? Number)?.toLong(),
-            lastRoundUuid = data["lastRoundUuid"] as? String,
-            lastRoundStartMs = (data["lastRoundStartMs"] as? Number)?.toLong(),
-            mode = mode,
-            dailyBellMinuteOfDay = dailyBellMinuteOfDay,
-            // Non deve mai tornare indietro a null solo perché una scrittura remota vecchia
-            // (di prima che questo campo esistesse) non lo portava con sé.
-            creatorUid = data["creatorUid"] as? String ?: local.creatorUid,
         )
         val newNextBell = if (hasNextBellField) {
             syncedNextBell

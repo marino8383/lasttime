@@ -3,12 +3,8 @@ package it.marino8383.lasttime.notif
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import it.marino8383.lasttime.AppSettings
+import it.marino8383.lasttime.CounterActions
 import it.marino8383.lasttime.LastTimeApp
-import it.marino8383.lasttime.data.Round
-import it.marino8383.lasttime.data.add
-import it.marino8383.lasttime.data.restarted
-import it.marino8383.lasttime.data.save
 import it.marino8383.lasttime.data.saveLocal
 import it.marino8383.lasttime.sync.SyncEngine
 import kotlinx.coroutines.CoroutineScope
@@ -30,23 +26,16 @@ class BellReceiver : BroadcastReceiver() {
                 // Reset programmati in scadenza: round chiuso all'istante programmato,
                 // timer ripartito da lì, campanella riarmata secondo le sue regole
                 dao.dueScheduledResets(now).forEach { dueCounter ->
-                    var counter = dueCounter
-                    val groupId = counter.sharedGroupId
-                    if (groupId != null) {
-                        // scheduledResetMs e' sincronizzato: su un condiviso entrambi i
-                        // telefoni possono avere la stessa sveglia di sistema. Prima di
-                        // eseguire alla cieca si riverifica lo stato vero — l'altro
-                        // potrebbe averlo gia' fatto ripartire o aver annullato il reset
-                        // nel frattempo, altrimenti si rischia un doppio round.
-                        withTimeoutOrNull(4_000) { SyncEngine.checkCounter(app, groupId, counter.uuid) }
-                        counter = dao.byId(counter.id) ?: return@forEach
-                    }
+                    // scheduledResetMs e' sincronizzato: su un condiviso entrambi i
+                    // telefoni possono avere la stessa sveglia di sistema. Prima di
+                    // eseguire alla cieca si riverifica lo stato vero — l'altro
+                    // potrebbe averlo gia' fatto ripartire o aver annullato il reset
+                    // nel frattempo, altrimenti si rischia un doppio round.
+                    val counter = CounterActions.latest(context, dueCounter, askGroup = true)
                     val at = counter.scheduledResetMs?.takeIf { it <= System.currentTimeMillis() } ?: return@forEach
-                    app.db.roundDao().add(
-                        Round(counterId = counter.id, startMs = counter.startMs, endMs = at),
-                        counter,
-                    )
-                    dao.save(counter.restarted(at, AppSettings.latePercent(context)))
+                    // sparito (tolto dal gruppo) o archiviato nel frattempo: niente da fare
+                    if (counter.archived || dao.byId(counter.id) == null) return@forEach
+                    CounterActions.restart(context, counter, at)
                     Notifications.notifyScheduledReset(context, counter)
                 }
 

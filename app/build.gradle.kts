@@ -18,8 +18,8 @@ android {
         applicationId = "it.marino8383.lasttime"
         minSdk = 26
         targetSdk = 34
-        versionCode = 88
-        versionName = "0.22.3"
+        versionCode = 89
+        versionName = "0.23.0"
 
         buildConfigField("String", "BUILD_TIME", "\"${buildTimestamp()}\"")
     }
@@ -54,6 +54,11 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+    }
+    // I test JVM toccano classi che citano Android solo di passaggio: le chiamate
+    // non simulate rispondono con valori di default invece di far fallire il test.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
     buildFeatures {
         compose = true
@@ -96,4 +101,7 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+
+    // Test JVM sulle regole pure (campanella, riavvio, campi sincronizzati): vedi app/src/test
+    testImplementation("junit:junit:4.13.2")
 }

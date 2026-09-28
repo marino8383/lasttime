@@ -82,9 +82,8 @@ import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.CounterMode
 import it.marino8383.lasttime.data.calendarDaysBetween
-import it.marino8383.lasttime.data.bellLateThreshold
-import it.marino8383.lasttime.data.bellLatenessMs
-import it.marino8383.lasttime.data.bellEarlinessMs
+import it.marino8383.lasttime.data.RhythmDeviation
+import it.marino8383.lasttime.data.rhythmDeviation
 import it.marino8383.lasttime.formatDateTime
 import it.marino8383.lasttime.formatDateOnly
 import it.marino8383.lasttime.formatClock
@@ -182,7 +181,7 @@ fun HomeScreen(
     val onCardRestart: (Counter) -> Unit = { counter ->
         if (counter.mode == CounterMode.GIORNALIERO) {
             vm.checkBeforeRestart(counter) { esito ->
-                if (esito.moved) staleTarget = esito else vm.logDaily(esito.counter)
+                if (esito.moved) staleTarget = esito else vm.restart(esito.counter)
             }
         } else {
             restartTarget = counter
@@ -519,15 +518,10 @@ fun HomeScreen(
                         // Ricorrente suonata da molto, o fatta molto in anticipo: prima di
                         // ripartire si chiede della campanella. Entro soglia in entrambi i
                         // versi si mantiene il ritmo da soli, senza disturbare.
-                        val now2 = System.currentTimeMillis()
-                        val lateness = fresco.bellLatenessMs(now2)
-                        val earliness = fresco.bellEarlinessMs(now2)
-                        val threshold = fresco.bellMinutes
-                            ?.let { bellLateThreshold(it * 60_000, AppSettings.latePercent(context)) }
-                        val fuoriSoglia = threshold != null && (
-                            (lateness != null && lateness > threshold) ||
-                                (earliness != null && earliness > threshold)
-                            )
+                        val fuoriSoglia = fresco.rhythmDeviation(
+                            System.currentTimeMillis(),
+                            AppSettings.latePercent(context),
+                        ) == RhythmDeviation.LARGE
                         if (fuoriSoglia) {
                             lateBellTarget = fresco
                         } else {
@@ -675,7 +669,7 @@ fun HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = {
-                    if (giornaliero) vm.logDaily(counter) else vm.restart(counter)
+                    vm.restart(counter)
                     staleTarget = null
                 }) { Text(if (giornaliero) "Segna comunque" else "Riparti comunque", color = MaterialTheme.colorScheme.error) }
             },

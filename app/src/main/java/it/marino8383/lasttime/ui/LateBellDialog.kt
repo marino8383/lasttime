@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import it.marino8383.lasttime.CountersViewModel.LateBellChoice
+import it.marino8383.lasttime.data.LateBellChoice
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.bellEarlinessMs
 import it.marino8383.lasttime.data.bellLatenessMs

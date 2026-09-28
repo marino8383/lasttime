@@ -3,12 +3,8 @@ package it.marino8383.lasttime.notif
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import it.marino8383.lasttime.AppSettings
+import it.marino8383.lasttime.CounterActions
 import it.marino8383.lasttime.LastTimeApp
-import it.marino8383.lasttime.data.Round
-import it.marino8383.lasttime.data.add
-import it.marino8383.lasttime.data.restarted
-import it.marino8383.lasttime.data.save
 import it.marino8383.lasttime.data.saveLocal
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +17,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val counterId = intent.data?.lastPathSegment?.toLongOrNull() ?: return
         val action = intent.action ?: return
         if (action != Notifications.ACTION_DISMISS && action != Notifications.ACTION_DONE) return
+        val seenStartMs = intent.getLongExtra(Notifications.EXTRA_SEEN_START_MS, -1L).takeIf { it >= 0 }
 
         val result = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -29,19 +26,24 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 val dao = app.db.counterDao()
                 val counter = dao.byId(counterId)
                 if (counter != null) {
-                    val now = System.currentTimeMillis()
                     when (action) {
                         // Scarta: il contatore continua, la campanella si spegne (🔕 sulla card)
                         Notifications.ACTION_DISMISS ->
                             dao.saveLocal(counter.copy(bellEnabled = false, snoozeUntilMs = null))
 
-                        // Fatto: round loggato, riparte; la prossima campanella segue il bellMode
+                        // Fatto: stessa strada del ↺ sulla card (CounterActions), così
+                        // l'ultimo round resta correggibile e i Giornalieri fanno il loro +1.
                         Notifications.ACTION_DONE -> {
-                            app.db.roundDao().add(
-                                Round(counterId = counter.id, startMs = counter.startMs, endMs = now),
-                                counter,
-                            )
-                            dao.save(counter.restarted(now, AppSettings.latePercent(context)))
+                            val fresco = CounterActions.latest(context, counter, askGroup = true)
+                            // Stessa regola di checkBeforeRestart: se il timer non è più
+                            // quello che la notifica mostrava — l'altro l'ha già fatto
+                            // ripartire, o l'ho già fatto io dall'app — un secondo Fatto
+                            // sarebbe una dose in più nello storico. Da una notifica non si
+                            // può chiedere conferma, quindi nel dubbio non si riavvia.
+                            val giaFatto = seenStartMs != null && fresco.startMs != seenStartMs
+                            if (!giaFatto && !fresco.archived) {
+                                CounterActions.restart(context, fresco, System.currentTimeMillis())
+                            }
                         }
                     }
                     AlarmScheduler.scheduleNext(context)

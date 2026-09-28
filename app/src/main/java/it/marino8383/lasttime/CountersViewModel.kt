@@ -6,19 +6,17 @@ import it.marino8383.lasttime.AppSettings
 import androidx.lifecycle.viewModelScope
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.CounterMode
+import it.marino8383.lasttime.CounterActions.Rhythm
+import it.marino8383.lasttime.data.LateBellChoice
 import it.marino8383.lasttime.data.Round
-import it.marino8383.lasttime.data.advanceToFuture
-import it.marino8383.lasttime.data.keepRhythmNextBell
 import it.marino8383.lasttime.data.add
 import it.marino8383.lasttime.data.addDailyPoint
+import it.marino8383.lasttime.data.bellFrom
 import it.marino8383.lasttime.data.create
 import it.marino8383.lasttime.data.loggedDaily
-import it.marino8383.lasttime.data.nextDailyBellAtMs
 import it.marino8383.lasttime.data.noonOf
 import it.marino8383.lasttime.data.save
 import it.marino8383.lasttime.data.saveLocal
-import it.marino8383.lasttime.data.restarted
-import it.marino8383.lasttime.data.restartedAt
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
 import it.marino8383.lasttime.sync.Cloud
@@ -31,7 +29,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 
 class CountersViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -129,30 +126,18 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     snoozeUntilMs = null,
                 )
             } else if (mode == CounterMode.GIORNALIERO) {
-                updated = updated.copy(nextBellAtMs = recomputeDailyBell(updated))
-            } else {
-                val step = counter.bellMinutes?.times(60_000)
-                if (step != null && start != counter.startMs && counter.bellMode != "FIXED") {
-                    updated = updated.copy(
-                        nextBellAtMs = start + step,
-                        bellNotified = false,
-                        snoozeUntilMs = null,
-                    )
-                }
+                updated = updated.copy(nextBellAtMs = updated.bellFrom(start))
+            } else if (counter.bellMinutes != null && start != counter.startMs && counter.bellMode != "FIXED") {
+                updated = updated.copy(
+                    nextBellAtMs = updated.bellFrom(start),
+                    bellNotified = false,
+                    snoozeUntilMs = null,
+                )
             }
             db.counterDao().save(updated)
             Notifications.cancel(getApplication(), counter.id)
             AlarmScheduler.scheduleNext(getApplication())
         }
-    }
-
-    /** Prossima scadenza GIORNALIERO dallo stato attuale del contatore, o null se non configurata. */
-    private fun recomputeDailyBell(counter: Counter): Long? {
-        val days = counter.bellMinutes?.div(1440)
-        val minuteOfDay = counter.dailyBellMinuteOfDay
-        return if (days != null && minuteOfDay != null) {
-            nextDailyBellAtMs(counter.startMs, days, minuteOfDay)
-        } else null
     }
 
     /**
@@ -180,9 +165,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Archivia (v23): il round in corso viene chiuso e loggato, poi il timer si congela.
-     * Le query di campanella e reset programmato filtrano già archived = 0, ma il reset
-     * pendente va cancellato o al ripristino scatterebbe subito perché ormai nel passato.
+     * Ferma e archivia (v23): vedi [CounterActions.archive].
      *
      * Su un timer condiviso l'archiviazione vale **per tutti**: un ciclo — la tachipirina
      * di questa influenza — finisce insieme e si riprende insieme. Il gruppo resta in
@@ -190,20 +173,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun archiveCounter(counter: Counter) {
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
-            db.counterDao().save(
-                counter.copy(
-                    archived = true,
-                    archivedMs = now,
-                    snoozeUntilMs = null,
-                    scheduledResetMs = null,
-                    lastRoundUuid = round.uuid,
-                    lastRoundStartMs = round.startMs,
-                )
-            )
-            Notifications.cancel(getApplication(), counter.id)
-            AlarmScheduler.scheduleNext(getApplication())
+            CounterActions.archive(getApplication(), CounterActions.latest(getApplication(), counter))
         }
     }
 
@@ -218,7 +188,6 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun resumeCounter(counter: Counter, keepHistory: Boolean = true) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            val step = counter.bellMinutes?.times(60_000)
             db.counterDao().save(
                 counter.copy(
                     archived = false,
@@ -227,7 +196,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     bellNotified = false,
                     snoozeUntilMs = null,
                     // la campanella riparte da adesso, qualunque fosse il ritmo di prima
-                    nextBellAtMs = if (step != null) now + step else null,
+                    nextBellAtMs = counter.bellFrom(now),
                     historyFromMs = if (keepHistory) counter.historyFromMs else now,
                 )
             )
@@ -256,22 +225,11 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun checkBeforeRestart(counter: Counter, onDone: (FreshCheck) -> Unit) {
         viewModelScope.launch {
-            // Si rilegge sempre dal database. La copia che arriva dalla UI può essere
-            // vecchia — un gestore di gesti in Compose sopravvive alle ricomposizioni e
-            // continua a consegnare il contatore com'era quando è stato creato — e
-            // riscriverla tale e quale significherebbe riportare indietro campi che nel
-            // frattempo sono cambiati, sharedGroupId per primo.
-            val counter = db.counterDao().byId(counter.id) ?: counter
-            val groupId = counter.sharedGroupId
-            if (groupId == null) {
-                onDone(FreshCheck(counter, moved = false, movedBy = null))
-                return@launch
-            }
+            val counter = CounterActions.latest(getApplication(), counter)
             // Solo questo contatore, non un giro di allineamento su tutti i gruppi: prima
             // c'era syncOnce(), che tirava giu' anche gli altri gruppi e 200 round a testa
             // — lento proprio nel momento in cui contava rispondere in fretta.
-            withTimeoutOrNull(4_000) { SyncEngine.checkCounter(getApplication(), groupId, counter.uuid) }
-            val fresco = db.counterDao().byId(counter.id) ?: counter
+            val fresco = CounterActions.latest(getApplication(), counter, askGroup = true)
             val spostato = fresco.startMs != counter.startMs
             onDone(
                 FreshCheck(
@@ -283,18 +241,15 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Chiude il round corrente (loggandolo) e riparte da adesso. */
+    /**
+     * Fatto adesso: sui Precisi chiude il round corrente e riparte, sui Giornalieri è il
+     * "+1" — niente conferma né "mantieni il ritmo", più volte lo stesso giorno sono
+     * normali. La strada la sceglie [CounterActions.restart] in base alla modalità.
+     */
     fun restart(counter: Counter) {
         viewModelScope.launch {
-            val counter = db.counterDao().byId(counter.id) ?: counter
-            val now = System.currentTimeMillis()
-            val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
-            db.counterDao().save(
-                counter.restarted(now, AppSettings.latePercent(getApplication()))
-                    .copy(lastRoundUuid = round.uuid, lastRoundStartMs = round.startMs)
-            )
-            Notifications.cancel(getApplication(), counter.id)
-            AlarmScheduler.scheduleNext(getApplication())
+            val counter = CounterActions.latest(getApplication(), counter)
+            CounterActions.restart(getApplication(), counter, System.currentTimeMillis())
         }
     }
 
@@ -304,16 +259,10 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun restartAt(counter: Counter, atMs: Long) {
         viewModelScope.launch {
-            val counter = db.counterDao().byId(counter.id) ?: counter
+            val counter = CounterActions.latest(getApplication(), counter)
             val at = atMs.coerceAtMost(System.currentTimeMillis())
             if (at < counter.startMs) return@launch // la UI valida già; qui è solo difesa
-            val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = at), counter)
-            db.counterDao().save(
-                counter.restartedAt(at)
-                    .copy(lastRoundUuid = round.uuid, lastRoundStartMs = round.startMs)
-            )
-            Notifications.cancel(getApplication(), counter.id)
-            AlarmScheduler.scheduleNext(getApplication())
+            CounterActions.restart(getApplication(), counter, at, Rhythm.FromInstant)
         }
     }
 
@@ -328,14 +277,10 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun correctLastRestart(counter: Counter, atMs: Long, onDone: (String) -> Unit) {
         viewModelScope.launch {
-            var counter = db.counterDao().byId(counter.id) ?: counter
+            // Come checkBeforeRestart: si riverifica lo stato vero prima di agire,
+            // non si corregge alla cieca su una copia che potrebbe essere vecchia.
+            val counter = CounterActions.latest(getApplication(), counter, askGroup = true)
             val groupId = counter.sharedGroupId
-            if (groupId != null) {
-                // Come checkBeforeRestart: si riverifica lo stato vero prima di agire,
-                // non si corregge alla cieca su una copia che potrebbe essere vecchia.
-                withTimeoutOrNull(4_000) { SyncEngine.checkCounter(getApplication(), groupId, counter.uuid) }
-                counter = db.counterDao().byId(counter.id) ?: counter
-            }
             val roundUuid = counter.lastRoundUuid
             val round = roundUuid?.let { db.roundDao().byUuid(it) }
             if (round == null) {
@@ -367,12 +312,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             // correzione esplicita — chi sceglie a mano un orario si aspetta che la
             // scadenza lo segua, non un'ancora vecchia scollegata (stesso principio di
             // Counter.restartedAt).
-            val step = counter.bellMinutes?.times(60_000)
-            val newNextBell = when {
-                counter.nextBellAtMs == null -> null
-                step != null -> at + step
-                else -> counter.nextBellAtMs
-            }
+            val newNextBell = counter.nextBellAtMs?.let { counter.bellFrom(at) ?: it }
             db.roundDao().correctEndMs(round.id, at, stampMs)
             db.counterDao().save(
                 counter.copy(
@@ -398,12 +338,8 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun undoLastRestart(counter: Counter, onDone: (String) -> Unit) {
         viewModelScope.launch {
-            var counter = db.counterDao().byId(counter.id) ?: counter
+            val counter = CounterActions.latest(getApplication(), counter, askGroup = true)
             val groupId = counter.sharedGroupId
-            if (groupId != null) {
-                withTimeoutOrNull(4_000) { SyncEngine.checkCounter(getApplication(), groupId, counter.uuid) }
-                counter = db.counterDao().byId(counter.id) ?: counter
-            }
             val roundUuid = counter.lastRoundUuid
             val round = roundUuid?.let { db.roundDao().byUuid(it) }
             if (round == null) {
@@ -422,12 +358,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             }
             // Ricalcolata dal nuovo inizio, non scivolata della stessa differenza —
             // stesso motivo del fix in correctLastRestart, vale anche sulle FIXED.
-            val step = counter.bellMinutes?.times(60_000)
-            val newNextBell = when {
-                counter.nextBellAtMs == null -> null
-                step != null -> round.startMs + step
-                else -> counter.nextBellAtMs
-            }
+            val newNextBell = counter.nextBellAtMs?.let { counter.bellFrom(round.startMs) ?: it }
             db.roundDao().deleteByUuid(round.uuid)
             db.counterDao().save(
                 counter.copy(
@@ -444,22 +375,6 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------------------------------------------------------------- modalità Giornaliera
-
-    /**
-     * "+1" di un contatore GIORNALIERO: registra un evento a adesso. A differenza di
-     * [restart] non chiede conferma né "mantieni il ritmo" — più volte lo stesso giorno
-     * sono normali, non un'eccezione da segnalare (vedi Counter.loggedDaily).
-     */
-    fun logDaily(counter: Counter) {
-        viewModelScope.launch {
-            val counter = db.counterDao().byId(counter.id) ?: counter
-            val now = System.currentTimeMillis()
-            db.roundDao().addDailyPoint(Round(counterId = counter.id, startMs = now, endMs = now), counter)
-            db.counterDao().save(counter.loggedDaily(now))
-            Notifications.cancel(getApplication(), counter.id)
-            AlarmScheduler.scheduleNext(getApplication())
-        }
-    }
 
     /**
      * Ricalcola lo stato di un contatore GIORNALIERO dopo che lo storico è cambiato
@@ -484,7 +399,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun convertToDaily(counter: Counter, onDone: () -> Unit = {}) {
         viewModelScope.launch {
-            val counter = db.counterDao().byId(counter.id) ?: counter
+            val counter = CounterActions.latest(getApplication(), counter)
             val reset = counter.copy(
                 mode = CounterMode.GIORNALIERO,
                 bellMinutes = null,
@@ -509,7 +424,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun addDailyEvent(counter: Counter, dateMs: Long, onDone: (String) -> Unit = {}) {
         viewModelScope.launch {
-            val counter = db.counterDao().byId(counter.id) ?: counter
+            val counter = CounterActions.latest(getApplication(), counter)
             val at = noonOf(dateMs.coerceAtMost(System.currentTimeMillis()))
             db.roundDao().addDailyPoint(Round(counterId = counter.id, startMs = at, endMs = at), counter)
             db.counterDao().save(recomputeDaily(db.counterDao().byId(counter.id) ?: counter))
@@ -525,7 +440,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun removeDailyEvent(counter: Counter, round: Round, onDone: (String) -> Unit = {}) {
         viewModelScope.launch {
-            val counter = db.counterDao().byId(counter.id) ?: counter
+            val counter = CounterActions.latest(getApplication(), counter)
             val groupId = counter.sharedGroupId
             if (groupId != null) {
                 try {
@@ -549,7 +464,7 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun removeDailyDay(counter: Counter, roundsOfDay: List<Round>, onDone: (String) -> Unit = {}) {
         viewModelScope.launch {
-            val counter = db.counterDao().byId(counter.id) ?: counter
+            val counter = CounterActions.latest(getApplication(), counter)
             val groupId = counter.sharedGroupId
             for (round in roundsOfDay) {
                 if (groupId != null) {
@@ -596,38 +511,11 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Scelta dell'utente quando fa Fatto/↺ con una ricorrente scaduta da molto, o
-     * anticipata di molto. Per "non l'ho ancora fatto, aspetta la campanella" c'è il
-     * chip "alla campanella" di Riparti avanzato (scheduleReset) — qui si arriva solo
-     * dopo aver già confermato il riavvio, quindi qui si riavvia sempre davvero. */
-    enum class LateBellChoice { KEEP_RHYTHM, FROM_NOW, DISABLE }
-
-    /** Come [restart], ma con la decisione esplicita sulla campanella in ritardo. */
+    /** Come [restart], ma con la decisione esplicita sulla campanella fuori ritmo (LateBellDialog). */
     fun restartWithBellChoice(counter: Counter, choice: LateBellChoice) {
         viewModelScope.launch {
-            val counter = db.counterDao().byId(counter.id) ?: counter
-            val now = System.currentTimeMillis()
-            val step = (counter.bellMinutes ?: 0) * 60_000
-            val round = db.roundDao().add(Round(counterId = counter.id, startMs = counter.startMs, endMs = now), counter)
-            val base = counter.copy(
-                startMs = now,
-                bellNotified = false,
-                snoozeUntilMs = null,
-                scheduledResetMs = null,
-                lastRoundUuid = round.uuid,
-                lastRoundStartMs = round.startMs,
-            )
-            val updated = when (choice) {
-                LateBellChoice.KEEP_RHYTHM ->
-                    base.copy(nextBellAtMs = keepRhythmNextBell(counter.nextBellAtMs ?: now, step, now))
-                LateBellChoice.FROM_NOW ->
-                    base.copy(nextBellAtMs = now + step)
-                LateBellChoice.DISABLE ->
-                    base.copy(bellEnabled = false)
-            }
-            db.counterDao().save(updated)
-            Notifications.cancel(getApplication(), counter.id)
-            AlarmScheduler.scheduleNext(getApplication())
+            val counter = CounterActions.latest(getApplication(), counter)
+            CounterActions.restart(getApplication(), counter, System.currentTimeMillis(), Rhythm.Choice(choice))
         }
     }
 
