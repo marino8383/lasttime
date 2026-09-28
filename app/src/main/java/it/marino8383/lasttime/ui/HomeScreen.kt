@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -99,12 +100,27 @@ import it.marino8383.lasttime.sync.SyncStatus
 import it.marino8383.lasttime.sync.SyncWorker
 import it.marino8383.lasttime.sync.Updater
 import it.marino8383.lasttime.timeParts
+import it.marino8383.lasttime.ui.theme.HighlightOrange
 import it.marino8383.lasttime.ui.theme.OnErrorContainer
 import it.marino8383.lasttime.ui.theme.OnPrimaryContainer
 import it.marino8383.lasttime.ui.theme.OnScheduledContainer
 import it.marino8383.lasttime.ui.theme.PrimaryContainer
 import it.marino8383.lasttime.ui.theme.ScheduledContainer
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlin.math.roundToInt
 
 @Composable
@@ -124,6 +140,25 @@ fun HomeScreen(
     LaunchedEffect(counters) { if (draggedId == null) localOrder = counters }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
     val itemHeights = remember { mutableStateMapOf<Long, Int>() }
+    // Fuori dal ramo della lista: tornando dall'archivio la LazyColumn rinasce, e con lei
+    // perderebbe la posizione.
+    val listState = rememberLazyListState()
+    // Timer appena ripreso dall'archivio: si torna alla lista, ci si scorre sopra e la sua
+    // cornice pulsa per qualche secondo, così si vede subito dov'è finito.
+    var highlightId by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(highlightId) {
+        val id = highlightId ?: return@LaunchedEffect
+        // Il contatore arriva nella lista quando il database conferma il ripristino, non
+        // subito: si aspetta che compaia (se era nascosto non comparirà, e pazienza).
+        val idx = withTimeoutOrNull(3_000) {
+            snapshotFlow { localOrder.indexOfFirst { it.id == id } }.first { it >= 0 }
+        }
+        if (idx != null) {
+            listState.animateScrollToItem(idx)
+            delay(3_500)
+        }
+        highlightId = null
+    }
     val archived by vm.archived.collectAsStateWithLifecycle()
     val hiddenCounters by vm.hidden.collectAsStateWithLifecycle()
     val roundSummaries by vm.roundSummaries.collectAsStateWithLifecycle()
@@ -301,7 +336,7 @@ fun HomeScreen(
                     )
                 }
             } else {
-                LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 120.dp)) {
+                LazyColumn(state = listState, contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 120.dp)) {
                     items(localOrder, key = { it.id }) { counter ->
                         // Riordino: tieni premuto sulla card (niente maniglie fisse). Il long
                         // press non litiga con lo swipe orizzontale (elimina/archivia, sulla
@@ -360,6 +395,7 @@ fun HomeScreen(
                                     onEdit = { editTarget = counter },
                                     onBell = { bellTarget = counter },
                                     onShare = { shareTarget = counter },
+                                    highlighted = counter.id == highlightId,
                                 )
                             }
                         }
@@ -740,6 +776,9 @@ fun HomeScreen(
                 TextButton(onClick = {
                     vm.resumeCounter(counter, keepHistory = tieniStorico, startMs = ripartiMs)
                     resumeTarget = null
+                    // Ripreso: si torna ai timer attivi e ci si posiziona su di lui (vedi highlightId).
+                    showArchive = false
+                    highlightId = counter.id
                 }) { Text("Riprendi") }
             },
             dismissButton = {
@@ -943,8 +982,33 @@ private fun CounterCard(
     onEdit: () -> Unit,
     onBell: () -> Unit,
     onShare: () -> Unit,
+    highlighted: Boolean = false,
 ) {
     val giornaliero = counter.mode == CounterMode.GIORNALIERO
+    // Cornice arancione che pulsa, con un alone che sfuma verso l'esterno: il timer appena
+    // ripreso dall'archivio, per trovarlo a colpo d'occhio. Disegnata dietro la card, così
+    // non sposta niente nel layout quando compare e scompare.
+    val glow = if (highlighted) {
+        val pulse by rememberInfiniteTransition(label = "evidenzia").animateFloat(
+            initialValue = 0.45f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(650), RepeatMode.Reverse),
+            label = "pulsazione",
+        )
+        Modifier.drawBehind {
+            val radius = 26.dp.toPx()
+            listOf(10.dp to 0.18f, 6.dp to 0.35f, 3.dp to 1f).forEach { (fuori, alpha) ->
+                val d = fuori.toPx()
+                drawRoundRect(
+                    color = HighlightOrange.copy(alpha = alpha * pulse),
+                    topLeft = Offset(-d, -d),
+                    size = Size(size.width + 2 * d, size.height + 2 * d),
+                    cornerRadius = CornerRadius(radius + d),
+                    style = Stroke(width = 3.dp.toPx()),
+                )
+            }
+        }
+    } else Modifier
     // Allineato al secondo del timer: anche il countdown campanella deriva da qui,
     // così i due conteggi scattano nello stesso istante (se scala uno scala l'altro)
     val elapsed = (now - counter.startMs).coerceAtLeast(0) / 1000 * 1000
@@ -991,6 +1055,7 @@ private fun CounterCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
+            .then(glow)
             // Doppio tap ovunque sulla card = restart con conferma (v20)
             .pointerInput(counter.id) {
                 detectTapGestures(onDoubleTap = { restartOra() })

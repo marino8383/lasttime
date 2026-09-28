@@ -25,6 +25,10 @@ val OnErrorContainer = Color(0xFFFFB84D)
 val ScheduledContainer = Color(0xFF16232E)
 val OnScheduledContainer = Color(0xFF7EC8FF)
 
+// Cornice del timer appena ripreso dall'archivio: arancione acceso, deve saltare all'occhio
+// su qualunque colore di card (normale, sforata, programmata).
+val HighlightOrange = Color(0xFFFF9A1F)
+
 // Underlay dello swipe sulle card (v23): destra = elimina, sinistra = archivia
 val SwipeDeleteBg = Color(0xFF3A1712)
 val SwipeDeleteFg = Color(0xFFF08A6B)

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -114,6 +115,11 @@ fun AdvancedRestartSheet(
         Column(
             Modifier
                 .fillMaxWidth()
+                // A tutta altezza da subito: se il foglio nasce alto quanto il contenuto e
+                // poi il contenuto cresce (la riga "il round verrà chiuso…", Data e ora),
+                // il foglio si allunga oltre il bordo invece di scorrere, e il pulsante
+                // Riparti finisce fuori schermo. Con l'altezza fissa scorre e basta.
+                .fillMaxHeight()
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
