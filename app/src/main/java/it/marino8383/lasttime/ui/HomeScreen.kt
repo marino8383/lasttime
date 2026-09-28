@@ -732,7 +732,7 @@ fun HomeScreen(
     archiveTarget?.let { counter ->
         AlertDialog(
             onDismissRequest = { archiveTarget = null },
-            title = { Text("📦 Archiviare il timer?") },
+            title = { Text("⏹ Fermare e archiviare il timer?") },
             text = {
                 Column {
                     Text(
@@ -755,7 +755,7 @@ fun HomeScreen(
                 TextButton(onClick = {
                     vm.archiveCounter(counter)
                     archiveTarget = null
-                }) { Text("Sì, archivia") }
+                }) { Text("Sì, ferma e archivia") }
             },
             dismissButton = {
                 TextButton(onClick = { archiveTarget = null }) { Text("No") }

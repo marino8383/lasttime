@@ -53,7 +53,7 @@ private val CardRadius = 26.dp
  * Card trascinabile in orizzontale (v23): swipe a destra = elimina (soglia, come
  * sempre). Swipe a sinistra: se [onSwipeHide] è null, si comporta come prima (soglia =
  * archivia); se non è null, si apre un cassetto con due riquadri, uno sopra l'altro —
- * [hideLabel] in alto e "Archivia" sotto — e si sceglie toccando quello voluto (v0.22:
+ * [hideLabel] in alto e "Ferma e archivia" sotto — e si sceglie toccando quello voluto (v0.22:
  * nascondere è troppo frequente e leggero per condividere lo stesso gesto-soglia di
  * archivia/elimina).
  *
@@ -159,7 +159,7 @@ fun SwipeableCard(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            "Archivia",
+                            "Ferma e archivia",
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = SwipeArchiveFg,
@@ -174,7 +174,7 @@ fun SwipeableCard(
                         .background(SwipeArchiveBg),
                 ) {
                     Text(
-                        "📦 Archivia",
+                        "⏹ Ferma e archivia",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = SwipeArchiveFg,
