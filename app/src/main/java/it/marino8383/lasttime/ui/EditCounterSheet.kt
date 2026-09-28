@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
@@ -93,6 +95,8 @@ fun EditCounterSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
+                // Con gli Stati (elenco, stato di partenza) la maschera supera lo schermo.
+                .verticalScroll(rememberScrollState())
         ) {
             SheetTitle(
                 title = if (counter == null) "Nuovo contatore" else "Modifica contatore",
@@ -124,7 +128,7 @@ fun EditCounterSheet(
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
-                        selected = !giornaliero,
+                        selected = mode == CounterMode.PRECISO,
                         onClick = { mode = CounterMode.PRECISO },
                         label = { Text("Al secondo") },
                     )
