@@ -194,9 +194,10 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                 // Segnato prima ancora di provare: se il tentativo fallisce (rete assente
                 // proprio ora) il prossimo giro di sync ritrova il contatore sul server e,
                 // vedendo questo segno, ritenta la rimozione invece di farlo rientrare.
+                // Il segno resta anche dopo: se un telefono vecchio (che non conosce la
+                // lapide) lo rimandasse su, qui lo si toglie di nuovo invece di ricrearlo.
                 AppSettings.addRemovedFromGroup(getApplication(), counter.uuid)
                 runCatching { Groups.remove(gruppo, counter.uuid) }
-                    .onSuccess { AppSettings.clearRemovedFromGroup(getApplication(), counter.uuid) }
             }
             db.counterDao().delete(counter) // i round seguono in cascata
             Notifications.cancel(getApplication(), counter.id)
@@ -677,6 +678,9 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     ) {
         viewModelScope.launch {
             try {
+                // Ricondividere un timer tolto in passato: il segno di rimozione va via,
+                // altrimenti il sync lo toglierebbe di nuovo appena lo vede sul server.
+                AppSettings.clearRemovedFromGroup(getApplication(), counter.uuid)
                 val gruppo = groupId ?: Groups.create(myName)
                 val codice = if (groupId == null) Groups.invite(gruppo) else null
                 AppSettings.addGroup(getApplication(), gruppo)
@@ -736,6 +740,9 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
     fun unshare(counter: Counter) {
         viewModelScope.launch {
             counter.sharedGroupId?.let { gruppo ->
+                // Come per l'eliminazione: senza il segno, un telefono vecchio che lo
+                // rimanda su lo farebbe riagganciare qui da solo.
+                AppSettings.addRemovedFromGroup(getApplication(), counter.uuid)
                 runCatching { Groups.remove(gruppo, counter.uuid) }
             }
             db.counterDao().save(counter.copy(sharedGroupId = null))

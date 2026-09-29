@@ -184,14 +184,30 @@ object SyncEngine {
         data ?: return
         val uuid = data["uuid"] as? String ?: return
 
+        // Lapide: qualcuno l'ha tolto dal gruppo (eliminato o non più condiviso). Qui la
+        // copia resta, autonoma; se non c'è, non la si crea. Va guardata per prima: la
+        // lapide scritta da questo stesso telefono torna indietro dal listener, e il
+        // ramo sotto la riscriverebbe all'infinito.
+        if (Groups.isTombstone(data)) {
+            val locale = app.db.counterDao().byUuid(uuid)
+            if (locale != null && locale.sharedGroupId == groupId) {
+                annota("${nowClock()} SGANCIATO ${locale.name}: tolto dal gruppo")
+                app.db.counterDao().updateRaw(locale.copy(sharedGroupId = null))
+                aligned.remove(uuid)
+                SyncWorker.refresh(app)
+            }
+            return
+        }
+
         // L'abbiamo tolto noi da questo telefono: se il server ce lo ripropone ancora,
         // vuol dire che la rimozione non era andata a buon fine (rete assente al momento).
         // Si ritenta la rimozione, non lo si fa rientrare con tanto di notifiche.
         if (AppSettings.removedFromGroup(app).contains(uuid)) {
             scope.launch {
                 try {
+                    // Rimessa la lapide. Il segno resta: se un telefono vecchio la
+                    // sovrascrivesse di nuovo col contatore, si ritenta ancora.
                     Groups.remove(groupId, uuid)
-                    AppSettings.clearRemovedFromGroup(app, uuid)
                     annota("${nowClock()} rimozione di $uuid ritentata con successo")
                 } catch (t: Throwable) {
                     Log.w(TAG, "ritentativo di rimozione di $uuid fallito", t)

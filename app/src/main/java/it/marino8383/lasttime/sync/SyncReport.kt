@@ -53,7 +53,7 @@ object SyncReport {
 
                 val remoti = db.collection("groups").document(groupId)
                     .collection("counters").get(Source.SERVER).await()
-                    .documents.associate { doc ->
+                    .documents.filter { !Groups.isTombstone(it.data) }.associate { doc ->
                         doc.id to (doc.getLong("updatedMs") ?: 0L)
                     }
 

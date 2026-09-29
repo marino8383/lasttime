@@ -129,9 +129,20 @@ object Groups {
      * la copia resta, con tutto il suo storico, e torna semplicemente autonoma.
      */
     suspend fun remove(groupId: String, uuid: String) {
+        // Una lapide, non una cancellazione: con il documento sparito, un telefono che in
+        // quel momento non ascoltava (app chiusa) al giro dopo vedeva "questo ce l'ho io e
+        // sul server manca" e lo rimandava su — e il timer eliminato tornava fuori a chi
+        // l'aveva eliminato. La lapide invece c'è, è più recente, e dice a tutti di
+        // sganciarsi (SyncEngine.applyRemote). I telefoni vecchi la ignorano: senza nome
+        // non la prendono per un contatore.
         db.collection("groups").document(groupId)
-            .collection("counters").document(uuid).delete().await()
+            .collection("counters").document(uuid)
+            .set(mapOf("uuid" to uuid, "removed" to true, "updatedMs" to System.currentTimeMillis()))
+            .await()
     }
+
+    /** Il documento di un contatore è una lapide: vedi [remove]. */
+    fun isTombstone(data: Map<String, Any?>?): Boolean = data?.get("removed") == true
 
     fun roundPayload(round: Round, counterUuid: String): Map<String, Any?> = mapOf(
         "uuid" to round.uuid,
