@@ -5,6 +5,9 @@ import android.content.Context
 import android.content.Intent
 import it.marino8383.lasttime.CounterActions
 import it.marino8383.lasttime.LastTimeApp
+import it.marino8383.lasttime.data.firstReminderAt
+import it.marino8383.lasttime.data.nextReminderAt
+import it.marino8383.lasttime.data.reminderEligible
 import it.marino8383.lasttime.data.saveLocal
 import it.marino8383.lasttime.sync.SyncEngine
 import kotlinx.coroutines.CoroutineScope
@@ -12,7 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Scatta all'orario della prima campanella in scadenza: notifica e ripianifica. */
+/** Scatta all'orario della prima campanella (o reset, o promemoria) in scadenza: notifica e ripianifica. */
 class BellReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -40,19 +43,23 @@ class BellReceiver : BroadcastReceiver() {
                 }
 
                 var due = dao.dueBellCounters(now)
+                var remind = dao.dueReminders(now)
 
                 // Se fra le scadenze c'è un timer condiviso, prima di disturbare qualcuno
                 // vale la pena chiedere: l'altro potrebbe averlo appena fatto ripartire e
                 // noi non saperlo ancora. È l'unico momento in cui una lettura di rete in
                 // più si ripaga — non un controllo periodico più fitto, ma una verifica
-                // proprio nell'istante in cui stiamo per suonare.
+                // proprio nell'istante in cui stiamo per suonare. Vale anche per i
+                // promemoria: ricordare una dose che l'altro ha già dato è peggio che tacere.
                 //
                 // Il timeout è corto di proposito: un receiver ha una finestra di pochi
                 // secondi, e senza rete deve suonare comunque come ha sempre fatto.
-                if (due.any { it.sharedGroupId != null }) {
+                if ((due + remind).any { it.sharedGroupId != null }) {
                     withTimeoutOrNull(4_000) { SyncEngine.syncOnce(app) }
                     // rilette dopo l'allineamento: quelle rifasate non sono più in scadenza
-                    due = dao.dueBellCounters(System.currentTimeMillis())
+                    val adesso = System.currentTimeMillis()
+                    due = dao.dueBellCounters(adesso)
+                    remind = dao.dueReminders(adesso)
                 }
 
                 due.forEach { counter ->
@@ -63,7 +70,37 @@ class BellReceiver : BroadcastReceiver() {
                     // rinvio consumato; la scadenza suonata resta in nextBellAtMs
                     // (serve per "mantieni il ritmo" e per mostrare "sforata da X")
                     val snooze = counter.snoozeUntilMs?.takeIf { it > now }
-                    dao.saveLocal(counter.copy(bellNotified = true, snoozeUntilMs = snooze))
+                    // Suonata e senza risposta: si arma il promemoria. Parte dal momento in
+                    // cui doveva suonare — la scadenza, o la fine del rinvio se è un rinvio che
+                    // scade — e riparte da capo a ogni squillo (anche dopo un "Rimanda").
+                    val dovevaSuonare = (if (counter.bellNotified) counter.snoozeUntilMs else counter.nextBellAtMs) ?: now
+                    val step = counter.bellMinutes?.times(60_000)
+                    val armato = if (counter.reminderEligible() && step != null) {
+                        counter.copy(remindAtMs = firstReminderAt(dovevaSuonare, now, step), remindCount = 0)
+                    } else {
+                        counter.copy(remindAtMs = null, remindCount = 0)
+                    }
+                    dao.saveLocal(armato.copy(bellNotified = true, snoozeUntilMs = snooze))
+                }
+
+                // Promemoria: la campanella è suonata, nessuno ha risposto. Dicitura a parte,
+                // così non si scambia per una campanella nuova.
+                remind.forEach { counter ->
+                    val adesso = System.currentTimeMillis()
+                    val step = counter.bellMinutes?.times(60_000)
+                    val previsto = counter.remindAtMs
+                    if (!counter.reminderEligible() || step == null || previsto == null) {
+                        dao.saveLocal(counter.copy(remindAtMs = null, remindCount = 0))
+                        return@forEach
+                    }
+                    val mandati = counter.remindCount + 1
+                    if (!counter.hidden) Notifications.notifyReminder(context, counter, mandati, adesso)
+                    dao.saveLocal(
+                        counter.copy(
+                            remindCount = mandati,
+                            remindAtMs = nextReminderAt(previsto, adesso, mandati, step),
+                        )
+                    )
                 }
                 AlarmScheduler.scheduleNext(context)
             } finally {

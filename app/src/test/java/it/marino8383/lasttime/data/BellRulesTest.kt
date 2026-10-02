@@ -224,6 +224,77 @@ class BellRulesTest {
         assertEquals(at(2026, 1, 20, 14, 19), giornaliero().copy(roundMinutes = 15).doneTargetMs(at(2026, 1, 20, 14, 19)))
     }
 
+    @Test
+    fun avvioArrotondato_ilTondoPiuVicino() {
+        // senza arrotondamento: l'istante preciso
+        assertEquals(at(2026, 9, 28, 14, 2), startTargetMs(at(2026, 9, 28, 14, 2), null))
+        // 5′: 14:02 → 14:00 (passato, parte da lì); 14:03 → 14:05 (futuro, resta da partire)
+        assertEquals(at(2026, 9, 28, 14, 0), startTargetMs(at(2026, 9, 28, 14, 2), 5))
+        assertEquals(at(2026, 9, 28, 14, 5), startTargetMs(at(2026, 9, 28, 14, 3), 5))
+        // a metà esatta vince quello dopo, come per il Fatto
+        assertEquals(at(2026, 9, 28, 14, 5), startTargetMs(at(2026, 9, 28, 14, 2) + 30_000, 5))
+        // gli altri arrotondamenti
+        assertEquals(at(2026, 9, 28, 14, 15), startTargetMs(at(2026, 9, 28, 14, 19), 15))
+        assertEquals(at(2026, 9, 28, 14, 30), startTargetMs(at(2026, 9, 28, 14, 23), 15))
+        assertEquals(at(2026, 9, 28, 15, 0), startTargetMs(at(2026, 9, 28, 14, 31), 60))
+        // già tondo: resta com'è
+        assertEquals(at(2026, 9, 28, 14, 0), startTargetMs(at(2026, 9, 28, 14, 0), 15))
+    }
+
+    @Test
+    fun avvioArrotondato_nonScendeSottoIlLimite() {
+        // Riprendi alle 14:19 un timer archiviato alle 14:17: il 14:15 si accavallerebbe
+        assertEquals(
+            at(2026, 9, 28, 14, 30),
+            startTargetMs(at(2026, 9, 28, 14, 19), 15, notBefore = at(2026, 9, 28, 14, 17)),
+        )
+    }
+
+    // ------------------------------------------------------------ promemoria
+
+    private val p45 = 45 * min
+
+    @Test
+    fun promemoria_dopoIlDoppio_poiTriploEQuadruplo() {
+        val due = at(2026, 9, 28, 10, 0)
+        // la campanella suona (qualche secondo dopo la scadenza): primo promemoria dopo 90′
+        val r1 = firstReminderAt(due, due + 2_000, p45)
+        assertEquals(at(2026, 9, 28, 11, 30), r1)
+        // mandato il primo: il successivo dopo altri 135′ (3P)
+        val r2 = nextReminderAt(r1, r1 + 1_000, 1, p45)
+        assertEquals(at(2026, 9, 28, 13, 45), r2)
+        // poi 180′ (4P)
+        assertEquals(at(2026, 9, 28, 16, 45), nextReminderAt(r2!!, r2 + 1_000, 2, p45))
+    }
+
+    @Test
+    fun promemoria_siFermaAlMassimo() {
+        val t = at(2026, 9, 28, 10, 0)
+        assertEquals(null, nextReminderAt(t, t, MAX_REMINDERS, p45))
+        assertTrue(nextReminderAt(t, t, MAX_REMINDERS - 1, p45) != null)
+    }
+
+    @Test
+    fun promemoria_telefonoInRitardo_nonSuonaSubito() {
+        // la campanella delle 10:00 viene processata alle 15:00 (telefono spento): il primo
+        // promemoria non è un passato già scaduto, cade un periodo dopo adesso
+        val due = at(2026, 9, 28, 10, 0)
+        val adesso = at(2026, 9, 28, 15, 0)
+        assertEquals(adesso + p45, firstReminderAt(due, adesso, p45))
+        // e anche il successivo, se il promemoria è stato processato molto dopo il previsto
+        val previsto = at(2026, 9, 28, 11, 30)
+        assertTrue(nextReminderAt(previsto, adesso, 1, p45)!! > adesso)
+    }
+
+    @Test
+    fun promemoria_soloPerPrecisiConCampanellaAccesa() {
+        val c = tachipirina()
+        assertTrue(c.reminderEligible())
+        assertFalse(c.copy(bellEnabled = false).reminderEligible())
+        assertFalse(c.copy(bellMinutes = null).reminderEligible())
+        assertFalse(giornaliero().reminderEligible())
+    }
+
     // ------------------------------------------------------------ loggedDaily (+1 Giornaliero)
 
     @Test

@@ -45,6 +45,7 @@ import it.marino8383.lasttime.data.STATE_PRESETS
 import it.marino8383.lasttime.data.joinStates
 import it.marino8383.lasttime.data.parseStates
 import it.marino8383.lasttime.data.roundNearestMs
+import it.marino8383.lasttime.data.startTargetMs
 import it.marino8383.lasttime.formatClock
 import java.time.Instant
 import java.time.ZoneId
@@ -313,8 +314,16 @@ fun EditCounterSheet(
                     val ora = System.currentTimeMillis()
                     val tondo = roundNearestMs(ora, step)
                     Spacer(Modifier.height(6.dp))
+                    // Su un timer nuovo vale anche per l'avvio, se non si sceglie un orario col quick pick.
+                    val avvio = counter == null && startNow && pickedMs == null
                     Text(
-                        "Il Fatto vale all'orario tondo più vicino: toccato adesso vale " +
+                        (if (avvio) {
+                            "Anche l'avvio: adesso partirebbe alle ${formatClock(tondo)}" +
+                                (if (tondo > ora) ", e fino ad allora resta in attesa. " else ". ")
+                        } else {
+                            ""
+                        }) +
+                            "Il Fatto vale all'orario tondo più vicino: toccato adesso vale " +
                             "${formatClock(tondo)}" +
                             (if (tondo > ora) ", e fino ad allora il timer continua: riparte da solo a quell'ora." else "."),
                         fontSize = 11.5.sp,
@@ -328,12 +337,22 @@ fun EditCounterSheet(
                 enabled = name.isNotBlank() && (!stati || statesList.isNotEmpty()),
                 onClick = {
                     val nowMs = System.currentTimeMillis()
-                    val chosen = if (startNow) pickedMs ?: nowMs else startMs
+                    val picked = pickedMs
+                    // "Adesso" non scelto col quick pick, su un timer nuovo che arrotonda: parte
+                    // al tondo più vicino come il Fatto (14:02 → 14:00; 14:03 → 14:05, e fino ad
+                    // allora resta "da partire").
+                    val arrotondato = if (counter == null && startNow && picked == null && mode == CounterMode.PRECISO) {
+                        startTargetMs(nowMs, roundMinutes)
+                    } else {
+                        null
+                    }
+                    val chosen = if (startNow) picked ?: arrotondato ?: nowMs else startMs
                     if (!startNow && chosen > nowMs) {
                         Toast.makeText(context, "⚠️ Data nel futuro: riparto da adesso", Toast.LENGTH_SHORT).show()
                     }
-                    // Il futuro vale solo se scelto col quick pick: parte più tardi, da solo.
-                    val start = if (startNow && pickedMs != null) chosen else chosen.coerceAtMost(nowMs)
+                    // Il futuro vale solo se scelto col quick pick o per arrotondamento: parte
+                    // più tardi, da solo.
+                    val start = if (startNow && (picked != null || arrotondato != null)) chosen else chosen.coerceAtMost(nowMs)
                     onSave(name, start, mode, roundMinutes, joinStates(statesList), initial)
                 },
                 modifier = Modifier.fillMaxWidth(),

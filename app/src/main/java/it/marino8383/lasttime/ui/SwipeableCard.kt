@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
@@ -98,6 +99,14 @@ fun SwipeableCard(
     fun animaA(target: Float) {
         scope.launch { offsetX.animateTo(target, tween(180)) }
     }
+
+    // pointerInput riparte solo quando cambia la chiave (qui due booleani): senza questi, il
+    // gesto continuerebbe a chiamare le lambda della PRIMA composizione, cioe' a consegnare il
+    // timer com'era allora. Era la causa del timer condiviso "eliminato" che tornava: se era
+    // stato condiviso dopo che la card era a schermo, l'eliminazione lo vedeva ancora non
+    // condiviso, lo toglieva solo da questo telefono e lasciava vivo il suo documento nel gruppo.
+    val eliminaOra by rememberUpdatedState(onSwipeDelete)
+    val archiviaOra by rememberUpdatedState(onSwipeArchive)
 
     Box(
         modifier
@@ -201,13 +210,13 @@ fun SwipeableCard(
                             when {
                                 settled > thresholdRightPx -> {
                                     animaA(0f)
-                                    onSwipeDelete()
+                                    eliminaOra()
                                 }
                                 dueRiquadri && settled < -openTriggerPx -> animaA(-cardWidthPx)
                                 dueRiquadri -> animaA(0f)
-                                onSwipeArchive != null && settled < -thresholdRightPx -> {
+                                archiviaOra != null && settled < -thresholdRightPx -> {
                                     animaA(0f)
-                                    onSwipeArchive.invoke()
+                                    archiviaOra?.invoke()
                                 }
                                 else -> animaA(0f)
                             }

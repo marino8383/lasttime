@@ -15,6 +15,8 @@ import it.marino8383.lasttime.R
 import it.marino8383.lasttime.bellLabel
 import it.marino8383.lasttime.data.Counter
 import it.marino8383.lasttime.data.CounterMode
+import it.marino8383.lasttime.data.MAX_REMINDERS
+import it.marino8383.lasttime.formatDurationTwoParts
 
 object Notifications {
     // _v2: i canali creati in v0.3 erano senza vibrazione/suono espliciti e le
@@ -138,6 +140,33 @@ object Notifications {
     }
 
     fun notifyBell(context: Context, counter: Counter) {
+        // Per i lucchettati: notifica anonima, nessun nome nel payload (v26)
+        val secret = counter.secret
+        postBell(
+            context, counter,
+            title = if (secret) "🔔 Un timer lucchettato" else "🔔 ${counter.name}",
+            text = if (secret) "Tempo sforato!" else "Tempo sforato: oltre ${bellLabel(counter.bellMinutes ?: 0)}",
+        )
+    }
+
+    /**
+     * Promemoria di una campanella suonata e rimasta senza risposta (il [numero]-esimo, vedi
+     * BellRules.firstReminderAt). Dicitura a parte — "Promemoria", da quanto è sforata, che
+     * promemoria è — così non si scambia per una campanella nuova; stesse azioni, stesso id:
+     * sostituisce la notifica precedente invece di impilarsi.
+     */
+    fun notifyReminder(context: Context, counter: Counter, numero: Int, nowMs: Long) {
+        val secret = counter.secret
+        val sforata = formatDurationTwoParts(((nowMs - (counter.nextBellAtMs ?: nowMs))).coerceAtLeast(0))
+        postBell(
+            context, counter,
+            title = if (secret) "⏰ Promemoria: un timer lucchettato" else "⏰ Promemoria: ${counter.name}",
+            text = if (secret) "Ancora senza risposta (promemoria $numero di $MAX_REMINDERS)."
+            else "Ancora senza risposta: sforata da $sforata (promemoria $numero di $MAX_REMINDERS).",
+        )
+    }
+
+    private fun postBell(context: Context, counter: Counter, title: String, text: String) {
         if (AppSettings.doNotDisturb(context)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -149,12 +178,7 @@ object Notifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        // Per i lucchettati: notifica anonima, nessun nome nel payload (v26)
-        val secret = counter.secret
-        val channel = if (secret) CHANNEL_SECRET else CHANNEL_BELL
-        val title = if (secret) "🔔 Un timer lucchettato" else "🔔 ${counter.name}"
-        val text = if (secret) "Tempo sforato!"
-        else "Tempo sforato: oltre ${bellLabel(counter.bellMinutes ?: 0)}"
+        val channel = if (counter.secret) CHANNEL_SECRET else CHANNEL_BELL
 
         val notification = Notification.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)

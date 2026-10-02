@@ -190,6 +190,38 @@ fun Counter.restartedWithChoice(now: Long, choice: LateBellChoice): Counter {
     }
 }
 
+// ---------------------------------------------------------------- promemoria
+
+/** Quanti promemoria al massimo per una campanella rimasta senza risposta. */
+const val MAX_REMINDERS = 6
+
+/**
+ * Hanno promemoria i timer al secondo con una campanella a minuti accesa: una Giornaliera ha
+ * un periodo in giorni (il "doppio del suo tempo" sarebbe settimane) e un Stato non suona.
+ * Spenta ("Scarta") = nessun promemoria: spegnerla vuol dire "non scocciarmi".
+ */
+fun Counter.reminderEligible(): Boolean =
+    mode == CounterMode.PRECISO && bellMinutes != null && bellEnabled
+
+/**
+ * Quando suona il primo promemoria di una campanella suonata e ignorata: il **doppio del suo
+ * periodo** dopo che doveva suonare ([dueMs]) — 45′ → 90′. Se il telefono l'ha fatta suonare
+ * in ritardo di oltre un periodo (spento, in Doze) si parte da lì: il promemoria cade sempre
+ * almeno un periodo dopo [now], mai subito a ridosso della campanella.
+ */
+fun firstReminderAt(dueMs: Long, now: Long, stepMs: Long): Long =
+    maxOf(dueMs, now - stepMs) + 2 * stepMs
+
+/**
+ * Dopo che è stato mandato il promemoria numero [sent] (previsto per [scheduledAt]) quando
+ * suona il successivo: ogni volta un periodo di attesa in più, a partire dal promemoria
+ * appena fatto — 2P dalla campanella, poi 3P, poi 4P… Con P = 45′: 90′, +135′, +180′.
+ * Null dopo l'ultimo ([MAX_REMINDERS]): un timer ignorato per giorni è abbandonato, non
+ * dimenticato.
+ */
+fun nextReminderAt(scheduledAt: Long, now: Long, sent: Int, stepMs: Long): Long? =
+    if (sent >= MAX_REMINDERS) null else maxOf(scheduledAt, now - stepMs) + (sent + 2) * stepMs
+
 // ---------------------------------------------------------------- orari tondi
 
 /** Arrotondamenti proposti: in creazione (quick pick) e per il Fatto (Counter.roundMinutes). */
@@ -237,6 +269,20 @@ fun Counter.doneTargetMs(now: Long): Long {
     val step = roundMinutes?.takeIf { it > 0 && mode != CounterMode.GIORNALIERO } ?: return now
     val nearest = roundNearestMs(now, step)
     return if (nearest < startMs) roundCeilMs(now, step) else nearest
+}
+
+/**
+ * Quando parte un timer fatto partire "adesso" a [now]: l'istante preciso, oppure — se il
+ * timer arrotonda ([roundMinutes]) — l'orario tondo più vicino, come per il Fatto
+ * ([doneTargetMs]). Con 5′: alle 14:02 parte alle 14:00; alle 14:03 parte alle 14:05, cioè
+ * resta "da partire" fino a quell'ora. [notBefore] è il limite sotto cui non si scende (per
+ * "Riprendi": l'archiviazione): un tondo più vecchio si accavallerebbe all'ultimo round chiuso,
+ * e allora si prende quello dopo. Vale per i Precisi: chi chiama non lo usa sugli altri.
+ */
+fun startTargetMs(now: Long, roundMinutes: Int?, notBefore: Long = 0): Long {
+    val step = roundMinutes?.takeIf { it > 0 } ?: return now
+    val nearest = roundNearestMs(now, step)
+    return if (nearest < notBefore) roundCeilMs(now, step) else nearest
 }
 
 /**

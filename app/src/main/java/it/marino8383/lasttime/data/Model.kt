@@ -129,6 +129,15 @@ data class Counter(
     val currentState: String? = null,
     /** Nota dell'intervallo in corso ("febbre"): finisce nel round quando si chiude. */
     val currentNote: String? = null,
+    /**
+     * Quando suona il prossimo promemoria di una campanella suonata e rimasta senza risposta
+     * (locale, non sincronizzato: ogni telefono si ricorda per conto suo). Null = nessuno.
+     * Si arma quando la campanella suona e si ignora da solo se il giro riparte, la campanella
+     * si spegne o si rimanda: vedi firstReminderAt/nextReminderAt in BellRules.
+     */
+    val remindAtMs: Long? = null,
+    /** Promemoria già mandati per la campanella in corso (locale). */
+    val remindCount: Int = 0,
 )
 
 @Entity(
@@ -206,6 +215,23 @@ interface CounterDao {
             "OR (bellNotified = 1 AND snoozeUntilMs IS NOT NULL AND snoozeUntilMs <= :now))"
     )
     suspend fun dueBellCounters(now: Long): List<Counter>
+
+    /**
+     * Prossimo promemoria di campanelle suonate e ignorate. Sospesi mentre c'è un rinvio in
+     * corso (snoozeUntilMs): quando il rinvio suona, la campanella riarma da sé il giro.
+     */
+    @Query(
+        "SELECT MIN(remindAtMs) FROM counters WHERE archived = 0 AND bellEnabled = 1 " +
+            "AND bellNotified = 1 AND snoozeUntilMs IS NULL AND remindAtMs IS NOT NULL"
+    )
+    suspend fun nextReminder(): Long?
+
+    @Query(
+        "SELECT * FROM counters WHERE archived = 0 AND bellEnabled = 1 " +
+            "AND bellNotified = 1 AND snoozeUntilMs IS NULL " +
+            "AND remindAtMs IS NOT NULL AND remindAtMs <= :now"
+    )
+    suspend fun dueReminders(now: Long): List<Counter>
 
     @Query("SELECT * FROM counters WHERE id = :id")
     suspend fun byId(id: Long): Counter?
@@ -385,7 +411,7 @@ data class RoundSummary(
 /** Quante volte oggi per un contatore (vedi [RoundDao.todayCounts]). */
 data class CounterDayCount(val counterId: Long, val n: Int)
 
-@Database(entities = [Counter::class, Round::class], version = 18, exportSchema = false)
+@Database(entities = [Counter::class, Round::class], version = 19, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun counterDao(): CounterDao
     abstract fun roundDao(): RoundDao
@@ -529,5 +555,13 @@ val MIGRATION_17_18 = object : Migration(17, 18) {
         db.execSQL("ALTER TABLE counters ADD COLUMN currentNote TEXT")
         db.execSQL("ALTER TABLE rounds ADD COLUMN state TEXT")
         db.execSQL("ALTER TABLE rounds ADD COLUMN note TEXT")
+    }
+}
+
+/** Promemoria di una campanella ignorata: vedi [Counter.remindAtMs]. Solo locale. */
+val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE counters ADD COLUMN remindAtMs INTEGER")
+        db.execSQL("ALTER TABLE counters ADD COLUMN remindCount INTEGER NOT NULL DEFAULT 0")
     }
 }

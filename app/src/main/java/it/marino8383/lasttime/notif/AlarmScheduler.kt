@@ -26,7 +26,8 @@ object AlarmScheduler {
         val app = context.applicationContext as LastTimeApp
         val bell = app.db.counterDao().nextBellDeadline()
         val reset = app.db.counterDao().nextScheduledReset()
-        val next = listOfNotNull(bell, reset).minOrNull()
+        val reminder = app.db.counterDao().nextReminder()
+        val next = listOfNotNull(bell, reset, reminder).minOrNull()
         val am = context.getSystemService(AlarmManager::class.java)
         val pi = pendingIntent(context)
         am.cancel(pi)

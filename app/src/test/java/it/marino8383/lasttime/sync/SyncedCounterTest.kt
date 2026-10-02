@@ -55,7 +55,7 @@ class SyncedCounterTest {
     @Test
     fun leSceltelocaliNonViaggiano() {
         val chiavi = SyncedCounter.payload(mio).keys
-        for (locale in listOf("bellEnabled", "bellNotified", "snoozeUntilMs", "viewMode", "hidden", "sortOrder", "notifyOnRemote", "sharedGroupId")) {
+        for (locale in listOf("bellEnabled", "bellNotified", "snoozeUntilMs", "viewMode", "hidden", "sortOrder", "notifyOnRemote", "sharedGroupId", "remindAtMs", "remindCount")) {
             assertFalse("$locale è locale, non deve andare al gruppo", locale in chiavi)
         }
     }

@@ -17,6 +17,7 @@ import it.marino8383.lasttime.data.loggedDaily
 import it.marino8383.lasttime.data.noonOf
 import it.marino8383.lasttime.data.save
 import it.marino8383.lasttime.data.saveLocal
+import it.marino8383.lasttime.data.startTargetMs
 import it.marino8383.lasttime.notif.AlarmScheduler
 import it.marino8383.lasttime.notif.Notifications
 import it.marino8383.lasttime.sync.Cloud
@@ -190,13 +191,21 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun deleteCounter(counter: Counter) {
         viewModelScope.launch {
+            // Si rilegge dal database: chi chiama puo' avere in mano una copia vecchia (la
+            // card dello swipe la teneva dalla prima composizione), e se in quella copia il
+            // timer risulta non condiviso mentre ormai lo e', la rimozione dal gruppo
+            // verrebbe saltata e il timer rientrerebbe al giro di sync dopo.
+            val counter = db.counterDao().byId(counter.id) ?: counter
+            // Il segno si mette sempre, anche se qui non risulta condiviso: costa un uuid, e
+            // copre il caso di un timer sganciato in locale il cui documento nel gruppo e'
+            // ancora vivo (altrimenti il sync lo ricreerebbe da zero).
+            AppSettings.addRemovedFromGroup(getApplication(), counter.uuid)
             counter.sharedGroupId?.let { gruppo ->
                 // Segnato prima ancora di provare: se il tentativo fallisce (rete assente
                 // proprio ora) il prossimo giro di sync ritrova il contatore sul server e,
                 // vedendo questo segno, ritenta la rimozione invece di farlo rientrare.
                 // Il segno resta anche dopo: se un telefono vecchio (che non conosce la
                 // lapide) lo rimandasse su, qui lo si toglie di nuovo invece di ricrearlo.
-                AppSettings.addRemovedFromGroup(getApplication(), counter.uuid)
                 runCatching { Groups.remove(gruppo, counter.uuid) }
             }
             db.counterDao().delete(counter) // i round seguono in cascata
@@ -234,10 +243,16 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
             // Orario scelto col quick pick (Precisi soltanto): un tondo nel passato, o nel
             // futuro — e allora resta "da partire" fino a quell'ora, come un timer nuovo.
             // Mai prima dell'archiviazione: si accavallerebbe all'ultimo round chiuso.
+            // Senza orario scelto, un timer che arrotonda riparte al tondo più vicino (come
+            // all'avvio di uno nuovo e come il Fatto): 14:03 con 5′ → 14:05, "da partire".
             val start = startMs
                 ?.takeIf { counter.mode == CounterMode.PRECISO }
                 ?.coerceAtLeast(counter.archivedMs ?: 0)
-                ?: now
+                ?: if (counter.mode == CounterMode.PRECISO) {
+                    startTargetMs(now, counter.roundMinutes, notBefore = counter.archivedMs ?: 0)
+                } else {
+                    now
+                }
             db.counterDao().save(
                 counter.copy(
                     archived = false,
@@ -615,6 +630,10 @@ class CountersViewModel(app: Application) : AndroidViewModel(app) {
                     bellNotified = true,
                     bellEnabled = true, // il rinvio deve poter suonare anche se la singola si era spenta
                     snoozeUntilMs = System.currentTimeMillis() + snoozeMinutes * 60_000,
+                    // Hai risposto: il giro di promemoria finisce; quando il rinvio suona,
+                    // la campanella lo riarma da capo (vedi BellReceiver).
+                    remindAtMs = null,
+                    remindCount = 0,
                 )
             )
             Notifications.cancel(getApplication(), counter.id)

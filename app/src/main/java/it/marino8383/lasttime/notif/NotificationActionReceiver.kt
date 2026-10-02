@@ -29,7 +29,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     when (action) {
                         // Scarta: il contatore continua, la campanella si spegne (🔕 sulla card)
                         Notifications.ACTION_DISMISS ->
-                            dao.saveLocal(counter.copy(bellEnabled = false, snoozeUntilMs = null))
+                            dao.saveLocal(
+                                counter.copy(bellEnabled = false, snoozeUntilMs = null, remindAtMs = null, remindCount = 0)
+                            )
 
                         // Fatto: stessa strada del ↺ sulla card (CounterActions), così
                         // l'ultimo round resta correggibile e i Giornalieri fanno il loro +1.
